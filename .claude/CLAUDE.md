@@ -63,4 +63,4 @@ npx playwright test          # against local dev
 
 ## Migration State
 
-This project was scaffolded on **2026-04-23** by extracting the playground from the portfolio repo. Migration of code + assets is **pending** — see `.claude/project-memory.md` § "Migration Plan".
+Migration from the portfolio repo is **complete** (2026-04-24). Phases 1–4 done. Portfolio cleanup committed (`22fd4a5`). See `.claude/project-memory.md` § "Migration Plan" for full history.

@@ -169,45 +169,29 @@ git push origin main
 
 ---
 
-## Migration Plan (pending)
+## Migration Plan — ✅ COMPLETE
 
-The scaffold is in place. Remaining work to bring the playground online:
+All phases completed on **2026-04-24**.
 
-### Phase 1 — Code & asset migration
-1. **Copy components** from `portfolio/components/playground/` → `architecture-playground/components/playground/` (verbatim — no logic changes)
-2. **Copy `app/playground/PlaygroundClient.tsx`** → `architecture-playground/app/PlaygroundClient.tsx`
-3. **Replace** `architecture-playground/app/page.tsx` placeholder with the real implementation from `portfolio/app/playground/page.tsx`
-4. **Copy `e2e/playground.spec.ts`** → `architecture-playground/e2e/playground.spec.ts` (update base URL)
-5. **Copy `content/cloud-icons.json` source script + content** — actually only the SVGs in `public/cloud-icons/` are checked in; `content/cloud-icons.json` is regenerated
-6. **Copy `public/cloud-icons/`** (the SVG asset library) and `public/playground/gif-encoder.worker.js` if it's hand-written (else regenerated)
-7. **Copy `content/playground-templates/*.json`**
-8. **Copy `scripts/build-cloud-icon-manifest.mjs`, `scripts/bundle-gifenc-worker.mjs`, `scripts/postbuild.mjs`, `scripts/test-playground.mjs`** (and any other playground-only scripts)
-9. **Copy `playwright.config.ts`** and tweak for the new project
+### Phase 1 — Code & asset migration ✅
+Migrated 19 components, 107 SVG icons, 4 templates, 4 scripts, e2e spec, playwright config from portfolio. Adjusted route `/playground` → `/`, fixed ESLint config, React 19 ref-during-render, postbuild cleanup.
 
-### Phase 2 — Local validation
-1. `npm install`
-2. `npm run build:icon-manifest`
-3. `npm run dev` → verify at `http://localhost:3000`
-4. `NEXT_TURBOPACK=0 npx next build` must pass
-5. `npx playwright test` must pass
+### Phase 2 — Local validation ✅
+Lint clean, `next build` passes, 12/12 unit tests pass, localhost verified.
 
-### Phase 3 — Repo + infra
-1. Create GitHub repo `sauravraghuvanshi/architecture-playground` (public)
-2. `git init` + first commit + push
-3. Provision Azure App Service `architecture-playground` (commands above)
-4. Set app settings + GitHub secrets
-5. Push → watch deploy → smoke test live
+### Phase 3 — Repo + infra ✅
+- GitHub repo: [`sauravraghuvanshi/architecture-playground`](https://github.com/sauravraghuvanshi/architecture-playground)
+- Azure: `rg-architecture-playground` → `asp-architecture-playground` → `architecture-playground` (Central India, F1 Free)
+- CI/CD green, live at https://architecture-playground.azurewebsites.net
 
-### Phase 4 — Portfolio cleanup
-1. In `portfolio` repo, **remove** `app/playground/`, `components/playground/`, `public/cloud-icons/`, `public/playground/`, `content/playground-templates/`, `content/cloud-icons.json`, `scripts/build-cloud-icon-manifest.mjs`, `scripts/bundle-gifenc-worker.mjs`, `scripts/test-playground.mjs`, `e2e/playground.spec.ts`
-2. **Trim `package.json` deps** that are now playground-only: `@xyflow/react`, `gifenc`, `html-to-image` (verify nothing else uses them first via `grep`)
-3. **Update `prebuild` script** in `portfolio/package.json` — remove `build-cloud-icon-manifest.mjs` and `bundle-gifenc-worker.mjs` calls
-4. **Update `components/layout/Navigation.tsx`** — change the `/playground` internal link to an external link to `https://architecture-playground.azurewebsites.net` (open in new tab, with appropriate `rel="noopener noreferrer"`)
-5. **Update `app/sitemap.ts`** — remove `/playground` route
-6. **Update portfolio `README.md`** + `.claude/project-memory.md` to reflect the externalization
-7. Build + verify portfolio + push → live verify
+### Phase 4 — Portfolio cleanup ✅
+- Removed all playground code, assets, deps from portfolio (commit `22fd4a5`)
+- Navigation link → external URL (new tab)
+- `prebuild` / `sitemap` updated
+- Portfolio build passes, pushed to `main`
+- Portfolio `.claude/project-memory.md` updated with Architecture Playground context
 
-### Phase 5 — Polish (post-launch)
+### Phase 5 — Polish (post-launch, future)
 1. Add OG image + JSON-LD `WebApplication` schema
 2. Wire optional Application Insights (opt-in via env var)
 3. Add a custom domain if desired (planned: `play.saurav.dev` or similar — TBD)
