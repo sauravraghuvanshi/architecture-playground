@@ -1,0 +1,50 @@
+name: Deploy to Azure
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SITE_URL: https://architecture-playground.azurewebsites.net
+
+      - name: Create deploy zip
+        run: cd .next/standalone && zip -r ../../deploy.zip . -x "node_modules/.cache/*"
+
+      - name: Deploy to Azure
+        env:
+          DEPLOY_USER: ${{ secrets.AZURE_DEPLOY_USER }}
+          DEPLOY_PASS: ${{ secrets.AZURE_DEPLOY_PASSWORD }}
+        run: |
+          curl -s -o /dev/null -w "%{http_code}" \
+            -X POST \
+            -u "${DEPLOY_USER}:${DEPLOY_PASS}" \
+            --data-binary @deploy.zip \
+            -H "Content-Type: application/zip" \
+            "https://architecture-playground.scm.azurewebsites.net/api/zipdeploy?isAsync=true"
+
+      - name: Verify deployment
+        run: |
+          echo "Waiting 30s for app restart..."
+          sleep 30
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://architecture-playground.azurewebsites.net/)
+          echo "HTTP status: $STATUS"
+          if [ "$STATUS" -ne 200 ]; then
+            echo "::warning::Deployment may not be healthy (HTTP $STATUS)"
+          fi
