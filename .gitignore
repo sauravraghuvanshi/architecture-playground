@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+
+# Testing
+coverage/
+playwright-report/
+test-results/
+
+# Next.js
+.next/
+out/
+build/
+
+# Standalone deploy artifact
+*.zip
+
+# Misc
+.DS_Store
+*.pem
+.vscode/
+.idea/
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Env files
+.env
+.env.local
+.env*.local
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Generated icon manifest (rebuilt on prebuild)
+content/cloud-icons.json
+
+# Generated worker bundle (rebuilt on prebuild)
+public/playground/gifenc.bundle.js
+
+# Claude / Copilot session state — keep architecture docs but ignore session artifacts
+.claude/sessions/
+.claude/skills/.cache/

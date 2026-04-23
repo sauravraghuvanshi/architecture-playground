@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Synapse">
+  <defs>
+    <linearGradient id="bg-azure-SYN" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0078D4"/>
+      <stop offset="100%" stop-color="#005a9e"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="10" fill="url(#bg-azure-SYN)"/>
+  <g opacity="0.18" color="#ffffff"><ellipse cx="32" cy="18" rx="16" ry="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 18 v22 a16 4 0 0 0 32 0 v-22 M16 28 a16 4 0 0 0 32 0" fill="none" stroke="currentColor" stroke-width="2"/></g>
+  <text x="32" y="38" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif" font-weight="700" font-size="18" fill="#ffffff">SYN</text>
+</svg>

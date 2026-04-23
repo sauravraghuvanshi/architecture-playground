@@ -1,0 +1,21 @@
+{
+  "id": "serverless-aws",
+  "name": "Serverless on AWS",
+  "description": "API Gateway → Lambda → DynamoDB + S3, secured with IAM.",
+  "cloud": "aws",
+  "graph": {
+    "nodes": [
+      { "id": "agw", "type": "service", "position": { "x": 40, "y": 200 }, "data": { "iconId": "aws/networking/api-gateway", "label": "API Gateway", "cloud": "aws" } },
+      { "id": "lambda", "type": "service", "position": { "x": 260, "y": 200 }, "data": { "iconId": "aws/compute/lambda", "label": "Lambda", "cloud": "aws" } },
+      { "id": "ddb", "type": "service", "position": { "x": 480, "y": 100 }, "data": { "iconId": "aws/database/dynamodb", "label": "DynamoDB", "cloud": "aws" } },
+      { "id": "s3", "type": "service", "position": { "x": 480, "y": 320 }, "data": { "iconId": "aws/storage/s3", "label": "S3", "cloud": "aws" } },
+      { "id": "iam", "type": "service", "position": { "x": 260, "y": 30 }, "data": { "iconId": "aws/identity/iam", "label": "IAM", "cloud": "aws" } }
+    ],
+    "edges": [
+      { "id": "e1", "source": "agw", "target": "lambda", "data": { "label": "Invoke", "step": 1 } },
+      { "id": "e2", "source": "iam", "target": "lambda", "data": { "label": "AssumeRole", "step": 2 } },
+      { "id": "e3", "source": "lambda", "target": "ddb", "data": { "label": "PutItem", "step": 3 } },
+      { "id": "e4", "source": "lambda", "target": "s3", "data": { "label": "Upload", "step": 3 } }
+    ]
+  }
+}

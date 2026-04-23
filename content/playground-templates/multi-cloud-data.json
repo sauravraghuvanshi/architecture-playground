@@ -1,0 +1,29 @@
+{
+  "id": "multi-cloud-data",
+  "name": "Multi-cloud Data Pipeline",
+  "description": "Events from AWS Lambda flow through Azure Service Bus into a GCP BigQuery sink (illustrative cross-cloud).",
+  "cloud": "multi",
+  "graph": {
+    "nodes": [
+      { "id": "awsg", "type": "group", "position": { "x": 0, "y": 0 }, "data": { "label": "AWS", "variant": "region" }, "width": 280, "height": 360, "zIndex": -1 },
+      { "id": "azg", "type": "group", "position": { "x": 320, "y": 0 }, "data": { "label": "Azure", "variant": "region" }, "width": 280, "height": 360, "zIndex": -1 },
+      { "id": "gcpg", "type": "group", "position": { "x": 640, "y": 0 }, "data": { "label": "GCP", "variant": "region" }, "width": 280, "height": 360, "zIndex": -1 },
+
+      { "id": "agw", "type": "service", "position": { "x": 30, "y": 60 }, "data": { "iconId": "aws/networking/api-gateway", "label": "API Gateway", "cloud": "aws" }, "parentId": "awsg" },
+      { "id": "lambda", "type": "service", "position": { "x": 30, "y": 200 }, "data": { "iconId": "aws/compute/lambda", "label": "Lambda", "cloud": "aws" }, "parentId": "awsg" },
+
+      { "id": "sb", "type": "service", "position": { "x": 30, "y": 60 }, "data": { "iconId": "azure/integration/service-bus", "label": "Service Bus", "cloud": "azure" }, "parentId": "azg" },
+      { "id": "func", "type": "service", "position": { "x": 30, "y": 200 }, "data": { "iconId": "azure/compute/functions", "label": "Functions", "cloud": "azure" }, "parentId": "azg" },
+
+      { "id": "pubsub", "type": "service", "position": { "x": 30, "y": 60 }, "data": { "iconId": "gcp/integration/pub-sub", "label": "Pub/Sub", "cloud": "gcp" }, "parentId": "gcpg" },
+      { "id": "bq", "type": "service", "position": { "x": 30, "y": 200 }, "data": { "iconId": "gcp/database/bigquery", "label": "BigQuery", "cloud": "gcp" }, "parentId": "gcpg" }
+    ],
+    "edges": [
+      { "id": "e1", "source": "agw", "target": "lambda", "data": { "label": "Invoke", "step": 1 } },
+      { "id": "e2", "source": "lambda", "target": "sb", "data": { "label": "Publish", "step": 2 } },
+      { "id": "e3", "source": "sb", "target": "func", "data": { "label": "Trigger", "step": 3 } },
+      { "id": "e4", "source": "func", "target": "pubsub", "data": { "label": "Forward", "step": 4 } },
+      { "id": "e5", "source": "pubsub", "target": "bq", "data": { "label": "Insert", "step": 5 } }
+    ]
+  }
+}

@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+@theme {
+  /* Brand palette — pick your own; defaulting to a neutral slate scale */
+  --color-brand-50: #f8fafc;
+  --color-brand-100: #f1f5f9;
+  --color-brand-200: #e2e8f0;
+  --color-brand-300: #cbd5e1;
+  --color-brand-400: #94a3b8;
+  --color-brand-500: #64748b;
+  --color-brand-600: #475569;
+  --color-brand-700: #334155;
+  --color-brand-800: #1e293b;
+  --color-brand-900: #0f172a;
+  --color-brand-950: #020617;
+
+  /* Cloud-provider accents (used to tint service nodes) */
+  --color-azure: #0078d4;
+  --color-aws: #ff9900;
+  --color-gcp: #4285f4;
+
+  --shadow-soft: 0 2px 15px -3px rgba(0, 0, 0, 0.07), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* Tailwind v4 darkMode: "class" — class-based dark mode */
+@variant dark (&:where(.dark, .dark *));
+
+html, body {
+  height: 100%;
+}
+
+body {
+  font-feature-settings: "rlig" 1, "calt" 1;
+}
+
+/* React Flow surface should fill the viewport when the playground mounts */
+.react-flow__container {
+  background: var(--color-brand-50);
+}
+
+.dark .react-flow__container {
+  background: var(--color-brand-950);
+}

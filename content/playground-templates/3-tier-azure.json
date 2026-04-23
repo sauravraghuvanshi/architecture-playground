@@ -1,0 +1,23 @@
+{
+  "id": "3-tier-azure",
+  "name": "3-Tier on Azure",
+  "description": "Front Door → App Service → SQL DB + Blob Storage with App Insights and Entra ID.",
+  "cloud": "azure",
+  "graph": {
+    "nodes": [
+      { "id": "fd", "type": "service", "position": { "x": 40, "y": 200 }, "data": { "iconId": "azure/networking/front-door", "label": "Azure Front Door", "cloud": "azure" } },
+      { "id": "appsvc", "type": "service", "position": { "x": 240, "y": 200 }, "data": { "iconId": "azure/compute/app-service", "label": "App Service", "cloud": "azure" } },
+      { "id": "sql", "type": "service", "position": { "x": 460, "y": 100 }, "data": { "iconId": "azure/database/sql-db", "label": "SQL Database", "cloud": "azure" } },
+      { "id": "blob", "type": "service", "position": { "x": 460, "y": 320 }, "data": { "iconId": "azure/storage/blob-storage", "label": "Blob Storage", "cloud": "azure" } },
+      { "id": "ai", "type": "service", "position": { "x": 680, "y": 200 }, "data": { "iconId": "azure/monitor/app-insights", "label": "App Insights", "cloud": "azure" } },
+      { "id": "entra", "type": "service", "position": { "x": 240, "y": 30 }, "data": { "iconId": "azure/identity/entra-id", "label": "Entra ID", "cloud": "azure" } }
+    ],
+    "edges": [
+      { "id": "e1", "source": "fd", "target": "appsvc", "data": { "label": "HTTPS", "step": 1 } },
+      { "id": "e2", "source": "entra", "target": "appsvc", "data": { "label": "Auth", "step": 2 } },
+      { "id": "e3", "source": "appsvc", "target": "sql", "data": { "label": "Query", "step": 3 } },
+      { "id": "e4", "source": "appsvc", "target": "blob", "data": { "label": "Read/Write", "step": 3 } },
+      { "id": "e5", "source": "appsvc", "target": "ai", "data": { "label": "Telemetry", "step": 4 } }
+    ]
+  }
+}

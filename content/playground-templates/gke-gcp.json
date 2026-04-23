@@ -1,0 +1,20 @@
+{
+  "id": "gke-gcp",
+  "name": "GKE Web App on GCP",
+  "description": "Cloud Load Balancing → GKE → Cloud SQL + Cloud Storage, served from a single project.",
+  "cloud": "gcp",
+  "graph": {
+    "nodes": [
+      { "id": "proj", "type": "group", "position": { "x": 0, "y": 0 }, "data": { "label": "GCP Project: prod-web", "variant": "project" }, "width": 720, "height": 420, "zIndex": -1 },
+      { "id": "lb", "type": "service", "position": { "x": 40, "y": 180 }, "data": { "iconId": "gcp/networking/cloud-load-balancing", "label": "Cloud LB", "cloud": "gcp" }, "parentId": "proj" },
+      { "id": "gke", "type": "service", "position": { "x": 260, "y": 180 }, "data": { "iconId": "gcp/compute/gke", "label": "GKE Cluster", "cloud": "gcp" }, "parentId": "proj" },
+      { "id": "sql", "type": "service", "position": { "x": 480, "y": 80 }, "data": { "iconId": "gcp/database/cloud-sql", "label": "Cloud SQL", "cloud": "gcp" }, "parentId": "proj" },
+      { "id": "gcs", "type": "service", "position": { "x": 480, "y": 280 }, "data": { "iconId": "gcp/storage/cloud-storage", "label": "Cloud Storage", "cloud": "gcp" }, "parentId": "proj" }
+    ],
+    "edges": [
+      { "id": "e1", "source": "lb", "target": "gke", "data": { "label": "HTTPS", "step": 1 } },
+      { "id": "e2", "source": "gke", "target": "sql", "data": { "label": "SQL", "step": 2 } },
+      { "id": "e3", "source": "gke", "target": "gcs", "data": { "label": "Object I/O", "step": 2 } }
+    ]
+  }
+}

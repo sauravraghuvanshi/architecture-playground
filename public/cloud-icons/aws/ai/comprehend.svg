@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Comprehend">
+  <defs>
+    <linearGradient id="bg-aws-CMP" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FF9900"/>
+      <stop offset="100%" stop-color="#cc7a00"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="10" fill="url(#bg-aws-CMP)"/>
+  <g opacity="0.18" color="#232F3E"><circle cx="32" cy="28" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 44 q12 -12 24 0" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="22" cy="20" r="2" fill="currentColor"/><circle cx="42" cy="20" r="2" fill="currentColor"/></g>
+  <text x="32" y="38" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif" font-weight="700" font-size="18" fill="#232F3E">CMP</text>
+</svg>
