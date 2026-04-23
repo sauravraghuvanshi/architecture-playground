@@ -115,8 +115,8 @@ The playground is intentionally a **single-page app** at `/`. No subpages, no ad
 | Resource | Value |
 |---|---|
 | Subscription | `60e58e3f-da14-4fa7-89dd-3d0369ddbc8b` (Visual Studio Enterprise — same as portfolio) |
-| Resource Group | `rg-saurav-portfolio` (Central India) — reuse existing |
-| App Service Plan | Reuse existing portfolio plan (`asp-saurav-portfolio` or whatever the F1 plan is named) — confirm it can host a second app on F1 (it can, F1 supports up to 10 apps per plan) |
+| Resource Group | `rg-architecture-playground` (Central India) — separate from portfolio |
+| App Service Plan | `asp-architecture-playground` (Linux, F1 Free) — dedicated plan in own resource group |
 | App Service | `architecture-playground` (Linux, Node 20 LTS) |
 | URL | `https://architecture-playground.azurewebsites.net` |
 | Storage | None required (no images, no media uploads) |
@@ -218,22 +218,22 @@ The scaffold is in place. Remaining work to bring the playground online:
 
 ## Last Session Summary
 
-### 2026-04-23 — Project scaffolded
+### 2026-04-24 — Full migration + first deploy
 
-**Created:**
-- Folder structure at `C:\Users\sraghuvanshi\Downloads\My-Projects\Architecture-Playground\`
-- Root configs: `package.json`, `tsconfig.json`, `next.config.ts`, `tailwind.config.ts`, `postcss.config.mjs`, `eslint.config.mjs`, `.gitignore`, `.env.example`, `README.md`
-- Minimal `app/layout.tsx`, `app/page.tsx` (placeholder), `app/globals.css`
-- `.claude/` workspace: `CLAUDE.md`, `project-memory.md` (this file), `lessons.md`, `patterns.md`, `architecture.md`
-- `.github/copilot-instructions.md`, `.github/workflows/deploy.yml`
-- Empty directory placeholders under `components/playground/{nodes,edges,hooks,lib}/`, `content/playground-templates/`, `public/{cloud-icons,playground}/`, `scripts/`, `e2e/`
+**Completed:**
+- Phase 1: migrated all 19 components, 107 SVG icons, 4 templates, 4 scripts, e2e spec from portfolio
+- Adjusted imports: route `/playground` → `/`, ESLint config fixed, React 19 ref-during-render fix, postbuild cleanup
+- Lint clean, build passes, 12/12 unit tests pass
+- Phase 3: git init, created GitHub repo `sauravraghuvanshi/architecture-playground`, pushed
+- Azure infra (separate from portfolio): `rg-architecture-playground` / `asp-architecture-playground` / `architecture-playground` App Service in Central India
+- CI/CD workflow deployed, first build green, live at https://architecture-playground.azurewebsites.net
 
-**Pushed:** Not yet — repo not yet initialised. Awaiting user confirmation on infra naming + go-ahead to migrate code.
+**Commits:**
+- `75090e8` — feat: initial migration from portfolio
+- `01de7d0` — ci: add GitHub Actions deploy workflow
+
+**Files touched:** 157 files (156 created + 1 workflow)
 
 **Next session:**
-1. User reviews scaffold + .claude docs and confirms infra names (App Service: `architecture-playground` selected)
-2. Execute Phase 1 (code & asset migration)
-3. Validate locally
-4. Provision Azure App Service + create GitHub repo
-5. First deploy
-6. Phase 4 (portfolio cleanup) once playground live URL is confirmed working
+1. Phase 4 — Portfolio cleanup (remove playground code, update nav link to external URL)
+2. Phase 5 — Polish (OG image, JSON-LD, optional App Insights)

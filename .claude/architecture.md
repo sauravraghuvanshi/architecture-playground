@@ -55,11 +55,11 @@
 
 ## 4. Azure App Service (Linux F1 Free)
 
-**Decision:** New dedicated App Service `architecture-playground` in the existing `rg-saurav-portfolio` resource group.
+**Decision:** New dedicated App Service `architecture-playground` in its own resource group `rg-architecture-playground` (Central India).
 
 **Why:**
 - Same dogfooding rationale as the portfolio (owner is Azure-focused)
-- F1 supports up to 10 apps per plan — reuse the existing plan, no extra cost
+- F1 supports up to 10 apps per plan — own plan + resource group keeps blast radius separate from portfolio
 - Zero-state app — no DB, no Blob, no managed identity needed (no API key in code, no inbound RBAC)
 
 **Trade-offs accepted:**

@@ -81,14 +81,12 @@ Standalone keeps the deploy zip small (~30 MB) and dependency-free at runtime.
 
 ## Status
 
-🚧 **Scaffolded — code migration pending.** This repo currently contains:
+✅ **Live** at [architecture-playground.azurewebsites.net](https://architecture-playground.azurewebsites.net)
 
-- ✅ Project scaffold (`package.json`, `tsconfig`, `next.config`, Tailwind v4, ESLint flat config, `.gitignore`)
-- ✅ `.claude/` workspace with project memory, lessons, patterns, architecture
-- ✅ Folder layout matching the source playground
-- ⏳ Component code (to be moved from `portfolio/components/playground/`)
-- ⏳ Content files (`cloud-icons/`, `playground-templates/`)
-- ⏳ Scripts (`build-cloud-icon-manifest.mjs`, `bundle-gifenc-worker.mjs`, `postbuild.mjs`)
-- ⏳ E2E tests
-
-See `.claude/project-memory.md` for the full migration plan and current state.
+- ✅ All components migrated from portfolio (19 files)
+- ✅ 107 cloud service SVG icons (Azure / AWS / GCP)
+- ✅ 4 seed templates
+- ✅ PNG / JSON / animated GIF export
+- ✅ CI/CD via GitHub Actions → Azure Kudu zipdeploy
+- ✅ Lint clean, build passes, 12 unit tests pass
+- ⏳ Portfolio cleanup (remove old playground code from parent repo)
