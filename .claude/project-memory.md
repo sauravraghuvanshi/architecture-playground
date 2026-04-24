@@ -83,6 +83,10 @@ architecture-playground/
 │   ├── bundle-gifenc-worker.mjs       ← esbuild gifenc → IIFE worker bundle in public/playground/
 │   ├── postbuild.mjs                  ← Copy public/ + .next/static/ into .next/standalone/
 │   └── test-playground.mjs            ← node --test for pure lib/ functions
+├── task/                    ← LOCAL ONLY (gitignored) — planning, roadmaps, work tracking
+│   ├── implementation.md    ← Enterprise roadmap (8 phases, 150+ tasks)
+│   └── implementation.html  ← Interactive HTML viewer for the roadmap
+├── Sample-Architecture/     ← LOCAL ONLY (gitignored) — reference pptx, V-4.5 icon stencils
 ├── e2e/
 │   └── playground.spec.ts             ← Playwright smoke
 ├── package.json
