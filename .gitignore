@@ -47,6 +47,9 @@ public/playground/gifenc.bundle.js
 # Sample architecture assets (pptx, icon stencils) — local reference only
 Sample-Architecture/
 
+# Task folder — local planning, roadmaps, and work tracking
+task/
+
 # Claude / Copilot session state — keep architecture docs but ignore session artifacts
 .claude/sessions/
 .claude/skills/.cache/
