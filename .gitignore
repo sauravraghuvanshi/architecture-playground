@@ -50,6 +50,5 @@ Sample-Architecture/
 # Task folder — local planning, roadmaps, and work tracking
 task/
 
-# Claude / Copilot session state — keep architecture docs but ignore session artifacts
-.claude/sessions/
-.claude/skills/.cache/
+# Claude / Copilot workspace — local agent context only
+.claude/
