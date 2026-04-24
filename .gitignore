@@ -44,6 +44,9 @@ content/cloud-icons.json
 # Generated worker bundle (rebuilt on prebuild)
 public/playground/gifenc.bundle.js
 
+# Sample architecture assets (pptx, icon stencils) — local reference only
+Sample-Architecture/
+
 # Claude / Copilot session state — keep architecture docs but ignore session artifacts
 .claude/sessions/
 .claude/skills/.cache/
