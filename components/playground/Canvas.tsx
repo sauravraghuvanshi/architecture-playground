@@ -207,6 +207,73 @@ function CanvasInner({
     [onEdgesChange, onCommit, announce]
   );
 
+  // Defensive viewport lock during connection drag.
+  // Some browsers / extensions appear to pan the viewport mid-drag despite autoPanOnConnect=false,
+  // making nodes appear to vanish. We snapshot the viewport on connect-start and restore it
+  // on every animation frame until connect-end. Also captures DOM diagnostics when ?debug=1.
+  const viewportLockRef = useRef<{ x: number; y: number; zoom: number } | null>(null);
+  const lockRafRef = useRef<number | null>(null);
+
+  const isDebug = useCallback(() => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).has("debug");
+  }, []);
+
+  const handleConnectStart = useCallback(() => {
+    const vp = rfApi.getViewport();
+    viewportLockRef.current = { ...vp };
+    if (isDebug()) {
+      const nodeEls = document.querySelectorAll(".react-flow__node");
+      // eslint-disable-next-line no-console
+      console.log("[AP-DEBUG] connect-start", {
+        viewport: vp,
+        nodeCount: nodeEls.length,
+        nodes: Array.from(nodeEls).map((n) => {
+          const el = n as HTMLElement;
+          const r = el.getBoundingClientRect();
+          return {
+            id: el.dataset.id,
+            transform: el.style.transform,
+            opacity: getComputedStyle(el).opacity,
+            visibility: getComputedStyle(el).visibility,
+            display: getComputedStyle(el).display,
+            rect: { x: r.x, y: r.y, w: r.width, h: r.height },
+          };
+        }),
+      });
+    }
+    const tick = () => {
+      const lock = viewportLockRef.current;
+      if (!lock) return;
+      const cur = rfApi.getViewport();
+      if (cur.x !== lock.x || cur.y !== lock.y || cur.zoom !== lock.zoom) {
+        if (isDebug()) {
+          // eslint-disable-next-line no-console
+          console.warn("[AP-DEBUG] viewport drifted during connect — restoring", { from: cur, to: lock });
+        }
+        rfApi.setViewport(lock);
+      }
+      lockRafRef.current = requestAnimationFrame(tick);
+    };
+    lockRafRef.current = requestAnimationFrame(tick);
+  }, [rfApi, isDebug]);
+
+  const handleConnectEnd = useCallback(() => {
+    if (lockRafRef.current !== null) {
+      cancelAnimationFrame(lockRafRef.current);
+      lockRafRef.current = null;
+    }
+    viewportLockRef.current = null;
+    if (isDebug()) {
+      const nodeEls = document.querySelectorAll(".react-flow__node");
+      // eslint-disable-next-line no-console
+      console.log("[AP-DEBUG] connect-end", {
+        viewport: rfApi.getViewport(),
+        nodeCount: nodeEls.length,
+      });
+    }
+  }, [rfApi, isDebug]);
+
   const handleSelectionChange = useCallback(
     ({ nodes: selN, edges: selE }: { nodes: Node[]; edges: Edge[] }) => {
       setSelected(selN.map((n) => n.id), selE.map((e) => e.id));
@@ -263,6 +330,8 @@ function CanvasInner({
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
         onConnect={handleConnect}
+        onConnectStart={handleConnectStart}
+        onConnectEnd={handleConnectEnd}
         onSelectionChange={handleSelectionChange}
         onPaneClick={handlePaneClick}
         onInit={registerInstance}
