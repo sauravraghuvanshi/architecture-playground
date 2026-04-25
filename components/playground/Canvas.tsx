@@ -280,6 +280,8 @@ function CanvasInner({
         fitViewOptions={{ padding: 0.2 }}
         snapToGrid
         snapGrid={[20, 20]}
+        autoPanOnConnect={false}
+        autoPanOnNodeDrag={false}
         proOptions={{ hideAttribution: true }}
         deleteKeyCode={["Backspace", "Delete"]}
         className="bg-zinc-50 dark:bg-zinc-950"
