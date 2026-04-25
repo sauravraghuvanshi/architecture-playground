@@ -36,6 +36,7 @@ import type { IconManifestEntry, PlaygroundGraph, PlaygroundTemplate, Layer, Dia
 import { DEFAULT_LAYER } from "./lib/types";
 import { createServiceRegistry } from "./lib/service-registry";
 import { normalizeGraph } from "./lib/migrations";
+import { resolveGraphIcons } from "./lib/resolve-icons";
 
 interface Props {
   icons: IconManifestEntry[];
@@ -186,11 +187,20 @@ function PlaygroundShell({ icons, templates }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const graphExtrasRef = useRef(graphExtras);
+  graphExtrasRef.current = graphExtras;
+
   // Push a history snapshot for the current persisted graph.
+  // Reads latest state via the setFlow updater so it can't capture
+  // a stale `nodes`/`edges` closure when called immediately after
+  // another setFlow update (e.g. handleConnect → commit in same tick).
   const commit = useCallback(() => {
-    const snap = snapshotGraph(flowToGraph(nodes, edges, graphExtras));
-    dispatchHistory({ type: "push", snapshot: snap });
-  }, [nodes, edges, graphExtras]);
+    setFlow((s) => {
+      const snap = snapshotGraph(flowToGraph(s.nodes, s.edges, graphExtrasRef.current));
+      queueMicrotask(() => dispatchHistory({ type: "push", snapshot: snap }));
+      return s;
+    });
+  }, []);
 
   // Apply a snapshot string back into React Flow state.
   const applySnapshot = useCallback((snap: string) => {
@@ -312,12 +322,13 @@ function PlaygroundShell({ icons, templates }: Props) {
 
   const handleApplyAiGraph = useCallback((g: PlaygroundGraph) => {
     const normalized = normalizeGraph(g);
+    resolveGraphIcons(normalized, icons, iconsById);
     setFlow(graphToFlow(normalized, iconsById));
     setGraphExtras({ layers: normalized.layers, metadata: normalized.metadata });
     dispatchHistory({ type: "push", snapshot: snapshotGraph(normalized) });
     ui.announce(`AI generated diagram with ${normalized.nodes.length} nodes.`);
     setTimeout(() => rfRef.current?.fitView({ duration: 300, padding: 0.2 }), 50);
-  }, [iconsById, ui]);
+  }, [icons, iconsById, ui]);
 
   const handleExportFormat = useCallback(
     async (format: "svg" | "png-2x" | "png-4x" | "mermaid" | "drawio" | "iac") => {
