@@ -314,8 +314,8 @@ function PlaygroundShell({ icons, templates }: Props) {
 
   const handleFitView = useCallback(() => rfRef.current?.fitView({ duration: 300, padding: 0.2 }), []);
 
-  const handleNodesChange = useCallback((next: Node[]) => setFlow((s) => ({ ...s, nodes: next })), []);
-  const handleEdgesChange = useCallback((next: Edge[]) => setFlow((s) => ({ ...s, edges: next })), []);
+  const handleNodesChange = useCallback((updater: (prev: Node[]) => Node[]) => setFlow((s) => ({ ...s, nodes: updater(s.nodes) })), []);
+  const handleEdgesChange = useCallback((updater: (prev: Edge[]) => Edge[]) => setFlow((s) => ({ ...s, edges: updater(s.edges) })), []);
 
   const handleUpdateNode = useCallback((id: string, patch: Partial<Node>) => {
     setFlow((s) => ({

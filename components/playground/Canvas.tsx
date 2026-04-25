@@ -46,8 +46,8 @@ interface Props {
   nodes: Node[];
   edges: Edge[];
   iconsById: Map<string, IconManifestEntry>;
-  onNodesChange: (next: Node[]) => void;
-  onEdgesChange: (next: Edge[]) => void;
+  onNodesChange: (updater: (prev: Node[]) => Node[]) => void;
+  onEdgesChange: (updater: (prev: Edge[]) => Edge[]) => void;
   onCommit: () => void;     // call after a semantic change to push history
   registerInstance: (rfi: ReactFlowInstance | null) => void;
   registerViewportEl: (el: HTMLDivElement | null) => void;
@@ -143,11 +143,11 @@ function CanvasInner({
       const parent = payload.kind === "group" ? undefined : findGroupAt(pos);
       const node = buildNodeFromPayload(payload, pos, parent);
       if (!node) return;
-      onNodesChange([...nodes, node]);
+      onNodesChange((prev) => [...prev, node]);
       onCommit();
       announce(`${(node.data as { label?: string }).label ?? node.type} added.`);
     },
-    [rfApi, findGroupAt, buildNodeFromPayload, nodes, onNodesChange, onCommit, announce]
+    [rfApi, findGroupAt, buildNodeFromPayload, onNodesChange, onCommit, announce]
   );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -167,19 +167,17 @@ function CanvasInner({
       const parent = payload.kind === "group" ? undefined : findGroupAt(pos);
       const node = buildNodeFromPayload(payload, pos, parent);
       if (!node) return;
-      onNodesChange([...nodes, node]);
+      onNodesChange((prev) => [...prev, node]);
       onCommit();
       announce(`${(node.data as { label?: string }).label ?? node.type} placed.`);
       setPlacementIconId(null);
     },
-    [placementIconId, rfApi, findGroupAt, buildNodeFromPayload, nodes, onNodesChange, onCommit, announce, setPlacementIconId]
+    [placementIconId, rfApi, findGroupAt, buildNodeFromPayload, onNodesChange, onCommit, announce, setPlacementIconId]
   );
 
   const handleNodesChange: OnNodesChange = useCallback(
     (changes) => {
-      const next = applyNodeChanges(changes, nodes);
-      onNodesChange(next);
-      // Commit only when a drag finishes, a node is removed, or dimensions settled.
+      onNodesChange((prev) => applyNodeChanges(changes, prev));
       const hasStop = changes.some((c) => (c.type === "position" && c.dragging === false));
       const hasRemove = changes.some((c) => c.type === "remove");
       const hasDimensions = changes.some((c) => c.type === "dimensions" && (c as { resizing?: boolean }).resizing === false);
@@ -188,27 +186,25 @@ function CanvasInner({
       if (hasDimensions) onCommit();
       if (changes.some((c) => c.type === "position" && c.dragging === true)) dragMovedRef.current = true;
     },
-    [nodes, onNodesChange, onCommit]
+    [onNodesChange, onCommit]
   );
 
   const handleEdgesChange: OnEdgesChange = useCallback(
     (changes) => {
-      const next = applyEdgeChanges(changes, edges);
-      onEdgesChange(next);
+      onEdgesChange((prev) => applyEdgeChanges(changes, prev));
       if (changes.some((c) => c.type === "remove")) onCommit();
     },
-    [edges, onEdgesChange, onCommit]
+    [onEdgesChange, onCommit]
   );
 
   const handleConnect: OnConnect = useCallback(
     (conn) => {
       const id = `e_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
-      const next = addEdge({ ...conn, id, type: "default", data: {} }, edges);
-      onEdgesChange(next);
+      onEdgesChange((prev) => addEdge({ ...conn, id, type: "default", data: {} }, prev));
       onCommit();
       announce("Connection created.");
     },
-    [edges, onEdgesChange, onCommit, announce]
+    [onEdgesChange, onCommit, announce]
   );
 
   const handleSelectionChange = useCallback(
@@ -231,22 +227,23 @@ function CanvasInner({
       // Arrow-key nudge for selected nodes
       const arrows = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
       if (arrows.includes(e.key) && !isTextField(e.target)) {
-        const sel = nodes.filter((n) => n.selected);
-        if (sel.length === 0) return;
         e.preventDefault();
         const step = e.shiftKey ? NUDGE_FAST : NUDGE;
         const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
         const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
-        const next = nodes.map((n) =>
-          n.selected ? { ...n, position: { x: n.position.x + dx, y: n.position.y + dy } } : n
-        );
-        onNodesChange(next);
+        onNodesChange((prev) => {
+          const hasSel = prev.some((n) => n.selected);
+          if (!hasSel) return prev;
+          return prev.map((n) =>
+            n.selected ? { ...n, position: { x: n.position.x + dx, y: n.position.y + dy } } : n
+          );
+        });
         onCommit();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [placementIconId, setPlacementIconId, rfApi, nodes, onNodesChange, onCommit, announce]);
+  }, [placementIconId, setPlacementIconId, rfApi, onNodesChange, onCommit, announce]);
 
   const defaultEdgeOptions = useMemo(() => ({ type: "default" as const }), []);
 
