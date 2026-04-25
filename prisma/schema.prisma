@@ -23,6 +23,10 @@ model User {
 
   projects      Project[]
   diagrams      Diagram[]
+  comments      Comment[]
+  memberships   Membership[]
+  auditLogs     AuditLog[]
+  apiKeys       ApiKey[]
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -96,6 +100,7 @@ model Diagram {
 
   versions    DiagramVersion[]
   shares      ShareLink[]
+  comments    Comment[]
   archived    Boolean          @default(false)
 
   createdAt   DateTime         @default(now())
@@ -129,4 +134,107 @@ model ShareLink {
 
   @@index([token])
   @@index([diagramId])
+}
+
+// ─── Comments (Phase 7) ───────────────────────────────────────────────
+
+model Comment {
+  id          String   @id @default(cuid())
+  diagramId   String
+  diagram     Diagram  @relation(fields: [diagramId], references: [id], onDelete: Cascade)
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body        String
+  // Anchor: optional nodeId / edgeId, or a free-floating canvas pin (x,y)
+  nodeId      String?
+  edgeId      String?
+  pinX        Float?
+  pinY        Float?
+  resolved    Boolean  @default(false)
+  parentId    String?  // for threaded replies
+  parent      Comment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies     Comment[] @relation("CommentReplies")
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([diagramId])
+  @@index([authorId])
+}
+
+// ─── Organizations & Membership (Phase 8) ─────────────────────────────
+
+model Organization {
+  id           String       @id @default(cuid())
+  name         String
+  slug         String       @unique
+  // Branding
+  logoUrl      String?
+  accentColor  String?      // hex
+  // Optional Stripe customer id for billing
+  stripeCustomerId String?
+
+  members      Membership[]
+  apiKeys      ApiKey[]
+  auditLogs    AuditLog[]
+
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+model Membership {
+  id             String       @id @default(cuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role           String       @default("VIEWER") // OWNER | ADMIN | EDITOR | COMMENTER | VIEWER
+
+  createdAt      DateTime     @default(now())
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+}
+
+// ─── Audit log (Phase 8) ──────────────────────────────────────────────
+
+model AuditLog {
+  id              String        @id @default(cuid())
+  userId          String?
+  user            User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  organizationId  String?
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  action          String        // e.g. "diagram.create"
+  resourceType    String?       // e.g. "Diagram"
+  resourceId      String?
+  metadata        String?       // free-form JSON string
+  ipAddress       String?
+  userAgent       String?
+  createdAt       DateTime      @default(now())
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([createdAt])
+}
+
+// ─── API keys (Phase 8) ───────────────────────────────────────────────
+
+model ApiKey {
+  id              String        @id @default(cuid())
+  // Stored as a SHA-256 hex hash; the plaintext token is only shown once at creation.
+  hashedKey       String        @unique
+  prefix          String        // e.g. "ap_live_xxx" first 12 chars for identification in lists
+  name            String
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId  String?
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  scopes          String        @default("read,write")
+  lastUsedAt      DateTime?
+  expiresAt       DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime      @default(now())
+
+  @@index([userId])
+  @@index([organizationId])
 }
