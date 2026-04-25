@@ -188,7 +188,9 @@ function PlaygroundShell({ icons, templates }: Props) {
   }, []);
 
   const graphExtrasRef = useRef(graphExtras);
-  graphExtrasRef.current = graphExtras;
+  useEffect(() => {
+    graphExtrasRef.current = graphExtras;
+  }, [graphExtras]);
 
   // Push a history snapshot for the current persisted graph.
   // Reads latest state via the setFlow updater so it can't capture

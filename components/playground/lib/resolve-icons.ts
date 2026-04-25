@@ -20,7 +20,7 @@
 import type { IconManifestEntry } from "./types";
 
 const FALLBACKS: Record<string, string> = {
-  azure: "azure/application/10035-icon-service-app-services",
+  azure: "azure/compute/virtual-machine",
   aws: "aws/compute/ec2",
   gcp: "gcp/compute/compute-engine",
 };
