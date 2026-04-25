@@ -214,49 +214,41 @@ function CanvasInner({
   const viewportLockRef = useRef<{ x: number; y: number; zoom: number } | null>(null);
   const lockRafRef = useRef<number | null>(null);
 
-  const isDebug = useCallback(() => {
-    if (typeof window === "undefined") return false;
-    return new URLSearchParams(window.location.search).has("debug");
-  }, []);
-
   const handleConnectStart = useCallback(() => {
     const vp = rfApi.getViewport();
     viewportLockRef.current = { ...vp };
-    if (isDebug()) {
-      const nodeEls = document.querySelectorAll(".react-flow__node");
-      // eslint-disable-next-line no-console
-      console.log("[AP-DEBUG] connect-start", {
-        viewport: vp,
-        nodeCount: nodeEls.length,
-        nodes: Array.from(nodeEls).map((n) => {
-          const el = n as HTMLElement;
-          const r = el.getBoundingClientRect();
-          return {
-            id: el.dataset.id,
-            transform: el.style.transform,
-            opacity: getComputedStyle(el).opacity,
-            visibility: getComputedStyle(el).visibility,
-            display: getComputedStyle(el).display,
-            rect: { x: r.x, y: r.y, w: r.width, h: r.height },
-          };
-        }),
-      });
-    }
+    const nodeEls = document.querySelectorAll(".react-flow__node");
+    // Always log start so we can confirm the handler fires (helps diagnose user-reported bug).
+    // eslint-disable-next-line no-console
+    console.log("[AP] connect-start", {
+      viewport: vp,
+      nodeCount: nodeEls.length,
+      nodes: Array.from(nodeEls).map((n) => {
+        const el = n as HTMLElement;
+        const r = el.getBoundingClientRect();
+        return {
+          id: el.dataset.id,
+          transform: el.style.transform,
+          opacity: getComputedStyle(el).opacity,
+          visibility: getComputedStyle(el).visibility,
+          display: getComputedStyle(el).display,
+          rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
+        };
+      }),
+    });
     const tick = () => {
       const lock = viewportLockRef.current;
       if (!lock) return;
       const cur = rfApi.getViewport();
       if (cur.x !== lock.x || cur.y !== lock.y || cur.zoom !== lock.zoom) {
-        if (isDebug()) {
-          // eslint-disable-next-line no-console
-          console.warn("[AP-DEBUG] viewport drifted during connect — restoring", { from: cur, to: lock });
-        }
+        // eslint-disable-next-line no-console
+        console.warn("[AP] viewport drifted during connect — restoring", { from: cur, to: lock });
         rfApi.setViewport(lock);
       }
       lockRafRef.current = requestAnimationFrame(tick);
     };
     lockRafRef.current = requestAnimationFrame(tick);
-  }, [rfApi, isDebug]);
+  }, [rfApi]);
 
   const handleConnectEnd = useCallback(() => {
     if (lockRafRef.current !== null) {
@@ -264,15 +256,17 @@ function CanvasInner({
       lockRafRef.current = null;
     }
     viewportLockRef.current = null;
-    if (isDebug()) {
-      const nodeEls = document.querySelectorAll(".react-flow__node");
-      // eslint-disable-next-line no-console
-      console.log("[AP-DEBUG] connect-end", {
-        viewport: rfApi.getViewport(),
-        nodeCount: nodeEls.length,
-      });
-    }
-  }, [rfApi, isDebug]);
+    const nodeEls = document.querySelectorAll(".react-flow__node");
+    // eslint-disable-next-line no-console
+    console.log("[AP] connect-end", {
+      viewport: rfApi.getViewport(),
+      nodeCount: nodeEls.length,
+      visibleCount: Array.from(nodeEls).filter((n) => {
+        const r = (n as HTMLElement).getBoundingClientRect();
+        return r.width > 0 && r.height > 0 && getComputedStyle(n as HTMLElement).opacity !== "0";
+      }).length,
+    });
+  }, [rfApi]);
 
   const handleSelectionChange = useCallback(
     ({ nodes: selN, edges: selE }: { nodes: Node[]; edges: Edge[] }) => {
