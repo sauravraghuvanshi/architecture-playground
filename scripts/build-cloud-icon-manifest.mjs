@@ -23,14 +23,25 @@ const CLOUDS = ["azure", "aws", "gcp"];
 const CLOUD_LABELS = { azure: "Azure", aws: "AWS", gcp: "Google Cloud" };
 
 const CATEGORY_LABELS = {
-  compute: "Compute",
-  storage: "Storage",
-  database: "Database",
-  networking: "Networking",
   ai: "AI & Machine Learning",
+  application: "Application",
+  compute: "Compute",
+  data: "Data",
+  database: "Database",
+  deployment: "Deployment",
+  "dynamics-365": "Dynamics 365",
+  endpoint: "Endpoint",
+  general: "General",
   identity: "Identity & Security",
   integration: "Integration & Messaging",
+  iot: "IoT",
+  management: "Management & Governance",
   monitor: "Monitoring & Observability",
+  networking: "Networking",
+  "office-365": "Office 365",
+  security: "Security",
+  storage: "Storage",
+  workload: "Workload",
   other: "Other",
 };
 

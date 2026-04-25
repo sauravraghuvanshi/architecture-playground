@@ -7,7 +7,7 @@
 import { useRef } from "react";
 import {
   Download, Upload, FileText, Undo2, Redo2, Trash2, Play, Pause,
-  Repeat, Gauge, FileImage, FileJson, Wand2, Film, Maximize,
+  Repeat, Gauge, FileImage, FileJson, Wand2, Film, Maximize, Keyboard,
 } from "lucide-react";
 import type { PlaygroundTemplate } from "./lib/types";
 import { usePlaygroundUI } from "./PlaygroundUIContext";
@@ -27,12 +27,13 @@ interface Props {
   onExportGif: () => void;
   onAutoSequence: () => void;
   onFitView: () => void;
+  onToggleShortcuts: () => void;
 }
 
 export function Toolbar({
   canUndo, canRedo, totalSteps, templates,
   onUndo, onRedo, onClear, onLoadTemplate, onImportFile,
-  onExportPng, onExportJson, onExportGif, onAutoSequence, onFitView,
+  onExportPng, onExportJson, onExportGif, onAutoSequence, onFitView, onToggleShortcuts,
 }: Props) {
   const { isPlaying, setPlaying, loop, setLoop, speed, setSpeed, exportProgress } = usePlaygroundUI();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -125,8 +126,11 @@ export function Toolbar({
         <Film className="h-4 w-4" />
       </IconBtn>
 
-      <span className="ml-auto inline-flex items-center gap-1 text-[10px] text-zinc-500">
-        <Download className="h-3 w-3" aria-hidden /> autosaved
+      <span className="ml-auto inline-flex items-center gap-2 text-[10px] text-zinc-500">
+        <IconBtn label="Keyboard shortcuts (?)" onClick={onToggleShortcuts}><Keyboard className="h-4 w-4" /></IconBtn>
+        <span className="inline-flex items-center gap-1">
+          <Download className="h-3 w-3" aria-hidden /> autosaved
+        </span>
       </span>
     </div>
   );

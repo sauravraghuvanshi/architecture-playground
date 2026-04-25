@@ -16,6 +16,7 @@ import { Palette } from "./Palette";
 import { Inspector } from "./Inspector";
 import { Outline } from "./Outline";
 import { Canvas } from "./Canvas";
+import { KeyboardShortcutsPanel } from "./KeyboardShortcutsPanel";
 import { PlaygroundUIProvider, usePlaygroundUI } from "./PlaygroundUIContext";
 import { useSequencePlayer } from "./hooks/useSequencePlayer";
 import { useAutosave, restoreAutosave } from "./hooks/useAutosave";
@@ -121,6 +122,7 @@ function PlaygroundShell({ icons, templates }: Props) {
   const registry = useMemo(() => createServiceRegistry(icons), [icons]);
   void registry; // used in future phases for enriching nodes
   const ui = usePlaygroundUI();
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   const [{ nodes, edges }, setFlow] = useState<{ nodes: Node[]; edges: Edge[] }>(() => graphToFlow(EMPTY_GRAPH, iconsById));
   // Graph-level extras that persist alongside nodes/edges but aren't part of React Flow state.
@@ -365,10 +367,13 @@ function PlaygroundShell({ icons, templates }: Props) {
         e.preventDefault(); handleRedo();
       } else if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); handleExportJsonAction(); }
       else if (mod && e.key.toLowerCase() === "e") { e.preventDefault(); handleExportPng(); }
+      else if (e.key === "?" || (e.shiftKey && e.key === "/")) { e.preventDefault(); setShortcutsOpen((v) => !v); }
+      else if (e.key === " ") { e.preventDefault(); ui.setPlaying(!ui.isPlaying); }
+      else if (e.key.toLowerCase() === "l" && !mod) { e.preventDefault(); ui.setLoop(!ui.loop); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [handleUndo, handleRedo, handleExportJsonAction, handleExportPng]);
+  }, [handleUndo, handleRedo, handleExportJsonAction, handleExportPng, ui]);
 
   // Drive sequence playback (writes into UI context).
   useSequencePlayer(persistedGraph.edges);
@@ -390,6 +395,7 @@ function PlaygroundShell({ icons, templates }: Props) {
         onExportGif={handleExportGif}
         onAutoSequence={handleAutoSequence}
         onFitView={handleFitView}
+        onToggleShortcuts={() => setShortcutsOpen((v) => !v)}
       />
       <div className="flex min-h-0 flex-1">
         <Palette icons={icons} />
@@ -431,6 +437,7 @@ function PlaygroundShell({ icons, templates }: Props) {
         />
       </div>
       <div role="status" aria-live="polite" className="sr-only">{ui.announcement}</div>
+      <KeyboardShortcutsPanel open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </div>
   );
 }
