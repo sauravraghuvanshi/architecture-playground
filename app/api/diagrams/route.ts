@@ -9,7 +9,6 @@
  */
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +17,9 @@ export async function GET() {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const { getPrisma } = await import("@/lib/prisma");
+  const prisma = getPrisma();
 
   const diagrams = await prisma.diagram.findMany({
     where: { userId: session.user.id, archived: false },
@@ -41,6 +43,9 @@ export async function POST(req: Request) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const { getPrisma } = await import("@/lib/prisma");
+  const prisma = getPrisma();
 
   const body = await req.json();
   const { name, description, graphJson, projectId } = body as {

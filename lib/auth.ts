@@ -8,12 +8,19 @@
 import NextAuth from "next-auth";
 import GitHub from "next-auth/providers/github";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import { getPrisma } from "@/lib/prisma";
 
 const isAuthEnabled = Boolean(process.env.AUTH_SECRET && process.env.GITHUB_ID);
 
+function getAdapter() {
+  if (!isAuthEnabled) return undefined;
+  // Lazy-load Prisma only when auth is actually enabled at runtime
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { getPrisma } = require("@/lib/prisma");
+  return PrismaAdapter(getPrisma());
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: isAuthEnabled ? PrismaAdapter(getPrisma()) : undefined,
+  adapter: getAdapter(),
   providers: isAuthEnabled
     ? [
         GitHub({

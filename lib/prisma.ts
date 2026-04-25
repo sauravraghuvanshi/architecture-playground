@@ -13,13 +13,15 @@ export function getPrisma() {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { PrismaClient } = require("@/app/generated/prisma/client");
     const globalForPrisma = globalThis as unknown as { __prisma: unknown };
-    _prisma = globalForPrisma.__prisma || new PrismaClient();
+    _prisma = globalForPrisma.__prisma || new PrismaClient({
+      datasourceUrl: process.env.DATABASE_URL,
+    });
     if (process.env.NODE_ENV !== "production") globalForPrisma.__prisma = _prisma;
   }
   return _prisma;
 }
 
-// For convenience — lazy proxy
+// Lazy proxy — only connects when a method is actually called at runtime
 export const prisma = new Proxy({} as ReturnType<typeof getPrisma>, {
   get(_target, prop) {
     return getPrisma()[prop];

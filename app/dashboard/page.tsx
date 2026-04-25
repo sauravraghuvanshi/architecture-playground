@@ -3,7 +3,6 @@
  * Server component that fetches diagrams and renders the grid.
  */
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -15,6 +14,9 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user) redirect("/auth/signin");
+
+  const { getPrisma } = await import("@/lib/prisma");
+  const prisma = getPrisma();
 
   const diagrams = await prisma.diagram.findMany({
     where: { userId: session.user.id, archived: false },

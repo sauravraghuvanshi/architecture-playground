@@ -1,17 +1,21 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+async function db() {
+  const { getPrisma } = await import("@/lib/prisma");
+  return getPrisma();
+}
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await auth();
+  const prisma = await db();
 
   const diagram = await prisma.diagram.findUnique({ where: { id } });
   if (!diagram) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Allow public access if there's a share link, otherwise require auth
   if (diagram.userId !== session?.user?.id) {
     const hasShare = await prisma.shareLink.findFirst({
       where: { diagramId: id, permission: "view" },
@@ -26,6 +30,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   const { id } = await params;
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const prisma = await db();
 
   const diagram = await prisma.diagram.findUnique({ where: { id } });
   if (!diagram || diagram.userId !== session.user.id) {
@@ -57,6 +62,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   const { id } = await params;
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const prisma = await db();
 
   const diagram = await prisma.diagram.findUnique({ where: { id } });
   if (!diagram || diagram.userId !== session.user.id) {
