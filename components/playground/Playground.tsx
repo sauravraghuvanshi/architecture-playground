@@ -30,6 +30,7 @@ import { exportGif, exportJson, exportPng, readJsonFile, type GifFrameDriver } f
 import { exportSvg, exportPngHighDpi, exportMermaid } from "./lib/export-extra";
 import { exportDrawio, readDrawioFile } from "./lib/export-drawio";
 import { IacExportModal } from "./IacExportModal";
+import { AiAssistPanel } from "./AiAssistPanel";
 import { validateImportedGraph } from "./lib/validate";
 import type { IconManifestEntry, PlaygroundGraph, PlaygroundTemplate, Layer, DiagramMetadata } from "./lib/types";
 import { DEFAULT_LAYER } from "./lib/types";
@@ -293,6 +294,30 @@ function PlaygroundShell({ icons, templates }: Props) {
   }, [persistedGraph, ui]);
 
   const [iacModalOpen, setIacModalOpen] = useState(false);
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const [aiAvailable, setAiAvailable] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/ai/status")
+      .then((r) => r.json())
+      .then((j: { configured?: boolean }) => {
+        if (cancelled) return;
+        // Defer setState to next tick to avoid cascading renders.
+        queueMicrotask(() => { if (!cancelled) setAiAvailable(!!j.configured); });
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleApplyAiGraph = useCallback((g: PlaygroundGraph) => {
+    const normalized = normalizeGraph(g);
+    setFlow(graphToFlow(normalized, iconsById));
+    setGraphExtras({ layers: normalized.layers, metadata: normalized.metadata });
+    dispatchHistory({ type: "push", snapshot: snapshotGraph(normalized) });
+    ui.announce(`AI generated diagram with ${normalized.nodes.length} nodes.`);
+    setTimeout(() => rfRef.current?.fitView({ duration: 300, padding: 0.2 }), 50);
+  }, [iconsById, ui]);
 
   const handleExportFormat = useCallback(
     async (format: "svg" | "png-2x" | "png-4x" | "mermaid" | "drawio" | "iac") => {
@@ -613,6 +638,24 @@ function PlaygroundShell({ icons, templates }: Props) {
       <div role="status" aria-live="polite" className="sr-only">{ui.announcement}</div>
       <KeyboardShortcutsPanel open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       <IacExportModal graph={persistedGraph} open={iacModalOpen} onClose={() => setIacModalOpen(false)} />
+      {aiAvailable && (
+        <>
+          <button
+            type="button"
+            onClick={() => setAiPanelOpen((v) => !v)}
+            className="fixed bottom-6 right-6 z-30 inline-flex items-center gap-2 rounded-full bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-lg hover:bg-indigo-500"
+            aria-label="Toggle AI Assist"
+          >
+            ✨ AI Assist
+          </button>
+          <AiAssistPanel
+            graph={persistedGraph}
+            open={aiPanelOpen}
+            onClose={() => setAiPanelOpen(false)}
+            onApplyGenerated={handleApplyAiGraph}
+          />
+        </>
+      )}
       <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} commands={commands} />
       <ContextMenu
         menu={contextMenu}
