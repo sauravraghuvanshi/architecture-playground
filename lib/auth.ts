@@ -13,10 +13,16 @@ const isAuthEnabled = Boolean(process.env.AUTH_SECRET && process.env.GITHUB_ID);
 
 function getAdapter() {
   if (!isAuthEnabled) return undefined;
-  // Lazy-load Prisma only when auth is actually enabled at runtime
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { getPrisma } = require("@/lib/prisma");
-  return PrismaAdapter(getPrisma());
+  // Skip during build — Prisma can't connect at build time
+  if (process.env.NEXT_PHASE === "phase-production-build") return undefined;
+  try {
+    // Lazy-load Prisma only when auth is actually enabled at runtime
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { getPrisma } = require("@/lib/prisma");
+    return PrismaAdapter(getPrisma());
+  } catch {
+    return undefined;
+  }
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
