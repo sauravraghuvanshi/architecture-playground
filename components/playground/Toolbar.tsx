@@ -25,6 +25,7 @@ interface Props {
   onExportPng: () => void;
   onExportJson: () => void;
   onExportGif: () => void;
+  onExportFormat: (format: "svg" | "png-2x" | "png-4x" | "mermaid" | "drawio" | "iac") => void;
   onAutoSequence: () => void;
   onFitView: () => void;
   onToggleShortcuts: () => void;
@@ -33,7 +34,7 @@ interface Props {
 export function Toolbar({
   canUndo, canRedo, totalSteps, templates,
   onUndo, onRedo, onClear, onLoadTemplate, onImportFile,
-  onExportPng, onExportJson, onExportGif, onAutoSequence, onFitView, onToggleShortcuts,
+  onExportPng, onExportJson, onExportGif, onExportFormat, onAutoSequence, onFitView, onToggleShortcuts,
 }: Props) {
   const { isPlaying, setPlaying, loop, setLoop, speed, setSpeed, exportProgress } = usePlaygroundUI();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -108,7 +109,7 @@ export function Toolbar({
       <input
         ref={fileInputRef}
         type="file"
-        accept="application/json,.json"
+        accept="application/json,.json,.drawio,.xml,application/xml,text/xml"
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0];
@@ -118,6 +119,23 @@ export function Toolbar({
       />
       <IconBtn label="Export JSON" onClick={onExportJson}><FileJson className="h-4 w-4" /></IconBtn>
       <IconBtn label="Export PNG" onClick={onExportPng}><FileImage className="h-4 w-4" /></IconBtn>
+      <select
+        aria-label="Export format"
+        className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs text-zinc-700 focus:border-brand-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+        onChange={(e) => {
+          const val = e.target.value;
+          if (val) onExportFormat(val as Parameters<typeof onExportFormat>[0]);
+          e.target.selectedIndex = 0;
+        }}
+      >
+        <option value="">More…</option>
+        <option value="svg">SVG (vector)</option>
+        <option value="png-2x">PNG (2x)</option>
+        <option value="png-4x">PNG (4x)</option>
+        <option value="mermaid">Mermaid (.mmd)</option>
+        <option value="drawio">draw.io XML</option>
+        <option value="iac">Bicep / Terraform…</option>
+      </select>
       <IconBtn
         label={totalSteps === 0 ? "Set edge steps to enable GIF export" : "Export animated GIF"}
         disabled={totalSteps === 0 || exportProgress !== null}

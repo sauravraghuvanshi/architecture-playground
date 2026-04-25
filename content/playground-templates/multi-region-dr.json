@@ -1,0 +1,227 @@
+{
+  "id": "multi-region-dr",
+  "name": "Multi-Region DR (Active-Passive)",
+  "description": "Primary region serves traffic; secondary region replicates state for failover.",
+  "cloud": "azure",
+  "category": "Patterns",
+  "tags": [
+    "DR",
+    "Multi-Region",
+    "HA"
+  ],
+  "difficulty": "advanced",
+  "graph": {
+    "nodes": [
+      {
+        "id": "client",
+        "type": "service",
+        "position": {
+          "x": 40,
+          "y": 240
+        },
+        "data": {
+          "iconId": "azure/application/10035-icon-service-app-services",
+          "label": "Global Clients",
+          "cloud": "azure"
+        }
+      },
+      {
+        "id": "traffic",
+        "type": "service",
+        "position": {
+          "x": 240,
+          "y": 240
+        },
+        "data": {
+          "iconId": "azure/networking/10065-icon-service-traffic-manager-profiles",
+          "label": "Traffic Manager / Front Door",
+          "cloud": "azure"
+        }
+      },
+      {
+        "id": "p",
+        "type": "group",
+        "position": {
+          "x": 460,
+          "y": 60
+        },
+        "width": 320,
+        "height": 380,
+        "data": {
+          "label": "Primary Region (East US)",
+          "variant": "region",
+          "color": "#22c55e"
+        }
+      },
+      {
+        "id": "p-app",
+        "type": "service",
+        "position": {
+          "x": 500,
+          "y": 140
+        },
+        "data": {
+          "iconId": "azure/application/10035-icon-service-app-services",
+          "label": "App Service",
+          "cloud": "azure"
+        },
+        "parentId": "p"
+      },
+      {
+        "id": "p-sql",
+        "type": "service",
+        "position": {
+          "x": 500,
+          "y": 260
+        },
+        "data": {
+          "iconId": "azure/database/10130-icon-service-sql-database",
+          "label": "SQL DB (geo-primary)",
+          "cloud": "azure"
+        },
+        "parentId": "p"
+      },
+      {
+        "id": "p-blob",
+        "type": "service",
+        "position": {
+          "x": 500,
+          "y": 380
+        },
+        "data": {
+          "iconId": "azure/storage/10086-icon-service-storage-accounts",
+          "label": "Blob (RA-GRS primary)",
+          "cloud": "azure"
+        },
+        "parentId": "p"
+      },
+      {
+        "id": "s",
+        "type": "group",
+        "position": {
+          "x": 820,
+          "y": 60
+        },
+        "width": 320,
+        "height": 380,
+        "data": {
+          "label": "Secondary Region (West EU)",
+          "variant": "region",
+          "color": "#a855f7"
+        }
+      },
+      {
+        "id": "s-app",
+        "type": "service",
+        "position": {
+          "x": 860,
+          "y": 140
+        },
+        "data": {
+          "iconId": "azure/application/10035-icon-service-app-services",
+          "label": "App Service (cold)",
+          "cloud": "azure"
+        },
+        "parentId": "s"
+      },
+      {
+        "id": "s-sql",
+        "type": "service",
+        "position": {
+          "x": 860,
+          "y": 260
+        },
+        "data": {
+          "iconId": "azure/database/10130-icon-service-sql-database",
+          "label": "SQL DB (geo-secondary)",
+          "cloud": "azure"
+        },
+        "parentId": "s"
+      },
+      {
+        "id": "s-blob",
+        "type": "service",
+        "position": {
+          "x": 860,
+          "y": 380
+        },
+        "data": {
+          "iconId": "azure/storage/10086-icon-service-storage-accounts",
+          "label": "Blob (RA-GRS secondary)",
+          "cloud": "azure"
+        },
+        "parentId": "s"
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "client",
+        "target": "traffic",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "step": 1
+        }
+      },
+      {
+        "id": "e2",
+        "source": "traffic",
+        "target": "p-app",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "Active",
+          "step": 2
+        }
+      },
+      {
+        "id": "e3",
+        "source": "traffic",
+        "target": "s-app",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "dashed",
+          "arrowStyle": "forward",
+          "label": "Standby",
+          "step": 2
+        }
+      },
+      {
+        "id": "e4",
+        "source": "p-app",
+        "target": "p-sql",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "step": 3
+        }
+      },
+      {
+        "id": "e5",
+        "source": "p-sql",
+        "target": "s-sql",
+        "data": {
+          "connectionType": "network",
+          "lineStyle": "dashed",
+          "arrowStyle": "forward",
+          "label": "Geo-replication"
+        }
+      },
+      {
+        "id": "e6",
+        "source": "p-blob",
+        "target": "s-blob",
+        "data": {
+          "connectionType": "network",
+          "lineStyle": "dashed",
+          "arrowStyle": "forward",
+          "label": "RA-GRS"
+        }
+      }
+    ]
+  }
+}

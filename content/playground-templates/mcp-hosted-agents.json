@@ -1,0 +1,182 @@
+{
+  "id": "mcp-hosted-agents",
+  "name": "AI Foundry Hosted Agents (MCP)",
+  "description": "Container-Apps-hosted MCP servers exposed to Foundry agents via APIM.",
+  "cloud": "azure",
+  "category": "AI",
+  "tags": [
+    "AI",
+    "MCP",
+    "Agents",
+    "Container Apps"
+  ],
+  "difficulty": "advanced",
+  "graph": {
+    "nodes": [
+      {
+        "id": "agent",
+        "type": "service",
+        "position": {
+          "x": 40,
+          "y": 220
+        },
+        "data": {
+          "iconId": "azure/ai/03438-icon-service-azure-openai",
+          "label": "Foundry Agent",
+          "cloud": "azure"
+        }
+      },
+      {
+        "id": "apim",
+        "type": "service",
+        "position": {
+          "x": 280,
+          "y": 220
+        },
+        "data": {
+          "iconId": "azure/integration/10042-icon-service-api-management-services",
+          "label": "APIM (MCP gateway)",
+          "cloud": "azure"
+        }
+      },
+      {
+        "id": "mcp1",
+        "type": "service",
+        "position": {
+          "x": 540,
+          "y": 100
+        },
+        "data": {
+          "iconId": "azure/general/02989-icon-service-container-apps-environments",
+          "label": "MCP Server (tools)",
+          "cloud": "azure"
+        }
+      },
+      {
+        "id": "mcp2",
+        "type": "service",
+        "position": {
+          "x": 540,
+          "y": 340
+        },
+        "data": {
+          "iconId": "azure/general/02989-icon-service-container-apps-environments",
+          "label": "MCP Server (data)",
+          "cloud": "azure"
+        }
+      },
+      {
+        "id": "backend",
+        "type": "service",
+        "position": {
+          "x": 780,
+          "y": 100
+        },
+        "data": {
+          "iconId": "azure/application/10035-icon-service-app-services",
+          "label": "Backend API",
+          "cloud": "azure"
+        }
+      },
+      {
+        "id": "db",
+        "type": "service",
+        "position": {
+          "x": 780,
+          "y": 340
+        },
+        "data": {
+          "iconId": "azure/database/10121-icon-service-azure-cosmos-db",
+          "label": "Cosmos DB",
+          "cloud": "azure"
+        }
+      },
+      {
+        "id": "kv",
+        "type": "service",
+        "position": {
+          "x": 280,
+          "y": 60
+        },
+        "data": {
+          "iconId": "azure/security/10245-icon-service-key-vaults",
+          "label": "Key Vault",
+          "cloud": "azure"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "agent",
+        "target": "apim",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "MCP RPC",
+          "step": 1
+        }
+      },
+      {
+        "id": "e2",
+        "source": "apim",
+        "target": "mcp1",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "tools/list",
+          "step": 2
+        }
+      },
+      {
+        "id": "e3",
+        "source": "apim",
+        "target": "mcp2",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "resources/read",
+          "step": 2
+        }
+      },
+      {
+        "id": "e4",
+        "source": "mcp1",
+        "target": "backend",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "Invoke",
+          "step": 3
+        }
+      },
+      {
+        "id": "e5",
+        "source": "mcp2",
+        "target": "db",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "Query",
+          "step": 3
+        }
+      },
+      {
+        "id": "e6",
+        "source": "apim",
+        "target": "kv",
+        "data": {
+          "connectionType": "dependency",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "Secrets"
+        }
+      }
+    ]
+  }
+}

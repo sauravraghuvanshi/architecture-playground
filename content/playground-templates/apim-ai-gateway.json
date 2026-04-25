@@ -1,0 +1,209 @@
+{
+  "id": "apim-ai-gateway",
+  "name": "APIM as AI Gateway",
+  "description": "Azure API Management fronting Azure OpenAI with caching, throttling, and observability.",
+  "cloud": "azure",
+  "category": "AI",
+  "tags": [
+    "AI",
+    "APIM",
+    "OpenAI",
+    "Gateway"
+  ],
+  "difficulty": "intermediate",
+  "parameters": [
+    {
+      "id": "caching",
+      "label": "Enable semantic caching",
+      "type": "boolean",
+      "default": true
+    },
+    {
+      "id": "monitoring",
+      "label": "Include monitoring",
+      "type": "boolean",
+      "default": true
+    }
+  ],
+  "graph": {
+    "nodes": [
+      {
+        "id": "client",
+        "type": "service",
+        "position": {
+          "x": 40,
+          "y": 200
+        },
+        "data": {
+          "iconId": "azure/application/10035-icon-service-app-services",
+          "label": "Client / SDK",
+          "cloud": "azure"
+        }
+      },
+      {
+        "id": "apim",
+        "type": "service",
+        "position": {
+          "x": 260,
+          "y": 200
+        },
+        "data": {
+          "iconId": "azure/integration/10042-icon-service-api-management-services",
+          "label": "API Management (AI Gateway)",
+          "cloud": "azure"
+        }
+      },
+      {
+        "id": "openai",
+        "type": "service",
+        "position": {
+          "x": 520,
+          "y": 120
+        },
+        "data": {
+          "iconId": "azure/ai/03438-icon-service-azure-openai",
+          "label": "Azure OpenAI",
+          "cloud": "azure"
+        }
+      },
+      {
+        "id": "openai2",
+        "type": "service",
+        "position": {
+          "x": 520,
+          "y": 280
+        },
+        "data": {
+          "iconId": "azure/ai/03438-icon-service-azure-openai",
+          "label": "Azure OpenAI (region 2)",
+          "cloud": "azure"
+        }
+      },
+      {
+        "id": "redis",
+        "type": "service",
+        "position": {
+          "x": 260,
+          "y": 60
+        },
+        "data": {
+          "iconId": "azure/database/10137-icon-service-cache-redis",
+          "label": "Azure Redis (cache)",
+          "cloud": "azure"
+        },
+        "_when": {
+          "caching": true
+        }
+      },
+      {
+        "id": "appins",
+        "type": "service",
+        "position": {
+          "x": 260,
+          "y": 380
+        },
+        "data": {
+          "iconId": "azure/devops/00012-icon-service-application-insights",
+          "label": "Application Insights",
+          "cloud": "azure"
+        },
+        "_when": {
+          "monitoring": true
+        }
+      },
+      {
+        "id": "kv",
+        "type": "service",
+        "position": {
+          "x": 40,
+          "y": 60
+        },
+        "data": {
+          "iconId": "azure/security/10245-icon-service-key-vaults",
+          "label": "Key Vault",
+          "cloud": "azure"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "client",
+        "target": "apim",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "REST",
+          "step": 1,
+          "protocol": "HTTPS"
+        }
+      },
+      {
+        "id": "e2",
+        "source": "apim",
+        "target": "redis",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "Lookup",
+          "step": 2
+        },
+        "_when": {
+          "caching": true
+        }
+      },
+      {
+        "id": "e3",
+        "source": "apim",
+        "target": "openai",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "Route",
+          "step": 3
+        }
+      },
+      {
+        "id": "e4",
+        "source": "apim",
+        "target": "openai2",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "dashed",
+          "arrowStyle": "forward",
+          "label": "Failover",
+          "step": 3
+        }
+      },
+      {
+        "id": "e5",
+        "source": "apim",
+        "target": "appins",
+        "data": {
+          "connectionType": "dependency",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "Telemetry",
+          "step": 4
+        },
+        "_when": {
+          "monitoring": true
+        }
+      },
+      {
+        "id": "e6",
+        "source": "apim",
+        "target": "kv",
+        "data": {
+          "connectionType": "dependency",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "Secrets"
+        }
+      }
+    ]
+  }
+}

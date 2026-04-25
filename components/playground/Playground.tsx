@@ -27,6 +27,9 @@ import {
 } from "./lib/history";
 import { applyAutoSequence, normalizeSequence } from "./lib/sequence";
 import { exportGif, exportJson, exportPng, readJsonFile, type GifFrameDriver } from "./lib/export";
+import { exportSvg, exportPngHighDpi, exportMermaid } from "./lib/export-extra";
+import { exportDrawio, readDrawioFile } from "./lib/export-drawio";
+import { IacExportModal } from "./IacExportModal";
 import { validateImportedGraph } from "./lib/validate";
 import type { IconManifestEntry, PlaygroundGraph, PlaygroundTemplate, Layer, DiagramMetadata } from "./lib/types";
 import { DEFAULT_LAYER } from "./lib/types";
@@ -143,16 +146,40 @@ function PlaygroundShell({ icons, templates }: Props) {
   const persistedGraph = useMemo(() => flowToGraph(nodes, edges, graphExtras), [nodes, edges, graphExtras]);
   useAutosave(persistedGraph, restored);
 
-  // Restore autosave on mount (client only).
+  // Restore autosave OR template handoff (from /templates gallery) on mount.
   useEffect(() => {
-    const saved = restoreAutosave();
-    if (saved && (saved.nodes.length > 0 || saved.edges.length > 0)) {
-      const normalized = normalizeGraph(saved);
-      const flow = graphToFlow(normalized, iconsById);
-      setFlow(flow); // eslint-disable-line react-hooks/set-state-in-effect -- Intentional: one-time hydration from localStorage on mount
-      setGraphExtras({ layers: normalized.layers, metadata: normalized.metadata });
-      dispatchHistory({ type: "reset", snapshot: snapshotGraph(normalized) });
-      ui.announce("Restored autosaved diagram.");
+    // Template gallery handoff takes precedence over autosave.
+    let usedHandoff = false;
+    try {
+      const HANDOFF_KEY = "architecture-playground:template-handoff";
+      const raw = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(HANDOFF_KEY) : null;
+      if (raw) {
+        const parsed = JSON.parse(raw) as { id?: string; name?: string; graph?: PlaygroundGraph };
+        if (parsed.graph && Array.isArray(parsed.graph.nodes)) {
+          const normalized = normalizeGraph(parsed.graph);
+          const flow = graphToFlow(normalized, iconsById);
+          setFlow(flow); // eslint-disable-line react-hooks/set-state-in-effect -- one-time hydration
+          setGraphExtras({ layers: normalized.layers, metadata: normalized.metadata });
+          dispatchHistory({ type: "reset", snapshot: snapshotGraph(normalized) });
+          ui.announce(`Loaded template ${parsed.name ?? parsed.id ?? ""}`.trim());
+          usedHandoff = true;
+        }
+        sessionStorage.removeItem(HANDOFF_KEY);
+      }
+    } catch {
+      /* ignore */
+    }
+
+    if (!usedHandoff) {
+      const saved = restoreAutosave();
+      if (saved && (saved.nodes.length > 0 || saved.edges.length > 0)) {
+        const normalized = normalizeGraph(saved);
+        const flow = graphToFlow(normalized, iconsById);
+        setFlow(flow); // eslint-disable-line react-hooks/set-state-in-effect -- Intentional: one-time hydration from localStorage on mount
+        setGraphExtras({ layers: normalized.layers, metadata: normalized.metadata });
+        dispatchHistory({ type: "reset", snapshot: snapshotGraph(normalized) });
+        ui.announce("Restored autosaved diagram.");
+      }
     }
     setRestored(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -214,6 +241,17 @@ function PlaygroundShell({ icons, templates }: Props) {
 
   const handleImportFile = useCallback(async (file: File) => {
     try {
+      const isDrawio = /\.(drawio|xml)$/i.test(file.name) || file.type.includes("xml");
+      if (isDrawio) {
+        const graph = await readDrawioFile(file);
+        const normalized = normalizeGraph(graph);
+        setFlow(graphToFlow(normalized, iconsById));
+        setGraphExtras({ layers: normalized.layers, metadata: normalized.metadata });
+        dispatchHistory({ type: "push", snapshot: snapshotGraph(normalized) });
+        ui.announce(`Imported draw.io diagram with ${normalized.nodes.length} nodes.`);
+        setTimeout(() => rfRef.current?.fitView({ duration: 300, padding: 0.2 }), 50);
+        return;
+      }
       const raw = await readJsonFile(file);
       // Accept either a bare graph or our { version, graph } export wrapper.
       const candidate = (raw && typeof raw === "object" && "graph" in (raw as object))
@@ -253,6 +291,50 @@ function PlaygroundShell({ icons, templates }: Props) {
     exportJson(persistedGraph);
     ui.announce("JSON downloaded.");
   }, [persistedGraph, ui]);
+
+  const [iacModalOpen, setIacModalOpen] = useState(false);
+
+  const handleExportFormat = useCallback(
+    async (format: "svg" | "png-2x" | "png-4x" | "mermaid" | "drawio" | "iac") => {
+      try {
+        if (format === "iac") {
+          setIacModalOpen(true);
+          return;
+        }
+        if (format === "mermaid") {
+          exportMermaid(persistedGraph);
+          ui.announce("Mermaid downloaded.");
+          return;
+        }
+        if (format === "drawio") {
+          exportDrawio(persistedGraph);
+          ui.announce("draw.io XML downloaded.");
+          return;
+        }
+        if (!viewportRef.current) return;
+        const flowEl = viewportRef.current.querySelector(".react-flow") as HTMLElement | null;
+        if (!flowEl) return;
+        if (format === "svg") {
+          await exportSvg(flowEl);
+          ui.announce("SVG downloaded.");
+          return;
+        }
+        if (format === "png-2x") {
+          await exportPngHighDpi(flowEl, 2);
+          ui.announce("PNG 2x downloaded.");
+          return;
+        }
+        if (format === "png-4x") {
+          await exportPngHighDpi(flowEl, 4);
+          ui.announce("PNG 4x downloaded.");
+          return;
+        }
+      } catch (err) {
+        alert("Export failed: " + (err instanceof Error ? err.message : "unknown"));
+      }
+    },
+    [persistedGraph, ui]
+  );
 
   const handleAutoSequence = useCallback(() => {
     const result = applyAutoSequence(persistedGraph);
@@ -483,6 +565,7 @@ function PlaygroundShell({ icons, templates }: Props) {
         onExportPng={handleExportPng}
         onExportJson={handleExportJsonAction}
         onExportGif={handleExportGif}
+        onExportFormat={handleExportFormat}
         onAutoSequence={handleAutoSequence}
         onFitView={handleFitView}
         onToggleShortcuts={() => setShortcutsOpen((v) => !v)}
@@ -529,6 +612,7 @@ function PlaygroundShell({ icons, templates }: Props) {
       </div>
       <div role="status" aria-live="polite" className="sr-only">{ui.announcement}</div>
       <KeyboardShortcutsPanel open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      <IacExportModal graph={persistedGraph} open={iacModalOpen} onClose={() => setIacModalOpen(false)} />
       <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} commands={commands} />
       <ContextMenu
         menu={contextMenu}

@@ -1,0 +1,158 @@
+{
+  "id": "apim-token-rate-limit",
+  "name": "Token Rate Limiting (APIM + OpenAI)",
+  "description": "Per-subscription token quotas enforced at APIM in front of Azure OpenAI.",
+  "cloud": "azure",
+  "category": "AI",
+  "tags": [
+    "AI",
+    "APIM",
+    "Rate Limit",
+    "Quota"
+  ],
+  "difficulty": "intermediate",
+  "graph": {
+    "nodes": [
+      {
+        "id": "c1",
+        "type": "service",
+        "position": {
+          "x": 40,
+          "y": 100
+        },
+        "data": {
+          "iconId": "azure/application/10035-icon-service-app-services",
+          "label": "Tenant A",
+          "cloud": "azure"
+        }
+      },
+      {
+        "id": "c2",
+        "type": "service",
+        "position": {
+          "x": 40,
+          "y": 220
+        },
+        "data": {
+          "iconId": "azure/application/10035-icon-service-app-services",
+          "label": "Tenant B",
+          "cloud": "azure"
+        }
+      },
+      {
+        "id": "c3",
+        "type": "service",
+        "position": {
+          "x": 40,
+          "y": 340
+        },
+        "data": {
+          "iconId": "azure/application/10035-icon-service-app-services",
+          "label": "Tenant C",
+          "cloud": "azure"
+        }
+      },
+      {
+        "id": "apim",
+        "type": "service",
+        "position": {
+          "x": 280,
+          "y": 220
+        },
+        "data": {
+          "iconId": "azure/integration/10042-icon-service-api-management-services",
+          "label": "APIM (token-limit policy)",
+          "cloud": "azure"
+        }
+      },
+      {
+        "id": "openai",
+        "type": "service",
+        "position": {
+          "x": 540,
+          "y": 220
+        },
+        "data": {
+          "iconId": "azure/ai/03438-icon-service-azure-openai",
+          "label": "Azure OpenAI",
+          "cloud": "azure"
+        }
+      },
+      {
+        "id": "appins",
+        "type": "service",
+        "position": {
+          "x": 280,
+          "y": 380
+        },
+        "data": {
+          "iconId": "azure/devops/00012-icon-service-application-insights",
+          "label": "App Insights (token metrics)",
+          "cloud": "azure"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "c1",
+        "target": "apim",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "1k TPM",
+          "step": 1
+        }
+      },
+      {
+        "id": "e2",
+        "source": "c2",
+        "target": "apim",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "5k TPM",
+          "step": 1
+        }
+      },
+      {
+        "id": "e3",
+        "source": "c3",
+        "target": "apim",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "10k TPM",
+          "step": 1
+        }
+      },
+      {
+        "id": "e4",
+        "source": "apim",
+        "target": "openai",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "Forward (within quota)",
+          "step": 2
+        }
+      },
+      {
+        "id": "e5",
+        "source": "apim",
+        "target": "appins",
+        "data": {
+          "connectionType": "dependency",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "Token usage",
+          "step": 3
+        }
+      }
+    ]
+  }
+}

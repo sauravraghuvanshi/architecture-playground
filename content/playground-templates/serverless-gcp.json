@@ -1,0 +1,105 @@
+{
+  "id": "serverless-gcp",
+  "name": "Serverless (GCP Cloud Run)",
+  "description": "Cloud Run service with Cloud Storage and BigQuery analytics.",
+  "cloud": "gcp",
+  "category": "Serverless",
+  "tags": [
+    "Serverless",
+    "GCP",
+    "Cloud Run"
+  ],
+  "difficulty": "beginner",
+  "graph": {
+    "nodes": [
+      {
+        "id": "client",
+        "type": "service",
+        "position": {
+          "x": 40,
+          "y": 220
+        },
+        "data": {
+          "iconId": "gcp/compute/cloud-run",
+          "label": "Client",
+          "cloud": "gcp"
+        }
+      },
+      {
+        "id": "run",
+        "type": "service",
+        "position": {
+          "x": 280,
+          "y": 220
+        },
+        "data": {
+          "iconId": "gcp/compute/cloud-run",
+          "label": "Cloud Run Service",
+          "cloud": "gcp"
+        }
+      },
+      {
+        "id": "gcs",
+        "type": "service",
+        "position": {
+          "x": 520,
+          "y": 120
+        },
+        "data": {
+          "iconId": "gcp/storage/cloud-storage",
+          "label": "Cloud Storage",
+          "cloud": "gcp"
+        }
+      },
+      {
+        "id": "bq",
+        "type": "service",
+        "position": {
+          "x": 520,
+          "y": 320
+        },
+        "data": {
+          "iconId": "gcp/analytics/big-query",
+          "label": "BigQuery",
+          "cloud": "gcp"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "client",
+        "target": "run",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "step": 1
+        }
+      },
+      {
+        "id": "e2",
+        "source": "run",
+        "target": "gcs",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "step": 2
+        }
+      },
+      {
+        "id": "e3",
+        "source": "run",
+        "target": "bq",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "Analytics",
+          "step": 3
+        }
+      }
+    ]
+  }
+}

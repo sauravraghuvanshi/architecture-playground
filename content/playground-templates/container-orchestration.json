@@ -1,0 +1,368 @@
+{
+  "id": "container-orchestration",
+  "name": "Container Orchestration",
+  "description": "Managed Kubernetes pattern with ingress, registry, and observability. Switch provider via parameter.",
+  "cloud": "multi",
+  "category": "Containers",
+  "tags": [
+    "Kubernetes",
+    "AKS",
+    "EKS",
+    "GKE"
+  ],
+  "difficulty": "intermediate",
+  "parameters": [
+    {
+      "id": "provider",
+      "label": "Provider",
+      "type": "enum",
+      "default": "azure",
+      "choices": [
+        {
+          "value": "azure",
+          "label": "Azure (AKS)"
+        },
+        {
+          "value": "aws",
+          "label": "AWS (EKS)"
+        }
+      ]
+    }
+  ],
+  "graph": {
+    "nodes": [
+      {
+        "id": "user",
+        "type": "service",
+        "position": {
+          "x": 40,
+          "y": 240
+        },
+        "data": {
+          "iconId": "azure/application/10035-icon-service-app-services",
+          "label": "Users",
+          "cloud": "azure"
+        },
+        "_when": {
+          "provider": "azure"
+        }
+      },
+      {
+        "id": "user-aws",
+        "type": "service",
+        "position": {
+          "x": 40,
+          "y": 240
+        },
+        "data": {
+          "iconId": "aws/networking/cloudfront",
+          "label": "Users",
+          "cloud": "aws"
+        },
+        "_when": {
+          "provider": "aws"
+        }
+      },
+      {
+        "id": "ingress",
+        "type": "service",
+        "position": {
+          "x": 260,
+          "y": 240
+        },
+        "data": {
+          "iconId": "azure/application/10073-icon-service-front-door-and-cdn-profiles",
+          "label": "Front Door",
+          "cloud": "azure"
+        },
+        "_when": {
+          "provider": "azure"
+        }
+      },
+      {
+        "id": "ingress-aws",
+        "type": "service",
+        "position": {
+          "x": 260,
+          "y": 240
+        },
+        "data": {
+          "iconId": "aws/networking/elastic-load-balancing",
+          "label": "CloudFront + ALB",
+          "cloud": "aws"
+        },
+        "_when": {
+          "provider": "aws"
+        }
+      },
+      {
+        "id": "k8s",
+        "type": "service",
+        "position": {
+          "x": 480,
+          "y": 240
+        },
+        "data": {
+          "iconId": "azure/compute/10023-icon-service-kubernetes-services",
+          "label": "AKS Cluster",
+          "cloud": "azure"
+        },
+        "_when": {
+          "provider": "azure"
+        }
+      },
+      {
+        "id": "k8s-aws",
+        "type": "service",
+        "position": {
+          "x": 480,
+          "y": 240
+        },
+        "data": {
+          "iconId": "aws/containers/elastic-kubernetes-service",
+          "label": "EKS Cluster",
+          "cloud": "aws"
+        },
+        "_when": {
+          "provider": "aws"
+        }
+      },
+      {
+        "id": "registry",
+        "type": "service",
+        "position": {
+          "x": 480,
+          "y": 100
+        },
+        "data": {
+          "iconId": "azure/containers/10105-icon-service-container-registries",
+          "label": "Container Registry",
+          "cloud": "azure"
+        },
+        "_when": {
+          "provider": "azure"
+        }
+      },
+      {
+        "id": "registry-aws",
+        "type": "service",
+        "position": {
+          "x": 480,
+          "y": 100
+        },
+        "data": {
+          "iconId": "aws/containers/elastic-kubernetes-service",
+          "label": "ECR",
+          "cloud": "aws"
+        },
+        "_when": {
+          "provider": "aws"
+        }
+      },
+      {
+        "id": "db",
+        "type": "service",
+        "position": {
+          "x": 720,
+          "y": 240
+        },
+        "data": {
+          "iconId": "azure/database/10121-icon-service-azure-cosmos-db",
+          "label": "Cosmos DB",
+          "cloud": "azure"
+        },
+        "_when": {
+          "provider": "azure"
+        }
+      },
+      {
+        "id": "db-aws",
+        "type": "service",
+        "position": {
+          "x": 720,
+          "y": 240
+        },
+        "data": {
+          "iconId": "aws/database/dynamodb",
+          "label": "DynamoDB",
+          "cloud": "aws"
+        },
+        "_when": {
+          "provider": "aws"
+        }
+      },
+      {
+        "id": "obs",
+        "type": "service",
+        "position": {
+          "x": 720,
+          "y": 380
+        },
+        "data": {
+          "iconId": "azure/devops/00012-icon-service-application-insights",
+          "label": "Container Insights",
+          "cloud": "azure"
+        },
+        "_when": {
+          "provider": "azure"
+        }
+      },
+      {
+        "id": "obs-aws",
+        "type": "service",
+        "position": {
+          "x": 720,
+          "y": 380
+        },
+        "data": {
+          "iconId": "aws/management/cloudwatch",
+          "label": "CloudWatch",
+          "cloud": "aws"
+        },
+        "_when": {
+          "provider": "aws"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "user",
+        "target": "ingress",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "step": 1
+        },
+        "_when": {
+          "provider": "azure"
+        }
+      },
+      {
+        "id": "e2",
+        "source": "ingress",
+        "target": "k8s",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "step": 2
+        },
+        "_when": {
+          "provider": "azure"
+        }
+      },
+      {
+        "id": "e3",
+        "source": "registry",
+        "target": "k8s",
+        "data": {
+          "connectionType": "dependency",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "Pull image"
+        },
+        "_when": {
+          "provider": "azure"
+        }
+      },
+      {
+        "id": "e4",
+        "source": "k8s",
+        "target": "db",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "step": 3
+        },
+        "_when": {
+          "provider": "azure"
+        }
+      },
+      {
+        "id": "e5",
+        "source": "k8s",
+        "target": "obs",
+        "data": {
+          "connectionType": "dependency",
+          "lineStyle": "solid",
+          "arrowStyle": "forward"
+        },
+        "_when": {
+          "provider": "azure"
+        }
+      },
+      {
+        "id": "ew1",
+        "source": "user-aws",
+        "target": "ingress-aws",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "step": 1
+        },
+        "_when": {
+          "provider": "aws"
+        }
+      },
+      {
+        "id": "ew2",
+        "source": "ingress-aws",
+        "target": "k8s-aws",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "step": 2
+        },
+        "_when": {
+          "provider": "aws"
+        }
+      },
+      {
+        "id": "ew3",
+        "source": "registry-aws",
+        "target": "k8s-aws",
+        "data": {
+          "connectionType": "dependency",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "Pull image"
+        },
+        "_when": {
+          "provider": "aws"
+        }
+      },
+      {
+        "id": "ew4",
+        "source": "k8s-aws",
+        "target": "db-aws",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "step": 3
+        },
+        "_when": {
+          "provider": "aws"
+        }
+      },
+      {
+        "id": "ew5",
+        "source": "k8s-aws",
+        "target": "obs-aws",
+        "data": {
+          "connectionType": "dependency",
+          "lineStyle": "solid",
+          "arrowStyle": "forward"
+        },
+        "_when": {
+          "provider": "aws"
+        }
+      }
+    ]
+  }
+}

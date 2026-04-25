@@ -1,0 +1,311 @@
+{
+  "id": "event-driven",
+  "name": "Event-Driven Architecture",
+  "description": "Producer publishes to a broker; multiple consumers react asynchronously. Provider-aware.",
+  "cloud": "multi",
+  "category": "Patterns",
+  "tags": [
+    "Event-Driven",
+    "Async",
+    "Pub-Sub"
+  ],
+  "difficulty": "beginner",
+  "parameters": [
+    {
+      "id": "provider",
+      "label": "Cloud provider",
+      "type": "enum",
+      "default": "azure",
+      "choices": [
+        {
+          "value": "azure",
+          "label": "Azure"
+        },
+        {
+          "value": "aws",
+          "label": "AWS"
+        }
+      ]
+    }
+  ],
+  "graph": {
+    "nodes": [
+      {
+        "id": "producer-az",
+        "type": "service",
+        "position": {
+          "x": 40,
+          "y": 200
+        },
+        "data": {
+          "iconId": "azure/application/10035-icon-service-app-services",
+          "label": "Producer (App Service)",
+          "cloud": "azure"
+        },
+        "_when": {
+          "provider": "azure"
+        }
+      },
+      {
+        "id": "broker-az",
+        "type": "service",
+        "position": {
+          "x": 280,
+          "y": 200
+        },
+        "data": {
+          "iconId": "azure/integration/10206-icon-service-event-grid-topics",
+          "label": "Event Grid Topic",
+          "cloud": "azure"
+        },
+        "_when": {
+          "provider": "azure"
+        }
+      },
+      {
+        "id": "c1-az",
+        "type": "service",
+        "position": {
+          "x": 540,
+          "y": 80
+        },
+        "data": {
+          "iconId": "azure/compute/10029-icon-service-function-apps",
+          "label": "Function App",
+          "cloud": "azure"
+        },
+        "_when": {
+          "provider": "azure"
+        }
+      },
+      {
+        "id": "c2-az",
+        "type": "service",
+        "position": {
+          "x": 540,
+          "y": 220
+        },
+        "data": {
+          "iconId": "azure/integration/03637-icon-service-business-process-tracking",
+          "label": "Service Bus",
+          "cloud": "azure"
+        },
+        "_when": {
+          "provider": "azure"
+        }
+      },
+      {
+        "id": "c3-az",
+        "type": "service",
+        "position": {
+          "x": 540,
+          "y": 360
+        },
+        "data": {
+          "iconId": "azure/application/10035-icon-service-app-services",
+          "label": "Logic App",
+          "cloud": "azure"
+        },
+        "_when": {
+          "provider": "azure"
+        }
+      },
+      {
+        "id": "producer-aws",
+        "type": "service",
+        "position": {
+          "x": 40,
+          "y": 200
+        },
+        "data": {
+          "iconId": "aws/compute/lambda",
+          "label": "Producer (Lambda)",
+          "cloud": "aws"
+        },
+        "_when": {
+          "provider": "aws"
+        }
+      },
+      {
+        "id": "broker-aws",
+        "type": "service",
+        "position": {
+          "x": 280,
+          "y": 200
+        },
+        "data": {
+          "iconId": "aws/management/cloudwatch",
+          "label": "EventBridge",
+          "cloud": "aws"
+        },
+        "_when": {
+          "provider": "aws"
+        }
+      },
+      {
+        "id": "c1-aws",
+        "type": "service",
+        "position": {
+          "x": 540,
+          "y": 80
+        },
+        "data": {
+          "iconId": "aws/compute/lambda",
+          "label": "Lambda Consumer",
+          "cloud": "aws"
+        },
+        "_when": {
+          "provider": "aws"
+        }
+      },
+      {
+        "id": "c2-aws",
+        "type": "service",
+        "position": {
+          "x": 540,
+          "y": 220
+        },
+        "data": {
+          "iconId": "aws/storage/backup",
+          "label": "SQS",
+          "cloud": "aws"
+        },
+        "_when": {
+          "provider": "aws"
+        }
+      },
+      {
+        "id": "c3-aws",
+        "type": "service",
+        "position": {
+          "x": 540,
+          "y": 360
+        },
+        "data": {
+          "iconId": "aws/database/dynamodb",
+          "label": "DynamoDB Stream",
+          "cloud": "aws"
+        },
+        "_when": {
+          "provider": "aws"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "ea1",
+        "source": "producer-az",
+        "target": "broker-az",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "publish",
+          "step": 1
+        },
+        "_when": {
+          "provider": "azure"
+        }
+      },
+      {
+        "id": "ea2",
+        "source": "broker-az",
+        "target": "c1-az",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "step": 2
+        },
+        "_when": {
+          "provider": "azure"
+        }
+      },
+      {
+        "id": "ea3",
+        "source": "broker-az",
+        "target": "c2-az",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "step": 2
+        },
+        "_when": {
+          "provider": "azure"
+        }
+      },
+      {
+        "id": "ea4",
+        "source": "broker-az",
+        "target": "c3-az",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "step": 2
+        },
+        "_when": {
+          "provider": "azure"
+        }
+      },
+      {
+        "id": "ew1",
+        "source": "producer-aws",
+        "target": "broker-aws",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "putEvents",
+          "step": 1
+        },
+        "_when": {
+          "provider": "aws"
+        }
+      },
+      {
+        "id": "ew2",
+        "source": "broker-aws",
+        "target": "c1-aws",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "step": 2
+        },
+        "_when": {
+          "provider": "aws"
+        }
+      },
+      {
+        "id": "ew3",
+        "source": "broker-aws",
+        "target": "c2-aws",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "step": 2
+        },
+        "_when": {
+          "provider": "aws"
+        }
+      },
+      {
+        "id": "ew4",
+        "source": "broker-aws",
+        "target": "c3-aws",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "step": 2
+        },
+        "_when": {
+          "provider": "aws"
+        }
+      }
+    ]
+  }
+}

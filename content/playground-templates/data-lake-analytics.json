@@ -1,0 +1,227 @@
+{
+  "id": "data-lake-analytics",
+  "name": "Data Lake & Analytics Pipeline (Azure)",
+  "description": "Ingest → land in Data Lake → transform with Synapse → serve via Power BI / ADX.",
+  "cloud": "azure",
+  "category": "Data",
+  "tags": [
+    "Data",
+    "Analytics",
+    "Synapse",
+    "ADX"
+  ],
+  "difficulty": "advanced",
+  "graph": {
+    "nodes": [
+      {
+        "id": "src1",
+        "type": "service",
+        "position": {
+          "x": 40,
+          "y": 100
+        },
+        "data": {
+          "iconId": "azure/database/10130-icon-service-sql-database",
+          "label": "OLTP DBs",
+          "cloud": "azure"
+        }
+      },
+      {
+        "id": "src2",
+        "type": "service",
+        "position": {
+          "x": 40,
+          "y": 240
+        },
+        "data": {
+          "iconId": "azure/analytics/00039-icon-service-event-hubs",
+          "label": "Event Hub (streaming)",
+          "cloud": "azure"
+        }
+      },
+      {
+        "id": "src3",
+        "type": "service",
+        "position": {
+          "x": 40,
+          "y": 380
+        },
+        "data": {
+          "iconId": "azure/storage/10086-icon-service-storage-accounts",
+          "label": "Files / SaaS",
+          "cloud": "azure"
+        }
+      },
+      {
+        "id": "ingest",
+        "type": "service",
+        "position": {
+          "x": 280,
+          "y": 240
+        },
+        "data": {
+          "iconId": "azure/analytics/00606-icon-service-azure-synapse-analytics",
+          "label": "Synapse Pipelines",
+          "cloud": "azure"
+        }
+      },
+      {
+        "id": "lake",
+        "type": "service",
+        "position": {
+          "x": 520,
+          "y": 240
+        },
+        "data": {
+          "iconId": "azure/analytics/10143-icon-service-data-lake-analytics",
+          "label": "Data Lake (ADLS Gen2)",
+          "cloud": "azure"
+        }
+      },
+      {
+        "id": "transform",
+        "type": "service",
+        "position": {
+          "x": 760,
+          "y": 240
+        },
+        "data": {
+          "iconId": "azure/analytics/00606-icon-service-azure-synapse-analytics",
+          "label": "Synapse / Spark",
+          "cloud": "azure"
+        }
+      },
+      {
+        "id": "serve1",
+        "type": "service",
+        "position": {
+          "x": 1000,
+          "y": 100
+        },
+        "data": {
+          "iconId": "azure/analytics/00606-icon-service-azure-synapse-analytics",
+          "label": "Synapse SQL (warehouse)",
+          "cloud": "azure"
+        }
+      },
+      {
+        "id": "serve2",
+        "type": "service",
+        "position": {
+          "x": 1000,
+          "y": 240
+        },
+        "data": {
+          "iconId": "azure/analytics/10145-icon-service-azure-data-explorer-clusters",
+          "label": "Azure Data Explorer",
+          "cloud": "azure"
+        }
+      },
+      {
+        "id": "serve3",
+        "type": "service",
+        "position": {
+          "x": 1000,
+          "y": 380
+        },
+        "data": {
+          "iconId": "azure/ai/10044-icon-service-cognitive-search",
+          "label": "Cognitive Search",
+          "cloud": "azure"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "src1",
+        "target": "ingest",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "step": 1
+        }
+      },
+      {
+        "id": "e2",
+        "source": "src2",
+        "target": "ingest",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "step": 1
+        }
+      },
+      {
+        "id": "e3",
+        "source": "src3",
+        "target": "ingest",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "step": 1
+        }
+      },
+      {
+        "id": "e4",
+        "source": "ingest",
+        "target": "lake",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "Bronze",
+          "step": 2
+        }
+      },
+      {
+        "id": "e5",
+        "source": "lake",
+        "target": "transform",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "Silver/Gold",
+          "step": 3
+        }
+      },
+      {
+        "id": "e6",
+        "source": "transform",
+        "target": "serve1",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "step": 4
+        }
+      },
+      {
+        "id": "e7",
+        "source": "transform",
+        "target": "serve2",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "step": 4
+        }
+      },
+      {
+        "id": "e8",
+        "source": "transform",
+        "target": "serve3",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "step": 4
+        }
+      }
+    ]
+  }
+}

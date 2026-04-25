@@ -10,6 +10,7 @@ import path from "node:path";
 import type { Metadata } from "next";
 import { PlaygroundClient } from "./PlaygroundClient";
 import type { IconManifest, IconManifestEntry, PlaygroundTemplate } from "@/components/playground/lib/types";
+import { resolveTemplateDefaults, type ParameterizedTemplate } from "@/components/playground/lib/template-engine";
 
 export const metadata: Metadata = {
   title: "Architecture Playground — drag-and-drop cloud diagrams",
@@ -49,7 +50,23 @@ async function loadTemplates(): Promise<PlaygroundTemplate[]> {
   for (const entry of entries.filter((e) => e.endsWith(".json")).sort()) {
     try {
       const raw = await fs.readFile(path.join(dir, entry), "utf8");
-      out.push(JSON.parse(raw) as PlaygroundTemplate);
+      const parsed = JSON.parse(raw) as ParameterizedTemplate;
+      // If the template carries parameters or _when markers, resolve to
+      // defaults so the existing playground sees a clean PlaygroundGraph.
+      const hasMarkers =
+        Array.isArray(parsed.parameters) ||
+        parsed.graph.nodes.some((n) => "_when" in n || "_iconChoice" in n) ||
+        parsed.graph.edges.some((e) => "_when" in e);
+      const resolved: PlaygroundTemplate = hasMarkers
+        ? {
+            id: parsed.id,
+            name: parsed.name,
+            description: parsed.description,
+            cloud: parsed.cloud,
+            graph: resolveTemplateDefaults(parsed),
+          }
+        : (parsed as unknown as PlaygroundTemplate);
+      out.push(resolved);
     } catch {
       // Skip malformed templates rather than failing the page.
     }

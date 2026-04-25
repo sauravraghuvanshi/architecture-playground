@@ -118,6 +118,13 @@ export interface BasePosition {
   y: number;
 }
 
+/**
+ * Free-form typed properties on a service node.
+ * Used by IaC emitters (Bicep/Terraform) and AI review.
+ * Keys & values are intentionally loose (sku, tier, region, replicas, etc).
+ */
+export type ServiceProperties = Record<string, string | number | boolean>;
+
 export interface ServiceNodeData {
   iconId: string;        // matches IconManifestEntry.id
   label: string;
@@ -125,6 +132,7 @@ export interface ServiceNodeData {
   description?: string;
   layerId?: string;      // layer assignment; defaults to "default"
   tags?: string[];
+  properties?: ServiceProperties;
 }
 
 export interface GroupNodeData {

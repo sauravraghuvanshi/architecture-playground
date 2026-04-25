@@ -1,0 +1,286 @@
+{
+  "id": "microservices-apigw",
+  "name": "Microservices with API Gateway",
+  "description": "API Gateway routes to independent microservices, each with its own database.",
+  "cloud": "azure",
+  "category": "Patterns",
+  "tags": [
+    "Microservices",
+    "APIM",
+    "AKS"
+  ],
+  "difficulty": "intermediate",
+  "graph": {
+    "nodes": [
+      {
+        "id": "client",
+        "type": "service",
+        "position": {
+          "x": 40,
+          "y": 240
+        },
+        "data": {
+          "iconId": "azure/application/10035-icon-service-app-services",
+          "label": "Web / Mobile Client",
+          "cloud": "azure"
+        }
+      },
+      {
+        "id": "fd",
+        "type": "service",
+        "position": {
+          "x": 240,
+          "y": 240
+        },
+        "data": {
+          "iconId": "azure/application/10073-icon-service-front-door-and-cdn-profiles",
+          "label": "Front Door + WAF",
+          "cloud": "azure"
+        }
+      },
+      {
+        "id": "apim",
+        "type": "service",
+        "position": {
+          "x": 440,
+          "y": 240
+        },
+        "data": {
+          "iconId": "azure/integration/10042-icon-service-api-management-services",
+          "label": "APIM",
+          "cloud": "azure"
+        }
+      },
+      {
+        "id": "svcs",
+        "type": "group",
+        "position": {
+          "x": 660,
+          "y": 80
+        },
+        "width": 420,
+        "height": 380,
+        "data": {
+          "label": "AKS — Microservices",
+          "variant": "vpc",
+          "color": "#0ea5e9"
+        }
+      },
+      {
+        "id": "svc1",
+        "type": "service",
+        "position": {
+          "x": 700,
+          "y": 140
+        },
+        "data": {
+          "iconId": "azure/compute/10023-icon-service-kubernetes-services",
+          "label": "Orders Svc",
+          "cloud": "azure"
+        },
+        "parentId": "svcs"
+      },
+      {
+        "id": "svc2",
+        "type": "service",
+        "position": {
+          "x": 700,
+          "y": 260
+        },
+        "data": {
+          "iconId": "azure/compute/10023-icon-service-kubernetes-services",
+          "label": "Catalog Svc",
+          "cloud": "azure"
+        },
+        "parentId": "svcs"
+      },
+      {
+        "id": "svc3",
+        "type": "service",
+        "position": {
+          "x": 700,
+          "y": 380
+        },
+        "data": {
+          "iconId": "azure/compute/10023-icon-service-kubernetes-services",
+          "label": "Identity Svc",
+          "cloud": "azure"
+        },
+        "parentId": "svcs"
+      },
+      {
+        "id": "db1",
+        "type": "service",
+        "position": {
+          "x": 900,
+          "y": 140
+        },
+        "data": {
+          "iconId": "azure/database/10121-icon-service-azure-cosmos-db",
+          "label": "Orders DB",
+          "cloud": "azure"
+        },
+        "parentId": "svcs"
+      },
+      {
+        "id": "db2",
+        "type": "service",
+        "position": {
+          "x": 900,
+          "y": 260
+        },
+        "data": {
+          "iconId": "azure/database/10130-icon-service-sql-database",
+          "label": "Catalog DB",
+          "cloud": "azure"
+        },
+        "parentId": "svcs"
+      },
+      {
+        "id": "db3",
+        "type": "service",
+        "position": {
+          "x": 900,
+          "y": 380
+        },
+        "data": {
+          "iconId": "azure/database/02827-icon-service-azure-database-postgresql-server-group",
+          "label": "Identity DB",
+          "cloud": "azure"
+        },
+        "parentId": "svcs"
+      },
+      {
+        "id": "sb",
+        "type": "service",
+        "position": {
+          "x": 660,
+          "y": 520
+        },
+        "data": {
+          "iconId": "azure/integration/03637-icon-service-business-process-tracking",
+          "label": "Service Bus",
+          "cloud": "azure"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "client",
+        "target": "fd",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "HTTPS",
+          "step": 1
+        }
+      },
+      {
+        "id": "e2",
+        "source": "fd",
+        "target": "apim",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "step": 2
+        }
+      },
+      {
+        "id": "e3",
+        "source": "apim",
+        "target": "svc1",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "/orders",
+          "step": 3
+        }
+      },
+      {
+        "id": "e4",
+        "source": "apim",
+        "target": "svc2",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "/catalog",
+          "step": 3
+        }
+      },
+      {
+        "id": "e5",
+        "source": "apim",
+        "target": "svc3",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "/auth",
+          "step": 3
+        }
+      },
+      {
+        "id": "e6",
+        "source": "svc1",
+        "target": "db1",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "step": 4
+        }
+      },
+      {
+        "id": "e7",
+        "source": "svc2",
+        "target": "db2",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "step": 4
+        }
+      },
+      {
+        "id": "e8",
+        "source": "svc3",
+        "target": "db3",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "step": 4
+        }
+      },
+      {
+        "id": "e9",
+        "source": "svc1",
+        "target": "sb",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "OrderPlaced",
+          "step": 5
+        }
+      },
+      {
+        "id": "e10",
+        "source": "sb",
+        "target": "svc2",
+        "data": {
+          "connectionType": "data-flow",
+          "lineStyle": "solid",
+          "arrowStyle": "forward",
+          "label": "ReserveStock",
+          "step": 6
+        }
+      }
+    ]
+  }
+}

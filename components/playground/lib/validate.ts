@@ -32,6 +32,17 @@ const labelSchema = z.string().max(MAX_LABEL);
 
 const hexColor = z.string().regex(/^#[0-9a-f]{3,8}$/i).optional();
 
+const propertyValueSchema = z.union([
+  z.string().max(200),
+  z.number().finite(),
+  z.boolean(),
+]);
+
+const servicePropertiesSchema = z
+  .record(z.string().max(64), propertyValueSchema)
+  .refine((r) => Object.keys(r).length <= 32, "too many properties")
+  .optional();
+
 const serviceDataSchema = z.object({
   iconId: z.string().max(200),
   label: labelSchema,
@@ -39,6 +50,7 @@ const serviceDataSchema = z.object({
   description: z.string().max(500).optional(),
   layerId: z.string().max(64).optional(),
   tags: z.array(z.string().max(50)).max(20).optional(),
+  properties: servicePropertiesSchema,
 });
 
 const groupDataSchema = z.object({
