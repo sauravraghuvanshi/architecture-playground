@@ -1,0 +1,132 @@
+// Architecture Playground — Prisma Schema
+// Dev: SQLite · Prod: PostgreSQL (swap datasource provider + URL)
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ─── Auth (NextAuth.js / Auth.js) ─────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+
+  projects      Project[]
+  diagrams      Diagram[]
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Account {
+  id                       String  @id @default(cuid())
+  userId                   String
+  type                     String
+  provider                 String
+  providerAccountId        String
+  refresh_token            String?
+  access_token             String?
+  expires_at               Int?
+  token_type               String?
+  scope                    String?
+  id_token                 String?
+  session_state            String?
+  refresh_token_expires_in Int?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─── Projects & Diagrams ──────────────────────────────────────────────
+
+model Project {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  diagrams    Diagram[]
+  archived    Boolean   @default(false)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+model Diagram {
+  id          String           @id @default(cuid())
+  name        String
+  description String?
+  projectId   String?
+  project     Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // The current graph state (JSON blob)
+  graphJson   String           @default("{\"nodes\":[],\"edges\":[]}")
+  thumbnail   String?          // base64 PNG thumbnail
+
+  versions    DiagramVersion[]
+  shares      ShareLink[]
+  archived    Boolean          @default(false)
+
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([userId])
+  @@index([projectId])
+}
+
+model DiagramVersion {
+  id         String   @id @default(cuid())
+  diagramId  String
+  diagram    Diagram  @relation(fields: [diagramId], references: [id], onDelete: Cascade)
+  version    Int
+  label      String?  // e.g. "v1.0 — initial design"
+  graphJson  String
+  createdAt  DateTime @default(now())
+
+  @@unique([diagramId, version])
+  @@index([diagramId])
+}
+
+model ShareLink {
+  id         String   @id @default(cuid())
+  diagramId  String
+  diagram    Diagram  @relation(fields: [diagramId], references: [id], onDelete: Cascade)
+  token      String   @unique @default(cuid())
+  permission String   @default("view") // "view" | "edit"
+  expiresAt  DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([token])
+  @@index([diagramId])
+}
