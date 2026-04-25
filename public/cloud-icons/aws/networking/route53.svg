@@ -1,12 +1,1 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Route 53">
-  <defs>
-    <linearGradient id="bg-aws-R53" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#FF9900"/>
-      <stop offset="100%" stop-color="#cc7a00"/>
-    </linearGradient>
-  </defs>
-  <rect x="2" y="2" width="60" height="60" rx="10" fill="url(#bg-aws-R53)"/>
-  <g opacity="0.18" color="#232F3E"><circle cx="32" cy="32" r="14" fill="none" stroke="currentColor" stroke-width="2"/><line x1="18" y1="32" x2="46" y2="32" stroke="currentColor" stroke-width="2"/><ellipse cx="32" cy="32" rx="6" ry="14" fill="none" stroke="currentColor" stroke-width="2"/></g>
-  <text x="32" y="38" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif" font-weight="700" font-size="18" fill="#232F3E">R53</text>
-</svg>
+<svg aria-label="Route 53" viewBox="0 0 64 64"><defs><linearGradient id="a" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#f90"/><stop offset="100%" stop-color="#cc7a00"/></linearGradient></defs><rect width="60" height="60" x="2" y="2" fill="url(#a)" rx="10"/><g stroke="currentColor" stroke-width="2" color="#232f3e" opacity=".18"><circle cx="32" cy="32" r="14" fill="none"/><path d="M18 32h28"/><ellipse cx="32" cy="32" fill="none" rx="6" ry="14"/></g><text x="32" y="38" fill="#232f3e" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif" font-size="18" font-weight="700" text-anchor="middle">R53</text></svg>

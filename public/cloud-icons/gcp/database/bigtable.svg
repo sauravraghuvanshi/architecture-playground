@@ -1,12 +1,1 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Bigtable">
-  <defs>
-    <linearGradient id="bg-gcp-BT" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#4285F4"/>
-      <stop offset="100%" stop-color="#1a73e8"/>
-    </linearGradient>
-  </defs>
-  <rect x="2" y="2" width="60" height="60" rx="10" fill="url(#bg-gcp-BT)"/>
-  <g opacity="0.18" color="#ffffff"><ellipse cx="32" cy="18" rx="16" ry="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 18 v22 a16 4 0 0 0 32 0 v-22 M16 28 a16 4 0 0 0 32 0" fill="none" stroke="currentColor" stroke-width="2"/></g>
-  <text x="32" y="38" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif" font-weight="700" font-size="22" fill="#ffffff">BT</text>
-</svg>
+<svg aria-label="Bigtable" viewBox="0 0 64 64"><defs><linearGradient id="a" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#4285f4"/><stop offset="100%" stop-color="#1a73e8"/></linearGradient></defs><rect width="60" height="60" x="2" y="2" fill="url(#a)" rx="10"/><g fill="none" stroke="currentColor" stroke-width="2" color="#fff" opacity=".18"><ellipse cx="32" cy="18" rx="16" ry="4"/><path d="M16 18v22a16 4 0 0 0 32 0V18M16 28a16 4 0 0 0 32 0"/></g><text x="32" y="38" fill="#fff" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif" font-size="22" font-weight="700" text-anchor="middle">BT</text></svg>

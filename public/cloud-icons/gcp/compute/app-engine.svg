@@ -1,12 +1,1 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="App Engine">
-  <defs>
-    <linearGradient id="bg-gcp-AE" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#4285F4"/>
-      <stop offset="100%" stop-color="#1a73e8"/>
-    </linearGradient>
-  </defs>
-  <rect x="2" y="2" width="60" height="60" rx="10" fill="url(#bg-gcp-AE)"/>
-  <g opacity="0.18" color="#ffffff"><rect x="14" y="22" width="36" height="22" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><line x1="14" y1="30" x2="50" y2="30" stroke="currentColor" stroke-width="2"/></g>
-  <text x="32" y="38" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif" font-weight="700" font-size="22" fill="#ffffff">AE</text>
-</svg>
+<svg aria-label="App Engine" viewBox="0 0 64 64"><defs><linearGradient id="a" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#4285f4"/><stop offset="100%" stop-color="#1a73e8"/></linearGradient></defs><rect width="60" height="60" x="2" y="2" fill="url(#a)" rx="10"/><g stroke="currentColor" stroke-width="2" color="#fff" opacity=".18"><rect width="36" height="22" x="14" y="22" fill="none" rx="3"/><path d="M14 30h36"/></g><text x="32" y="38" fill="#fff" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif" font-size="22" font-weight="700" text-anchor="middle">AE</text></svg>

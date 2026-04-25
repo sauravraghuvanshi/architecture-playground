@@ -38,6 +38,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "svgo": "^4.0.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
