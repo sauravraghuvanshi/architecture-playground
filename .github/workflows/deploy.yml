@@ -27,6 +27,8 @@ jobs:
         env:
           NEXT_PUBLIC_SITE_URL: https://architecture-playground.azurewebsites.net
           AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          GITHUB_ID: ${{ secrets.OAUTH_GITHUB_ID }}
+          GITHUB_SECRET: ${{ secrets.OAUTH_GITHUB_SECRET }}
           DATABASE_URL: "file:./dev.db"
 
       - name: Create deploy zip
