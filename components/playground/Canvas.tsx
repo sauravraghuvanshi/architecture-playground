@@ -51,6 +51,7 @@ interface Props {
   onCommit: () => void;     // call after a semantic change to push history
   registerInstance: (rfi: ReactFlowInstance | null) => void;
   registerViewportEl: (el: HTMLDivElement | null) => void;
+  onContextMenu?: (state: { x: number; y: number; nodeId?: string }) => void;
 }
 
 const nodeTypes: NodeTypes = {
@@ -68,7 +69,7 @@ const NUDGE_FAST = 32;
 
 function CanvasInner({
   nodes, edges, iconsById, onNodesChange, onEdgesChange, onCommit,
-  registerInstance, registerViewportEl,
+  registerInstance, registerViewportEl, onContextMenu,
 }: Props) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const rfApi = useReactFlow();
@@ -268,13 +269,25 @@ function CanvasInner({
         onSelectionChange={handleSelectionChange}
         onPaneClick={handlePaneClick}
         onInit={registerInstance}
+        onNodeContextMenu={(e, node) => {
+          e.preventDefault();
+          onContextMenu?.({ x: e.clientX, y: e.clientY, nodeId: node.id });
+        }}
+        onPaneContextMenu={(e) => {
+          if (e instanceof MouseEvent) {
+            e.preventDefault();
+            onContextMenu?.({ x: e.clientX, y: e.clientY });
+          }
+        }}
         fitView
         fitViewOptions={{ padding: 0.2 }}
+        snapToGrid
+        snapGrid={[20, 20]}
         proOptions={{ hideAttribution: true }}
         deleteKeyCode={["Backspace", "Delete"]}
         className="bg-zinc-50 dark:bg-zinc-950"
       >
-        <Background gap={16} color="#cbd5e1" />
+        <Background gap={20} color="#cbd5e1" />
         <Controls className="!shadow-none" />
         <MiniMap pannable zoomable className="!bg-white dark:!bg-zinc-900" />
       </ReactFlow>

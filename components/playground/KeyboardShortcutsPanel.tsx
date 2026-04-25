@@ -20,10 +20,14 @@ const SHORTCUT_GROUPS = [
       { keys: ["Delete", "Backspace"], description: "Delete selected elements" },
       { keys: ["Ctrl+Z"], description: "Undo" },
       { keys: ["Ctrl+Y", "Ctrl+Shift+Z"], description: "Redo" },
+      { keys: ["Ctrl+C"], description: "Copy selected" },
+      { keys: ["Ctrl+V"], description: "Paste" },
+      { keys: ["Ctrl+D"], description: "Duplicate selected" },
       { keys: ["↑ ↓ ← →"], description: "Nudge selected nodes (1px)" },
       { keys: ["Shift+↑↓←→"], description: "Nudge selected nodes (10px)" },
       { keys: ["F"], description: "Fit view" },
       { keys: ["Escape"], description: "Cancel placement / deselect" },
+      { keys: ["Right-click"], description: "Context menu" },
     ],
   },
   {
@@ -34,8 +38,16 @@ const SHORTCUT_GROUPS = [
     ],
   },
   {
+    title: "Export",
+    shortcuts: [
+      { keys: ["Ctrl+S"], description: "Export JSON" },
+      { keys: ["Ctrl+E"], description: "Export PNG" },
+    ],
+  },
+  {
     title: "General",
     shortcuts: [
+      { keys: ["Ctrl+K"], description: "Command palette" },
       { keys: ["?"], description: "Toggle this shortcuts panel" },
     ],
   },

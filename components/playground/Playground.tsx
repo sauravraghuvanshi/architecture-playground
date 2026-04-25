@@ -17,6 +17,8 @@ import { Inspector } from "./Inspector";
 import { Outline } from "./Outline";
 import { Canvas } from "./Canvas";
 import { KeyboardShortcutsPanel } from "./KeyboardShortcutsPanel";
+import { ContextMenu, type ContextMenuState } from "./ContextMenu";
+import { CommandPalette, buildCommands } from "./CommandPalette";
 import { PlaygroundUIProvider, usePlaygroundUI } from "./PlaygroundUIContext";
 import { useSequencePlayer } from "./hooks/useSequencePlayer";
 import { useAutosave, restoreAutosave } from "./hooks/useAutosave";
@@ -123,6 +125,9 @@ function PlaygroundShell({ icons, templates }: Props) {
   void registry; // used in future phases for enriching nodes
   const ui = usePlaygroundUI();
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [clipboard, setClipboard] = useState<{ nodes: Node[]; edges: Edge[] } | null>(null);
 
   const [{ nodes, edges }, setFlow] = useState<{ nodes: Node[]; edges: Edge[] }>(() => graphToFlow(EMPTY_GRAPH, iconsById));
   // Graph-level extras that persist alongside nodes/edges but aren't part of React Flow state.
@@ -354,6 +359,67 @@ function PlaygroundShell({ icons, templates }: Props) {
     }));
   }, [nodes, ui]);
 
+  // Copy, paste, duplicate
+  const handleCopy = useCallback(() => {
+    const selNodes = nodes.filter((n) => n.selected);
+    if (selNodes.length === 0) return;
+    const selNodeIds = new Set(selNodes.map((n) => n.id));
+    const selEdges = edges.filter((e) => selNodeIds.has(e.source) && selNodeIds.has(e.target));
+    setClipboard({ nodes: selNodes, edges: selEdges });
+    ui.announce(`Copied ${selNodes.length} node(s).`);
+  }, [nodes, edges, ui]);
+
+  const handlePaste = useCallback(() => {
+    if (!clipboard || clipboard.nodes.length === 0) return;
+    const idMap = new Map<string, string>();
+    const newNodes = clipboard.nodes.map((n) => {
+      const newId = `${n.id}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 5)}`;
+      idMap.set(n.id, newId);
+      return { ...n, id: newId, position: { x: n.position.x + 40, y: n.position.y + 40 }, selected: true };
+    });
+    const newEdges = clipboard.edges.map((e) => ({
+      ...e,
+      id: `e_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+      source: idMap.get(e.source) ?? e.source,
+      target: idMap.get(e.target) ?? e.target,
+    }));
+    setFlow((s) => ({
+      nodes: [...s.nodes.map((n) => ({ ...n, selected: false })), ...newNodes],
+      edges: [...s.edges, ...newEdges],
+    }));
+    commit();
+    ui.announce(`Pasted ${newNodes.length} node(s).`);
+  }, [clipboard, commit, ui]);
+
+  const handleDuplicate = useCallback(() => {
+    handleCopy();
+    // Schedule paste on next tick so clipboard is updated
+    setTimeout(() => {
+      const selNodes = nodes.filter((n) => n.selected);
+      if (selNodes.length === 0) return;
+      const selNodeIds = new Set(selNodes.map((n) => n.id));
+      const selEdges = edges.filter((e) => selNodeIds.has(e.source) && selNodeIds.has(e.target));
+      const idMap = new Map<string, string>();
+      const newNodes = selNodes.map((n) => {
+        const newId = `${n.id}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 5)}`;
+        idMap.set(n.id, newId);
+        return { ...n, id: newId, position: { x: n.position.x + 40, y: n.position.y + 40 }, selected: true };
+      });
+      const newEdges = selEdges.map((e) => ({
+        ...e,
+        id: `e_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+        source: idMap.get(e.source) ?? e.source,
+        target: idMap.get(e.target) ?? e.target,
+      }));
+      setFlow((s) => ({
+        nodes: [...s.nodes.map((n) => ({ ...n, selected: false })), ...newNodes],
+        edges: [...s.edges, ...newEdges],
+      }));
+      commit();
+      ui.announce(`Duplicated ${newNodes.length} node(s).`);
+    }, 0);
+  }, [nodes, edges, commit, ui, handleCopy]);
+
   // Keyboard shortcuts (page-level)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -367,16 +433,40 @@ function PlaygroundShell({ icons, templates }: Props) {
         e.preventDefault(); handleRedo();
       } else if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); handleExportJsonAction(); }
       else if (mod && e.key.toLowerCase() === "e") { e.preventDefault(); handleExportPng(); }
+      else if (mod && e.key.toLowerCase() === "k") { e.preventDefault(); setCommandPaletteOpen((v) => !v); }
+      else if (mod && e.key.toLowerCase() === "c") { e.preventDefault(); handleCopy(); }
+      else if (mod && e.key.toLowerCase() === "v") { e.preventDefault(); handlePaste(); }
+      else if (mod && e.key.toLowerCase() === "d") { e.preventDefault(); handleDuplicate(); }
       else if (e.key === "?" || (e.shiftKey && e.key === "/")) { e.preventDefault(); setShortcutsOpen((v) => !v); }
       else if (e.key === " ") { e.preventDefault(); ui.setPlaying(!ui.isPlaying); }
       else if (e.key.toLowerCase() === "l" && !mod) { e.preventDefault(); ui.setLoop(!ui.loop); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [handleUndo, handleRedo, handleExportJsonAction, handleExportPng, ui]);
+  }, [handleUndo, handleRedo, handleExportJsonAction, handleExportPng, handleCopy, handlePaste, handleDuplicate, ui]);
 
   // Drive sequence playback (writes into UI context).
   useSequencePlayer(persistedGraph.edges);
+
+  // Build command palette commands (not memoized since it depends on many callbacks)
+  // eslint-disable-next-line react-hooks/refs -- callbacks capture refs but don't read them during render
+  const commands = buildCommands({
+    onUndo: handleUndo,
+    onRedo: handleRedo,
+    onClear: handleClear,
+    onExportPng: handleExportPng,
+    onExportJson: handleExportJsonAction,
+    onExportGif: handleExportGif,
+    onAutoSequence: handleAutoSequence,
+    onFitView: handleFitView,
+    onToggleShortcuts: () => setShortcutsOpen((v) => !v),
+    onTogglePlay: () => ui.setPlaying(!ui.isPlaying),
+    onToggleLoop: () => ui.setLoop(!ui.loop),
+    canUndo: canUndo(history),
+    canRedo: canRedo(history),
+    isPlaying: ui.isPlaying,
+    totalSteps: sequence.totalSteps,
+  });
 
   return (
     <div className="flex h-[calc(100vh-4rem)] min-h-[600px] w-full flex-col bg-zinc-50 dark:bg-zinc-950">
@@ -411,6 +501,7 @@ function PlaygroundShell({ icons, templates }: Props) {
               onCommit={commit}
               registerInstance={(rfi) => { rfRef.current = rfi; }}
               registerViewportEl={(el) => { viewportRef.current = el; }}
+              onContextMenu={(state) => setContextMenu(state)}
             />
             {ui.exportProgress !== null && (
               <div className="absolute inset-0 z-20 flex items-center justify-center bg-zinc-900/40 backdrop-blur-sm">
@@ -438,6 +529,25 @@ function PlaygroundShell({ icons, templates }: Props) {
       </div>
       <div role="status" aria-live="polite" className="sr-only">{ui.announcement}</div>
       <KeyboardShortcutsPanel open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} commands={commands} />
+      <ContextMenu
+        menu={contextMenu}
+        onClose={() => setContextMenu(null)}
+        onDuplicate={handleDuplicate}
+        onDelete={handleDeleteSelected}
+        onGroup={() => { /* P2 group creation - placeholder */ }}
+        onAddNote={(x, y) => {
+          const id = `sticky_${Date.now().toString(36)}`;
+          setFlow((s) => ({
+            ...s,
+            nodes: [...s.nodes, { id, type: "sticky", position: { x, y }, data: { label: "Note" } }],
+          }));
+          commit();
+        }}
+        onPaste={handlePaste}
+        onFitView={handleFitView}
+        hasClipboard={clipboard !== null}
+      />
     </div>
   );
 }
