@@ -300,3 +300,254 @@ test("autoSequenceFromTopology: disconnected components ordered by leftmost root
   assert.equal(map.ea, 1);
   assert.ok(map.eb >= 2, `expected eb step >= 2 (got ${map.eb})`);
 });
+
+// ==========================================================================
+// Migration tests — mirrors lib/migrations.ts contracts
+// ==========================================================================
+
+const CURRENT_SCHEMA_VERSION = 2;
+const DEFAULT_LAYER = { id: "default", name: "Default", visible: true, locked: false, color: "#6366f1", order: 0 };
+
+/** Mirror of migrateV1toV2 */
+function migrateV1toV2(graph) {
+  const edges = graph.edges.map((e) => {
+    const existing = e.data ?? {};
+    return {
+      ...e,
+      data: {
+        ...e.data,
+        connectionType: existing.connectionType ?? "data-flow",
+        lineStyle: existing.lineStyle ?? "solid",
+        arrowStyle: existing.arrowStyle ?? "forward",
+      },
+    };
+  });
+  return {
+    ...graph,
+    edges,
+    layers: graph.layers ?? [{ ...DEFAULT_LAYER }],
+    metadata: graph.metadata ?? {},
+  };
+}
+
+/** Mirror of migrateGraph */
+function migrateGraph(graph, fromVersion) {
+  const migrations = [migrateV1toV2];
+  let current = graph;
+  let version = fromVersion;
+  while (version < CURRENT_SCHEMA_VERSION) {
+    const fn = migrations[version - 1];
+    if (!fn) break;
+    current = fn(current);
+    version++;
+  }
+  return { graph: current, version };
+}
+
+/** Mirror of migratePayload */
+function migratePayload(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  if (typeof raw.version !== "number" || !raw.graph) return null;
+  if (raw.version === CURRENT_SCHEMA_VERSION) return raw;
+  if (raw.version > CURRENT_SCHEMA_VERSION) return null;
+  const { graph, version } = migrateGraph(raw.graph, raw.version);
+  return { version, savedAt: raw.savedAt ?? new Date().toISOString(), graph };
+}
+
+test("migrateGraph: v1 → v2 adds default connection fields to edges", () => {
+  const v1Graph = {
+    nodes: [{ id: "n1", type: "service", position: { x: 0, y: 0 }, data: { iconId: "azure/compute/vm", label: "VM", cloud: "azure" } }],
+    edges: [{ id: "e1", source: "n1", target: "n1", data: { label: "test", step: 1 } }],
+  };
+  const result = migrateGraph(v1Graph, 1);
+  assert.equal(result.version, 2);
+  assert.equal(result.graph.edges[0].data.connectionType, "data-flow");
+  assert.equal(result.graph.edges[0].data.lineStyle, "solid");
+  assert.equal(result.graph.edges[0].data.arrowStyle, "forward");
+  // Preserved existing fields
+  assert.equal(result.graph.edges[0].data.label, "test");
+  assert.equal(result.graph.edges[0].data.step, 1);
+});
+
+test("migrateGraph: v1 → v2 adds default layer", () => {
+  const v1Graph = { nodes: [], edges: [] };
+  const result = migrateGraph(v1Graph, 1);
+  assert.ok(Array.isArray(result.graph.layers));
+  assert.equal(result.graph.layers.length, 1);
+  assert.equal(result.graph.layers[0].id, "default");
+  assert.equal(result.graph.layers[0].name, "Default");
+});
+
+test("migrateGraph: v1 → v2 adds empty metadata", () => {
+  const v1Graph = { nodes: [], edges: [] };
+  const result = migrateGraph(v1Graph, 1);
+  assert.deepEqual(result.graph.metadata, {});
+});
+
+test("migrateGraph: v1 → v2 preserves existing layers/metadata if present", () => {
+  const v1Graph = {
+    nodes: [],
+    edges: [],
+    layers: [{ id: "custom", name: "Custom", visible: true, locked: false, color: "#ff0000", order: 0 }],
+    metadata: { name: "My Diagram" },
+  };
+  const result = migrateGraph(v1Graph, 1);
+  assert.equal(result.graph.layers[0].id, "custom");
+  assert.equal(result.graph.metadata.name, "My Diagram");
+});
+
+test("migrateGraph: v2 stays at v2 (no-op)", () => {
+  const v2Graph = {
+    nodes: [],
+    edges: [{ id: "e1", source: "a", target: "b", data: { connectionType: "network", lineStyle: "dashed", arrowStyle: "bidirectional" } }],
+    layers: [{ ...DEFAULT_LAYER }],
+    metadata: {},
+  };
+  const result = migrateGraph(v2Graph, 2);
+  assert.equal(result.version, 2);
+  assert.equal(result.graph.edges[0].data.connectionType, "network");
+});
+
+test("migratePayload: v1 payload gets migrated to v2", () => {
+  const v1Payload = {
+    version: 1,
+    savedAt: "2025-01-01T00:00:00Z",
+    graph: { nodes: [], edges: [{ id: "e1", source: "a", target: "b", data: { label: "hello" } }] },
+  };
+  const result = migratePayload(v1Payload);
+  assert.ok(result);
+  assert.equal(result.version, 2);
+  assert.equal(result.graph.edges[0].data.connectionType, "data-flow");
+  assert.equal(result.savedAt, "2025-01-01T00:00:00Z");
+});
+
+test("migratePayload: v2 payload passes through unchanged", () => {
+  const v2Payload = {
+    version: 2,
+    savedAt: "2025-01-01T00:00:00Z",
+    graph: { nodes: [], edges: [] },
+  };
+  const result = migratePayload(v2Payload);
+  assert.ok(result);
+  assert.equal(result, v2Payload);
+});
+
+test("migratePayload: future version returns null", () => {
+  const futurePayload = { version: 99, savedAt: "2025-01-01", graph: { nodes: [], edges: [] } };
+  assert.equal(migratePayload(futurePayload), null);
+});
+
+test("migratePayload: null/invalid returns null", () => {
+  assert.equal(migratePayload(null), null);
+  assert.equal(migratePayload("string"), null);
+  assert.equal(migratePayload({ version: 1 }), null); // no graph
+});
+
+test("migrateGraph: edges with no data get defaults", () => {
+  const v1Graph = {
+    nodes: [],
+    edges: [{ id: "e1", source: "a", target: "b" }],
+  };
+  const result = migrateGraph(v1Graph, 1);
+  assert.equal(result.graph.edges[0].data.connectionType, "data-flow");
+  assert.equal(result.graph.edges[0].data.lineStyle, "solid");
+  assert.equal(result.graph.edges[0].data.arrowStyle, "forward");
+});
+
+// ==========================================================================
+// Service Registry tests — mirrors lib/service-registry.ts contracts
+// ==========================================================================
+
+class ServiceRegistry {
+  constructor(icons) {
+    this._byId = new Map();
+    this._byCategory = new Map();
+    this._byProvider = new Map();
+    for (const icon of icons) {
+      const def = {
+        serviceId: icon.id,
+        displayName: icon.label,
+        category: icon.categoryLabel,
+        provider: icon.cloud,
+        icon: icon.path,
+      };
+      this._byId.set(icon.id, def);
+      if (!this._byCategory.has(icon.category)) this._byCategory.set(icon.category, []);
+      this._byCategory.get(icon.category).push(def);
+      if (!this._byProvider.has(icon.cloud)) this._byProvider.set(icon.cloud, []);
+      this._byProvider.get(icon.cloud).push(def);
+    }
+  }
+  get(iconId) { return this._byId.get(iconId); }
+  getOrFallback(iconId) {
+    return this._byId.get(iconId) ?? {
+      serviceId: iconId, displayName: iconId.split("/").pop() ?? iconId,
+      category: "Unknown", provider: "generic", icon: "",
+    };
+  }
+  getByCategory(cat) { return this._byCategory.get(cat) ?? []; }
+  getByProvider(prov) { return this._byProvider.get(prov) ?? []; }
+  get size() { return this._byId.size; }
+  has(id) { return this._byId.has(id); }
+}
+
+const SAMPLE_ICONS = [
+  { id: "azure/compute/vm", cloud: "azure", cloudLabel: "Azure", category: "compute", categoryLabel: "Compute", slug: "vm", label: "Virtual Machine", path: "/cloud-icons/azure/compute/vm.svg" },
+  { id: "azure/compute/aks", cloud: "azure", cloudLabel: "Azure", category: "compute", categoryLabel: "Compute", slug: "aks", label: "AKS", path: "/cloud-icons/azure/compute/aks.svg" },
+  { id: "aws/compute/ec2", cloud: "aws", cloudLabel: "AWS", category: "compute", categoryLabel: "Compute", slug: "ec2", label: "EC2", path: "/cloud-icons/aws/compute/ec2.svg" },
+  { id: "gcp/networking/vpc", cloud: "gcp", cloudLabel: "GCP", category: "networking", categoryLabel: "Networking", slug: "vpc", label: "VPC", path: "/cloud-icons/gcp/networking/vpc.svg" },
+];
+
+test("ServiceRegistry: size matches icon count", () => {
+  const reg = new ServiceRegistry(SAMPLE_ICONS);
+  assert.equal(reg.size, 4);
+});
+
+test("ServiceRegistry: get returns correct definition", () => {
+  const reg = new ServiceRegistry(SAMPLE_ICONS);
+  const vm = reg.get("azure/compute/vm");
+  assert.ok(vm);
+  assert.equal(vm.displayName, "Virtual Machine");
+  assert.equal(vm.provider, "azure");
+  assert.equal(vm.category, "Compute");
+});
+
+test("ServiceRegistry: get returns undefined for unknown", () => {
+  const reg = new ServiceRegistry(SAMPLE_ICONS);
+  assert.equal(reg.get("unknown/service"), undefined);
+});
+
+test("ServiceRegistry: getOrFallback returns fallback for unknown", () => {
+  const reg = new ServiceRegistry(SAMPLE_ICONS);
+  const fallback = reg.getOrFallback("old/removed/service");
+  assert.equal(fallback.serviceId, "old/removed/service");
+  assert.equal(fallback.displayName, "service");
+  assert.equal(fallback.provider, "generic");
+  assert.equal(fallback.category, "Unknown");
+});
+
+test("ServiceRegistry: getByCategory returns grouped services", () => {
+  const reg = new ServiceRegistry(SAMPLE_ICONS);
+  const compute = reg.getByCategory("compute");
+  assert.equal(compute.length, 3); // azure VM, azure AKS, aws EC2
+});
+
+test("ServiceRegistry: getByProvider returns provider services", () => {
+  const reg = new ServiceRegistry(SAMPLE_ICONS);
+  assert.equal(reg.getByProvider("azure").length, 2);
+  assert.equal(reg.getByProvider("aws").length, 1);
+  assert.equal(reg.getByProvider("gcp").length, 1);
+});
+
+test("ServiceRegistry: has checks existence", () => {
+  const reg = new ServiceRegistry(SAMPLE_ICONS);
+  assert.ok(reg.has("azure/compute/vm"));
+  assert.ok(!reg.has("nonexistent"));
+});
+
+test("ServiceRegistry: empty icons produces empty registry", () => {
+  const reg = new ServiceRegistry([]);
+  assert.equal(reg.size, 0);
+  assert.equal(reg.get("anything"), undefined);
+  assert.deepEqual(reg.getByCategory("compute"), []);
+});

@@ -16,6 +16,7 @@
 
 import { toPng, toCanvas } from "html-to-image";
 import type { PlaygroundGraph } from "./types";
+import { CURRENT_SCHEMA_VERSION } from "./types";
 
 interface DownloadOptions { filename: string; }
 
@@ -37,7 +38,7 @@ export async function exportPng(viewportEl: HTMLElement, opts: DownloadOptions =
 }
 
 export function exportJson(graph: PlaygroundGraph, opts: DownloadOptions = { filename: "architecture.json" }) {
-  const payload = JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), graph }, null, 2);
+  const payload = JSON.stringify({ version: CURRENT_SCHEMA_VERSION, exportedAt: new Date().toISOString(), graph }, null, 2);
   const blob = new Blob([payload], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   triggerDownload(url, opts.filename);

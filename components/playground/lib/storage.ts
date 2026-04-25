@@ -2,11 +2,17 @@
  * Versioned localStorage helpers for the playground.
  * Catches QuotaExceededError; caps named slots; payload carries its own version
  * so future migrations are clean.
+ *
+ * v2: unified migration pipeline via lib/migrations.ts.  The storage key is
+ * kept stable ("playground:autosave") so v1 payloads are discovered and
+ * migrated in-place on first restore.
  */
 import type { PlaygroundGraph, StoredPayload } from "./types";
+import { CURRENT_SCHEMA_VERSION } from "./types";
+import { migratePayload } from "./migrations";
 
-export const STORAGE_VERSION = 1;
-const AUTOSAVE_KEY = "playground:autosave:v1";
+const AUTOSAVE_KEY = "playground:autosave";
+const LEGACY_AUTOSAVE_KEY = "playground:autosave:v1";
 const SLOT_PREFIX = "playground:slot:";
 const MAX_SLOTS = 10;
 
@@ -33,19 +39,12 @@ function safeSet(key: string, value: string): { ok: boolean; quota?: boolean } {
 }
 
 function migrate(payload: unknown): StoredPayload | null {
-  if (!payload || typeof payload !== "object") return null;
-  const p = payload as Partial<StoredPayload>;
-  if (typeof p.version !== "number") return null;
-  // Future migrations: switch on p.version → upgrade to STORAGE_VERSION.
-  if (p.version === STORAGE_VERSION && p.graph) {
-    return p as StoredPayload;
-  }
-  return null;
+  return migratePayload(payload);
 }
 
 function packPayload(graph: PlaygroundGraph): string {
   const payload: StoredPayload = {
-    version: STORAGE_VERSION,
+    version: CURRENT_SCHEMA_VERSION,
     savedAt: new Date().toISOString(),
     graph,
   };
@@ -63,18 +62,31 @@ function unpackPayload(raw: string | null): PlaygroundGraph | null {
   }
 }
 
-// Autosave (single slot)
+// Autosave (single slot) — checks both current and legacy keys
 export function saveAutosave(graph: PlaygroundGraph): { ok: boolean; quota?: boolean } {
   return safeSet(AUTOSAVE_KEY, packPayload(graph));
 }
 
 export function loadAutosave(): PlaygroundGraph | null {
-  return unpackPayload(safeGet(AUTOSAVE_KEY));
+  // Try current key first, then fall back to legacy v1 key.
+  let result = unpackPayload(safeGet(AUTOSAVE_KEY));
+  if (!result) {
+    result = unpackPayload(safeGet(LEGACY_AUTOSAVE_KEY));
+    if (result) {
+      // Re-save under the new key and clean up the legacy key.
+      saveAutosave(result);
+      try { window.localStorage.removeItem(LEGACY_AUTOSAVE_KEY); } catch { /* noop */ }
+    }
+  }
+  return result;
 }
 
 export function clearAutosave(): void {
   if (typeof window === "undefined") return;
-  try { window.localStorage.removeItem(AUTOSAVE_KEY); } catch { /* noop */ }
+  try {
+    window.localStorage.removeItem(AUTOSAVE_KEY);
+    window.localStorage.removeItem(LEGACY_AUTOSAVE_KEY);
+  } catch { /* noop */ }
 }
 
 // Named slots

@@ -14,6 +14,7 @@
  */
 import { z } from "zod";
 import type { IconManifestEntry, PlaygroundGraph } from "./types";
+import { normalizeGraph } from "./migrations";
 
 const MAX_NODES = 200;
 const MAX_EDGES = 500;
@@ -29,21 +30,29 @@ const positionSchema = z.object({ x: finite, y: finite });
 
 const labelSchema = z.string().max(MAX_LABEL);
 
+const hexColor = z.string().regex(/^#[0-9a-f]{3,8}$/i).optional();
+
 const serviceDataSchema = z.object({
   iconId: z.string().max(200),
   label: labelSchema,
   cloud: z.enum(["azure", "aws", "gcp"]),
+  description: z.string().max(500).optional(),
+  layerId: z.string().max(64).optional(),
+  tags: z.array(z.string().max(50)).max(20).optional(),
 });
 
 const groupDataSchema = z.object({
   label: labelSchema,
   variant: z.enum(["vpc", "resource-group", "project", "subnet", "region", "custom"]),
-  color: z.string().regex(/^#[0-9a-f]{3,8}$/i).optional(),
+  color: hexColor,
+  description: z.string().max(500).optional(),
+  layerId: z.string().max(64).optional(),
 });
 
 const stickyDataSchema = z.object({
   label: labelSchema,
-  color: z.string().regex(/^#[0-9a-f]{3,8}$/i).optional(),
+  color: hexColor,
+  layerId: z.string().max(64).optional(),
 });
 
 const nodeSchema = z.discriminatedUnion("type", [
@@ -90,9 +99,32 @@ const edgeSchema = z.object({
       label: labelSchema.optional(),
       animated: z.boolean().optional(),
       step: z.number().int().min(1).max(100).optional(),
-      color: z.string().regex(/^#[0-9a-f]{3,8}$/i).optional(),
+      color: hexColor,
+      connectionType: z.enum(["data-flow", "network", "dependency", "sequence", "custom"]).optional(),
+      protocol: z.string().max(50).optional(),
+      lineStyle: z.enum(["solid", "dashed", "dotted"]).optional(),
+      arrowStyle: z.enum(["none", "forward", "backward", "bidirectional"]).optional(),
+      description: z.string().max(500).optional(),
     })
     .optional(),
+});
+
+const layerSchema = z.object({
+  id: z.string().min(1).max(64),
+  name: z.string().max(100),
+  visible: z.boolean(),
+  locked: z.boolean(),
+  color: hexColor.unwrap(), // required hex string
+  order: z.number().int(),
+});
+
+const metadataSchema = z.object({
+  name: z.string().max(200).optional(),
+  description: z.string().max(2000).optional(),
+  author: z.string().max(100).optional(),
+  tags: z.array(z.string().max(50)).max(20).optional(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
 });
 
 export const graphSchema = z.object({
@@ -101,6 +133,8 @@ export const graphSchema = z.object({
   viewport: z
     .object({ x: finite, y: finite, zoom: z.number().positive().max(10) })
     .optional(),
+  layers: z.array(layerSchema).max(50).optional(),
+  metadata: metadataSchema.optional(),
 });
 
 export interface ValidationResult {
@@ -179,11 +213,13 @@ export function validateImportedGraph(
 
   return {
     ok: true,
-    graph: {
+    graph: normalizeGraph({
       nodes: cleanNodes,
       edges: cleanEdges,
       viewport: parsed.data.viewport,
-    },
+      layers: parsed.data.layers,
+      metadata: parsed.data.metadata,
+    }),
     errors: errors.length ? errors : undefined,
   };
 }

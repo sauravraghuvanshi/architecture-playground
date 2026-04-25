@@ -25,14 +25,22 @@ import {
 import { applyAutoSequence, normalizeSequence } from "./lib/sequence";
 import { exportGif, exportJson, exportPng, readJsonFile, type GifFrameDriver } from "./lib/export";
 import { validateImportedGraph } from "./lib/validate";
-import type { IconManifestEntry, PlaygroundGraph, PlaygroundTemplate } from "./lib/types";
+import type { IconManifestEntry, PlaygroundGraph, PlaygroundTemplate, Layer, DiagramMetadata } from "./lib/types";
+import { DEFAULT_LAYER } from "./lib/types";
+import { createServiceRegistry } from "./lib/service-registry";
+import { normalizeGraph } from "./lib/migrations";
 
 interface Props {
   icons: IconManifestEntry[];
   templates: PlaygroundTemplate[];
 }
 
-const EMPTY_GRAPH: PlaygroundGraph = { nodes: [], edges: [] };
+const EMPTY_GRAPH: PlaygroundGraph = {
+  nodes: [],
+  edges: [],
+  layers: [{ ...DEFAULT_LAYER }],
+  metadata: {},
+};
 
 /**
  * Hydrate a stored PlaygroundGraph into React Flow Node[] form by attaching
@@ -80,11 +88,12 @@ function graphToFlow(graph: PlaygroundGraph, iconsById: Map<string, IconManifest
 }
 
 /** Strip runtime-only fields back to the persisted PlaygroundGraph shape. */
-function flowToGraph(nodes: Node[], edges: Edge[]): PlaygroundGraph {
+function flowToGraph(nodes: Node[], edges: Edge[], extras?: { layers?: Layer[]; metadata?: DiagramMetadata }): PlaygroundGraph {
   return {
     nodes: nodes.map((n) => {
-      const { iconPath, ...rest } = (n.data ?? {}) as Record<string, unknown> & { iconPath?: string };
+      const { iconPath, serviceDefinition, ...rest } = (n.data ?? {}) as Record<string, unknown> & { iconPath?: string; serviceDefinition?: unknown };
       void iconPath;
+      void serviceDefinition;
       return {
         id: n.id,
         type: (n.type ?? "service") as PlaygroundGraph["nodes"][number]["type"],
@@ -102,29 +111,40 @@ function flowToGraph(nodes: Node[], edges: Edge[]): PlaygroundGraph {
       targetHandle: e.targetHandle ?? null,
       data: (e.data ?? {}) as PlaygroundGraph["edges"][number]["data"],
     })),
+    layers: extras?.layers,
+    metadata: extras?.metadata,
   };
 }
 
 function PlaygroundShell({ icons, templates }: Props) {
   const iconsById = useMemo(() => new Map(icons.map((i) => [i.id, i])), [icons]);
+  const registry = useMemo(() => createServiceRegistry(icons), [icons]);
+  void registry; // used in future phases for enriching nodes
   const ui = usePlaygroundUI();
 
   const [{ nodes, edges }, setFlow] = useState<{ nodes: Node[]; edges: Edge[] }>(() => graphToFlow(EMPTY_GRAPH, iconsById));
+  // Graph-level extras that persist alongside nodes/edges but aren't part of React Flow state.
+  const [graphExtras, setGraphExtras] = useState<{ layers?: Layer[]; metadata?: DiagramMetadata }>({
+    layers: EMPTY_GRAPH.layers,
+    metadata: EMPTY_GRAPH.metadata,
+  });
   const [history, dispatchHistory] = useReducer(historyReducer, EMPTY_GRAPH, initialHistory);
   const rfRef = useRef<ReactFlowInstance | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const [restored, setRestored] = useState(false);
 
-  const persistedGraph = useMemo(() => flowToGraph(nodes, edges), [nodes, edges]);
+  const persistedGraph = useMemo(() => flowToGraph(nodes, edges, graphExtras), [nodes, edges, graphExtras]);
   useAutosave(persistedGraph, restored);
 
   // Restore autosave on mount (client only).
   useEffect(() => {
     const saved = restoreAutosave();
     if (saved && (saved.nodes.length > 0 || saved.edges.length > 0)) {
-      const flow = graphToFlow(saved, iconsById);
+      const normalized = normalizeGraph(saved);
+      const flow = graphToFlow(normalized, iconsById);
       setFlow(flow); // eslint-disable-line react-hooks/set-state-in-effect -- Intentional: one-time hydration from localStorage on mount
-      dispatchHistory({ type: "reset", snapshot: snapshotGraph(saved) });
+      setGraphExtras({ layers: normalized.layers, metadata: normalized.metadata });
+      dispatchHistory({ type: "reset", snapshot: snapshotGraph(normalized) });
       ui.announce("Restored autosaved diagram.");
     }
     setRestored(true);
@@ -133,15 +153,16 @@ function PlaygroundShell({ icons, templates }: Props) {
 
   // Push a history snapshot for the current persisted graph.
   const commit = useCallback(() => {
-    const snap = snapshotGraph(flowToGraph(nodes, edges));
+    const snap = snapshotGraph(flowToGraph(nodes, edges, graphExtras));
     dispatchHistory({ type: "push", snapshot: snap });
-  }, [nodes, edges]);
+  }, [nodes, edges, graphExtras]);
 
   // Apply a snapshot string back into React Flow state.
   const applySnapshot = useCallback((snap: string) => {
     try {
       const parsed = JSON.parse(snap) as PlaygroundGraph;
       setFlow(graphToFlow(parsed, iconsById));
+      setGraphExtras({ layers: parsed.layers, metadata: parsed.metadata });
     } catch {
       /* noop */
     }
@@ -167,6 +188,7 @@ function PlaygroundShell({ icons, templates }: Props) {
     if (nodes.length === 0 && edges.length === 0) return;
     if (!confirm("Clear the canvas? This can be undone.")) return;
     setFlow({ nodes: [], edges: [] });
+    setGraphExtras({ layers: EMPTY_GRAPH.layers, metadata: EMPTY_GRAPH.metadata });
     dispatchHistory({ type: "push", snapshot: snapshotGraph(EMPTY_GRAPH) });
     ui.announce("Canvas cleared.");
   }, [nodes.length, edges.length, ui]);
@@ -174,9 +196,11 @@ function PlaygroundShell({ icons, templates }: Props) {
   const handleLoadTemplate = useCallback((id: string) => {
     const tpl = templates.find((t) => t.id === id);
     if (!tpl) return;
-    const flow = graphToFlow(tpl.graph, iconsById);
+    const normalized = normalizeGraph(tpl.graph);
+    const flow = graphToFlow(normalized, iconsById);
     setFlow(flow);
-    dispatchHistory({ type: "push", snapshot: snapshotGraph(tpl.graph) });
+    setGraphExtras({ layers: normalized.layers, metadata: normalized.metadata });
+    dispatchHistory({ type: "push", snapshot: snapshotGraph(normalized) });
     ui.announce(`Loaded template ${tpl.name}.`);
     setTimeout(() => rfRef.current?.fitView({ duration: 300, padding: 0.2 }), 50);
   }, [templates, iconsById, ui]);
@@ -194,6 +218,7 @@ function PlaygroundShell({ icons, templates }: Props) {
         return;
       }
       setFlow(graphToFlow(result.graph, iconsById));
+      setGraphExtras({ layers: result.graph.layers, metadata: result.graph.metadata });
       dispatchHistory({ type: "push", snapshot: snapshotGraph(result.graph) });
       ui.announce(`Imported diagram with ${result.graph.nodes.length} nodes.`);
       setTimeout(() => rfRef.current?.fitView({ duration: 300, padding: 0.2 }), 50);

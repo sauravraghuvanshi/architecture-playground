@@ -6,7 +6,7 @@
 
 import { useMemo } from "react";
 import type { Edge, Node } from "@xyflow/react";
-import type { GroupNodeData, ServiceNodeData, StickyNodeData } from "./lib/types";
+import type { GroupNodeData, ServiceNodeData, StickyNodeData, ConnectionType, LineStyle, ArrowStyle } from "./lib/types";
 import { usePlaygroundUI } from "./PlaygroundUIContext";
 
 interface Props {
@@ -163,6 +163,73 @@ export function Inspector({ nodes, edges, onUpdateNode, onUpdateEdge, onDeleteSe
             />
             Always animate (marching dashes)
           </label>
+
+          <Field label="Connection type">
+            <select
+              value={(selectedEdge.data as { connectionType?: ConnectionType })?.connectionType ?? "data-flow"}
+              onChange={(e) =>
+                onUpdateEdge(selectedEdge.id, {
+                  data: { ...(selectedEdge.data ?? {}), connectionType: e.target.value as ConnectionType },
+                })
+              }
+              className={inputCls}
+            >
+              <option value="data-flow">Data Flow</option>
+              <option value="network">Network</option>
+              <option value="dependency">Dependency</option>
+              <option value="sequence">Sequence</option>
+              <option value="custom">Custom</option>
+            </select>
+          </Field>
+
+          <Field label="Protocol">
+            <input
+              type="text"
+              maxLength={50}
+              value={(selectedEdge.data as { protocol?: string })?.protocol ?? ""}
+              onChange={(e) =>
+                onUpdateEdge(selectedEdge.id, {
+                  data: { ...(selectedEdge.data ?? {}), protocol: e.target.value || undefined },
+                })
+              }
+              className={inputCls}
+              placeholder="e.g. HTTPS, gRPC, AMQP"
+            />
+          </Field>
+
+          <Field label="Line style">
+            <select
+              value={(selectedEdge.data as { lineStyle?: LineStyle })?.lineStyle ?? "solid"}
+              onChange={(e) =>
+                onUpdateEdge(selectedEdge.id, {
+                  data: { ...(selectedEdge.data ?? {}), lineStyle: e.target.value as LineStyle },
+                })
+              }
+              className={inputCls}
+            >
+              <option value="solid">Solid</option>
+              <option value="dashed">Dashed</option>
+              <option value="dotted">Dotted</option>
+            </select>
+          </Field>
+
+          <Field label="Arrow style">
+            <select
+              value={(selectedEdge.data as { arrowStyle?: ArrowStyle })?.arrowStyle ?? "forward"}
+              onChange={(e) =>
+                onUpdateEdge(selectedEdge.id, {
+                  data: { ...(selectedEdge.data ?? {}), arrowStyle: e.target.value as ArrowStyle },
+                })
+              }
+              className={inputCls}
+            >
+              <option value="none">None</option>
+              <option value="forward">Forward →</option>
+              <option value="backward">← Backward</option>
+              <option value="bidirectional">↔ Bidirectional</option>
+            </select>
+          </Field>
+
           <button onClick={onDeleteSelected} className={dangerBtn}>Delete edge</button>
         </div>
       )}
