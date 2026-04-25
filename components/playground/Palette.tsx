@@ -9,7 +9,6 @@
  */
 "use client";
 
-import Image from "next/image";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Search, Box, StickyNote, ChevronDown, ChevronRight, Layers } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -243,7 +242,8 @@ export function Palette({ icons }: Props) {
                               isPlacing ? "border-brand-500 ring-1 ring-brand-500" : "border-zinc-200 dark:border-zinc-800"
                             }`}
                           >
-                            <Image src={i.path} alt="" width={28} height={28} unoptimized className="h-7 w-7" draggable={false} />
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={i.path} alt="" width={28} height={28} className="h-7 w-7" draggable={false} loading="lazy" />
                             <span className="line-clamp-2 text-center">{i.label}</span>
                           </button>
                         );

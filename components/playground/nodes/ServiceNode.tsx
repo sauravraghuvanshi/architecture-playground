@@ -1,11 +1,13 @@
 /**
  * ServiceNode — a cloud service tile with icon + label + 4 connection handles.
  * Highlights with a pulse ring when its id is in the active set during playback.
+ *
+ * Uses a plain <img> tag instead of next/image to avoid re-render flicker
+ * when React Flow updates nodes (e.g. on edge connect or selection change).
  */
 "use client";
 
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import Image from "next/image";
 import { memo } from "react";
 import type { ServiceNodeData } from "../lib/types";
 import { usePlaygroundUI } from "../PlaygroundUIContext";
@@ -35,14 +37,15 @@ function ServiceNodeImpl({ id, data, selected }: Props) {
       <Handle type="target" position={Position.Top} className="!h-2 !w-2 !bg-brand-500" />
       <Handle type="target" position={Position.Left} className="!h-2 !w-2 !bg-brand-500" />
       <div className="relative h-12 w-12">
-        <Image
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
           src={iconPath}
           alt=""
           width={48}
           height={48}
-          unoptimized
           className="h-12 w-12 select-none"
           draggable={false}
+          loading="lazy"
         />
       </div>
       <div className="max-w-[140px] truncate text-center text-xs font-medium text-zinc-900 dark:text-zinc-100">
