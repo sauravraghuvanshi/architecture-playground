@@ -213,8 +213,32 @@ function CanvasInner({
   // on every animation frame until connect-end. Also captures DOM diagnostics when ?debug=1.
   const viewportLockRef = useRef<{ x: number; y: number; zoom: number } | null>(null);
   const lockRafRef = useRef<number | null>(null);
+  const isConnectingRef = useRef(false);
+
+  // Synchronous wheel/touchmove guard. The ref is flipped inside
+  // onConnectStart so this fires from the very first wheel event of the drag,
+  // unlike a state-driven approach which only takes effect after a re-render.
+  // Without this, mid-drag wheel events (trackpad inertia, browser extensions,
+  // RF's panOnScroll, or the page itself) pan the surface and pull nodes out
+  // of view — the "vanishing node" bug. Bound to window in capture phase to
+  // intercept ahead of any RF or browser handlers.
+  useEffect(() => {
+    const swallow = (e: Event) => {
+      if (!isConnectingRef.current) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation?.();
+    };
+    window.addEventListener("wheel", swallow, { passive: false, capture: true });
+    window.addEventListener("touchmove", swallow, { passive: false, capture: true });
+    return () => {
+      window.removeEventListener("wheel", swallow, { capture: true } as EventListenerOptions);
+      window.removeEventListener("touchmove", swallow, { capture: true } as EventListenerOptions);
+    };
+  }, []);
 
   const handleConnectStart = useCallback(() => {
+    isConnectingRef.current = true;
     const vp = rfApi.getViewport();
     viewportLockRef.current = { ...vp };
     const nodeEls = document.querySelectorAll(".react-flow__node");
@@ -251,6 +275,7 @@ function CanvasInner({
   }, [rfApi]);
 
   const handleConnectEnd = useCallback(() => {
+    isConnectingRef.current = false;
     if (lockRafRef.current !== null) {
       cancelAnimationFrame(lockRafRef.current);
       lockRafRef.current = null;
