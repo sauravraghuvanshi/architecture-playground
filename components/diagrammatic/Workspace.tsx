@@ -131,12 +131,19 @@ export function Workspace({
   }, [searchParams, icons, edgeStyle]);
 
   // Templates Gallery handoff: parameterized template resolved into a
-  // playground-format graph stowed in sessionStorage. Convert + hydrate.
+  // playground-format graph stowed in localStorage under a unique handoff key
+  // (cross-tab safe). Convert + hydrate.
   const handoffApplied = useRef(false);
   useEffect(() => {
     if (handoffApplied.current) return;
     try {
-      const raw = sessionStorage.getItem(TEMPLATE_HANDOFF_KEY);
+      const handoffId = searchParams?.get("templateHandoff");
+      // Support both: keyed handoff (new — cross-tab via localStorage) and
+      // legacy unkeyed sessionStorage (same-tab fallback).
+      const storeKey = handoffId ? `${TEMPLATE_HANDOFF_KEY}:${handoffId}` : null;
+      const raw =
+        (storeKey && (localStorage.getItem(storeKey) ?? sessionStorage.getItem(storeKey))) ||
+        sessionStorage.getItem(TEMPLATE_HANDOFF_KEY);
       if (!raw) return;
       const parsed = JSON.parse(raw) as { graph?: PlaygroundLikeGraph };
       const arch = parsed?.graph ? playgroundGraphToArchPayload(parsed.graph) : null;
@@ -144,6 +151,10 @@ export function Workspace({
         handoffApplied.current = true;
         promptApplied.current = true; // suppress the prompt path on the same load
         setArchPayload(arch);
+        if (storeKey) {
+          localStorage.removeItem(storeKey);
+          sessionStorage.removeItem(storeKey);
+        }
         sessionStorage.removeItem(TEMPLATE_HANDOFF_KEY);
         requestAnimationFrame(() => canvasRef.current?.setAllEdgeStyle(edgeStyle));
       }
@@ -151,7 +162,7 @@ export function Workspace({
       /* ignore handoff failures — falls back to empty canvas */
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [searchParams]);
 
   // Mark unsaved when canvas state changes.
   const handleArchChange = useCallback((next: ArchPayload) => {
@@ -190,8 +201,18 @@ export function Workspace({
   }, [initialDiagramId, mode, archPayload]);
 
   // Rehydrate from a localStorage draft on first mount when no initial payload.
+  // CRITICAL: skip when the URL carries a prompt / template / handoff — in
+  // that case the user explicitly asked to open a different diagram and the
+  // draft would clobber it.
   useEffect(() => {
     if (initialPayload || initialDiagramId) return;
+    if (
+      searchParams?.get("prompt") ||
+      searchParams?.get("template") ||
+      searchParams?.get("templateHandoff")
+    ) {
+      return;
+    }
     try {
       const raw = localStorage.getItem("diagrammatic.draft");
       if (!raw) return;

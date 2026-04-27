@@ -58,11 +58,14 @@ export function TemplateGalleryClient({ templates }: Props) {
 
   function handoffAndGo(t: ParameterizedTemplate, values: Record<string, ParameterValue>) {
     const graph = resolveTemplate(t, values);
-    sessionStorage.setItem(
-      TEMPLATE_HANDOFF_KEY,
+    // Use localStorage with a unique handoff key (cross-tab safe) and open in
+    // a NEW tab so the user's existing canvas in the original tab is preserved.
+    const handoffId = `tpl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+    localStorage.setItem(
+      `${TEMPLATE_HANDOFF_KEY}:${handoffId}`,
       JSON.stringify({ id: t.id, name: t.name, graph, savedAt: new Date().toISOString() })
     );
-    router.push("/diagrammatic");
+    window.open(`/diagrammatic?templateHandoff=${handoffId}`, "_blank", "noopener");
   }
 
   return (

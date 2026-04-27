@@ -100,6 +100,8 @@ export function TemplateBrowser() {
           >
             <Link
               href={`/diagrammatic?prompt=${encodeURIComponent(`${t.title}. ${t.blurb}`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
               className="group block rounded-xl border border-zinc-800 bg-zinc-900/60 hover:border-lime-300/40 hover:shadow-[0_10px_30px_-15px_rgba(190,242,100,0.25)] transition-all overflow-hidden cursor-pointer"
             >
               <div className="relative h-24 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 overflow-hidden">

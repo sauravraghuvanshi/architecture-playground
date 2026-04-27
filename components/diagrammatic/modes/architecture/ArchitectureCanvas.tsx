@@ -150,6 +150,15 @@ const IconNodeImpl = ({ id, data, selected }: NodeProps) => {
   const d = data as unknown as IconNodeData;
   const { activeNodeId, isPlaying } = useSequence();
   const isPulsing = isPlaying && activeNodeId === id;
+  // Defensive: track img load failure so the node ALWAYS shows something
+  // identifiable, even if the SVG 404s under load or a stale path slipped in.
+  const [imgFailed, setImgFailed] = useState(false);
+  // Reset the error state when the path changes (e.g. after re-hydration).
+  useEffect(() => { setImgFailed(false); }, [d.iconPath]);
+  const cloudColor = d.iconId?.startsWith("aws/") ? "text-orange-300"
+    : d.iconId?.startsWith("azure/") ? "text-sky-300"
+    : d.iconId?.startsWith("gcp/") ? "text-emerald-300"
+    : "text-zinc-300";
   return (
     <div
       className={`group relative flex h-[110px] w-[120px] flex-col items-center justify-center gap-2 rounded-xl border bg-zinc-900/95 px-2 py-3 text-center shadow-lg backdrop-blur transition-all ${
@@ -165,11 +174,22 @@ const IconNodeImpl = ({ id, data, selected }: NodeProps) => {
       <Handle type="source" position={Position.Right} className="!h-2 !w-2 !bg-lime-300 !border-zinc-950" />
       <Handle type="target" position={Position.Left} className="!h-2 !w-2 !bg-lime-300 !border-zinc-950" />
       <Handle type="source" position={Position.Bottom} className="!h-2 !w-2 !bg-lime-300 !border-zinc-950" />
-      {d.iconPath ? (
+      {d.iconPath && !imgFailed ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={d.iconPath} alt="" className="h-10 w-10 select-none object-contain" draggable={false} />
+        <img
+          key={d.iconPath}
+          src={d.iconPath}
+          alt=""
+          className="h-10 w-10 select-none object-contain"
+          draggable={false}
+          loading="eager"
+          decoding="sync"
+          onError={() => setImgFailed(true)}
+        />
       ) : (
-        <div className="grid h-10 w-10 place-items-center rounded bg-zinc-800 text-xs text-zinc-500">?</div>
+        <div className={`grid h-10 w-10 place-items-center rounded bg-zinc-800 text-[10px] font-bold ${cloudColor}`}>
+          {d.iconId?.split("/")[0]?.toUpperCase().slice(0, 3) ?? "SVC"}
+        </div>
       )}
       <div className="line-clamp-2 text-[11px] font-medium leading-tight text-zinc-100">{d.label}</div>
     </div>
@@ -522,9 +542,12 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
       skipNextSnapshot.current = true;
       setNodes(flow.nodes);
       setEdges(flow.edges);
-      lastHydrateKey.current = key;
       requestAnimationFrame(() => rfInstance?.fitView({ padding: 0.2, duration: 400 }));
     }
+    // ALWAYS update the key so subsequent local edits (which produce a new
+    // value reference but identical counts) don't keep retripping this effect
+    // and risking a stale-rehydrate on a future legitimate change.
+    lastHydrateKey.current = key;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
@@ -684,7 +707,6 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
             type: "icon",
             position: { x: center.x - 60 + jitter(), y: center.y - 55 + jitter() },
             data: { label: icon.label, iconPath: icon.path, iconId: icon.id },
-            zIndex: 10,
           })
         );
       },
