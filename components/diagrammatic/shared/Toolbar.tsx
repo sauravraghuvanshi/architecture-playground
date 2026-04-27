@@ -15,7 +15,7 @@ const EXPORT_FORMATS = [
   { id: "gif" as const, label: "Animated GIF (sequence)" },
   { id: "json" as const, label: "JSON (re-importable)" },
 ];
-export type ExportFormat = (typeof EXPORT_FORMATS)[number]["id"];
+export type ExportFormat = string;
 
 interface Props {
   title: string;
@@ -38,6 +38,11 @@ interface Props {
   playing?: boolean;
   /** Trigger an export of the canvas. */
   onExport?: (format: ExportFormat) => void;
+  /** Mode-specific extra export formats (SQL DDL, TypeScript, Markdown, …). */
+  extraExports?: Array<{ id: string; label: string }>;
+  /** Hide the default raster (PNG/SVG/GIF) export entries — used for modes
+   *  whose visuals don't make sense as PNG/GIF (e.g. textual exports only). */
+  hideRasterExports?: boolean;
   saving?: boolean;
   saved?: boolean;
 }
@@ -56,6 +61,8 @@ export function Toolbar({
   onStop,
   playing,
   onExport,
+  extraExports,
+  hideRasterExports,
   saving,
   saved,
 }: Props) {
@@ -150,8 +157,8 @@ export function Toolbar({
               <ChevronDown className="h-3 w-3" />
             </button>
             {exportMenuOpen && (
-              <div className="absolute right-0 z-50 mt-1 w-48 overflow-hidden rounded-md border border-zinc-800 bg-zinc-900 py-1 shadow-2xl">
-                {EXPORT_FORMATS.map((f) => (
+              <div className="absolute right-0 z-50 mt-1 w-56 overflow-hidden rounded-md border border-zinc-800 bg-zinc-900 py-1 shadow-2xl">
+                {!hideRasterExports && EXPORT_FORMATS.map((f) => (
                   <button
                     key={f.id}
                     type="button"
@@ -165,6 +172,30 @@ export function Toolbar({
                     {f.label}
                   </button>
                 ))}
+                {hideRasterExports && (
+                  <button
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); onExport("png"); setExportMenuOpen(false); }}
+                    className="flex w-full cursor-pointer items-center px-2.5 py-1.5 text-left text-[11px] font-medium text-zinc-300 hover:bg-zinc-800 hover:text-white"
+                  >
+                    PNG image
+                  </button>
+                )}
+                {extraExports && extraExports.length > 0 && (
+                  <>
+                    <div className="my-1 border-t border-zinc-800" />
+                    {extraExports.map((f) => (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onMouseDown={(e) => { e.preventDefault(); onExport(f.id); setExportMenuOpen(false); }}
+                        className="flex w-full cursor-pointer items-center px-2.5 py-1.5 text-left text-[11px] font-medium text-zinc-300 hover:bg-zinc-800 hover:text-white"
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </>
+                )}
               </div>
             )}
           </div>

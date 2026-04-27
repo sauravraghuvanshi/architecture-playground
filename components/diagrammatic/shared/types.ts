@@ -19,7 +19,8 @@ export type DiagrammaticMode =
   | "er"
   | "uml"
   | "whiteboard"
-  | "kanban";
+  | "kanban"
+  | "c4";
 
 export const MODE_META: Record<
   DiagrammaticMode,
@@ -33,6 +34,7 @@ export const MODE_META: Record<
   uml:          { label: "UML",                icon: "📐", tagline: "Class, state, activity diagrams", engine: "maxgraph" },
   whiteboard:   { label: "Whiteboard",         icon: "✏️", tagline: "Sketch, freehand, sticky notes", engine: "excalidraw" },
   kanban:       { label: "Kanban Board",       icon: "📋", tagline: "Sprint planning with columns", engine: "dndkit" },
+  c4:           { label: "C4 / System",        icon: "🧩", tagline: "Context → Container → Component", engine: "maxgraph" },
 };
 
 export interface DiagrammaticDoc {
@@ -52,6 +54,7 @@ export const EMPTY_DOC: Record<DiagrammaticMode, DiagrammaticDoc> = {
   uml:          { mode: "uml",          payload: { nodes: [], edges: [] }, version: 1 },
   whiteboard:   { mode: "whiteboard",   payload: { elements: [], appState: {} }, version: 1 },
   kanban:       { mode: "kanban",       payload: { columns: [] }, version: 1 },
+  c4:           { mode: "c4",           payload: { nodes: [], edges: [] }, version: 1 },
 };
 
 export interface IconLite {

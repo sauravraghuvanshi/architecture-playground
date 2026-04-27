@@ -29,6 +29,8 @@ import { Inspector, deriveArchIssues } from "./shared/Inspector";
 import { StatusBar } from "./shared/StatusBar";
 import { KeyboardHints } from "./shared/KeyboardHints";
 import { promptToArchitecture } from "@/lib/prompt-to-arch";
+import { MODE_REGISTRY } from "./shared/modeCatalog";
+import type { BaseCanvasHandle } from "./shared/modeRegistry";
 
 // Shared with /templates/GalleryClient.tsx
 const TEMPLATE_HANDOFF_KEY = "architecture-playground:template-handoff";
@@ -69,6 +71,11 @@ export function Workspace({
   const [archPayload, setArchPayload] = useState<ArchPayload>(
     initialPayload ?? { nodes: [], edges: [] }
   );
+  // Per-mode payload state for the non-architecture modes. Initialized lazily
+  // on first switch into the mode (using the registry's default payload), and
+  // persisted to localStorage under "diagrammatic.draft.<mode>" on change.
+  const [otherPayloads, setOtherPayloads] = useState<Partial<Record<DiagrammaticMode, unknown>>>({});
+  const otherCanvasRef = useRef<BaseCanvasHandle | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
@@ -310,18 +317,23 @@ export function Workspace({
     <div className="flex h-screen flex-col bg-zinc-950 text-zinc-100">
       <Toolbar
         title={meta.label}
-        onFit={() => canvasRef.current?.fit()}
-        onUndo={() => canvasRef.current?.undo()}
-        onRedo={() => canvasRef.current?.redo()}
-        onDelete={() => canvasRef.current?.deleteSelection()}
+        onFit={() => (mode === "architecture" ? canvasRef.current?.fit() : otherCanvasRef.current?.fit())}
+        onUndo={() => (mode === "architecture" ? canvasRef.current?.undo() : otherCanvasRef.current?.undo())}
+        onRedo={() => (mode === "architecture" ? canvasRef.current?.redo() : otherCanvasRef.current?.redo())}
+        onDelete={() => (mode === "architecture" ? canvasRef.current?.deleteSelection() : otherCanvasRef.current?.deleteSelection())}
         onSave={handleSave}
-        onCycleEdgeStyle={cycleEdgeStyle}
+        onCycleEdgeStyle={mode === "architecture" ? cycleEdgeStyle : undefined}
         edgeStyle={edgeStyle}
-        onAddTier={(tier) => canvasRef.current?.addGroup(tier, tier)}
-        onPlay={() => canvasRef.current?.playSequence()}
-        onStop={() => canvasRef.current?.stopSequence()}
+        onAddTier={mode === "architecture" ? (tier) => canvasRef.current?.addGroup(tier, tier) : undefined}
+        onPlay={mode === "architecture" ? () => canvasRef.current?.playSequence() : undefined}
+        onStop={mode === "architecture" ? () => canvasRef.current?.stopSequence() : undefined}
         playing={playing}
-        onExport={(format) => exportCanvas(format, canvasRef.current)}
+        onExport={(format) => {
+          if (mode === "architecture") return exportCanvas(format, canvasRef.current);
+          return exportOther(format, mode, otherCanvasRef.current, otherPayloads[mode]);
+        }}
+        extraExports={mode !== "architecture" ? MODE_REGISTRY[mode]?.capabilities.textExports : undefined}
+        hideRasterExports={mode === "kanban"}
         saving={saving}
         saved={saved}
       />
@@ -334,32 +346,27 @@ export function Workspace({
         {(Object.keys(MODE_META) as DiagrammaticMode[]).map((m) => {
           const meta = MODE_META[m];
           const active = m === mode;
-          const ready = m === "architecture";
           return (
             <button
               key={m}
               type="button"
-              onClick={() => ready && setMode(m)}
-              disabled={!ready}
-              title={ready ? meta.tagline : `${meta.label} — coming in R2/R3`}
-              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition ${
+              onClick={() => setMode(m)}
+              title={meta.tagline}
+              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition cursor-pointer ${
                 active
                   ? "bg-zinc-100 text-zinc-900"
-                  : ready
-                  ? "text-zinc-300 hover:bg-zinc-900 hover:text-white"
-                  : "text-zinc-600"
+                  : "text-zinc-300 hover:bg-zinc-900 hover:text-white"
               }`}
             >
               <span aria-hidden>{meta.icon}</span>
               <span>{meta.label}</span>
-              {!ready && <span className="ml-1 rounded bg-zinc-800 px-1 text-[9px] uppercase">soon</span>}
             </button>
           );
         })}
       </nav>
 
       <div className="flex flex-1 overflow-hidden">
-        <Palette icons={icons} />
+        {mode === "architecture" && <Palette icons={icons} />}
         <main className="relative flex-1">
           {mode === "architecture" ? (
             <ArchitectureCanvas
@@ -369,7 +376,18 @@ export function Workspace({
               onPlayingChange={setPlaying}
             />
           ) : (
-            <ComingSoon mode={mode} />
+            <ModeCanvasFor
+              mode={mode}
+              value={otherPayloads[mode]}
+              onMount={(handle) => { otherCanvasRef.current = handle; }}
+              onChange={(p) => {
+                setOtherPayloads((prev) => ({ ...prev, [mode]: p }));
+                setSaved(false);
+                try {
+                  localStorage.setItem(`diagrammatic.draft.${mode}`, JSON.stringify({ payload: p, savedAt: Date.now() }));
+                } catch { /* ignore */ }
+              }}
+            />
           )}
 
           {/* Floating ⌘K hint */}
@@ -384,7 +402,7 @@ export function Workspace({
           </button>
         </main>
 
-        <Inspector issues={issues} />
+        {mode === "architecture" && <Inspector issues={issues} />}
       </div>
 
       <StatusBar
@@ -425,6 +443,43 @@ function ComingSoon({ mode }: { mode: DiagrammaticMode }) {
       </div>
     </div>
   );
+}
+
+/**
+ * Render the canvas for a non-architecture mode. Hydrates the mode's payload
+ * from (in priority order) the in-memory `otherPayloads` slot, the per-mode
+ * localStorage draft, or the registry's default.
+ */
+function ModeCanvasFor({
+  mode,
+  value,
+  onChange,
+  onMount,
+}: {
+  mode: DiagrammaticMode;
+  value: unknown;
+  onChange: (p: unknown) => void;
+  onMount: (handle: BaseCanvasHandle | null) => void;
+}) {
+  const entry = MODE_REGISTRY[mode];
+  const initial = useMemo(() => {
+    if (value !== undefined) return value;
+    try {
+      const raw = typeof window !== "undefined" ? localStorage.getItem(`diagrammatic.draft.${mode}`) : null;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.payload !== undefined) return parsed.payload;
+      }
+    } catch { /* ignore */ }
+    return entry?.defaultPayload;
+  // Recompute only when mode changes — value is the in-memory slot which is
+  // intentionally read once at mount; subsequent updates flow via onChange.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+  const refCallback = useCallback((h: BaseCanvasHandle | null) => onMount(h), [onMount]);
+  if (!entry) return <ComingSoon mode={mode} />;
+  const Canvas = entry.Canvas;
+  return <Canvas value={initial as never} onChange={onChange} ref={refCallback} />;
 }
 
 // ─── Playground graph → ArchPayload adapter ────────────────────────────────
@@ -641,4 +696,63 @@ function triggerDownload(blob: Blob, filename: string) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// ─── Generic export for non-architecture modes ────────────────────────────
+// Each canvas exposes optional exportText / exportBlob via its handle. PNG /
+// SVG fall back to html-to-image against the canvas root. GIF and "json"
+// also work — JSON serializes the payload directly.
+async function exportOther(
+  format: string,
+  mode: DiagrammaticMode,
+  handle: BaseCanvasHandle | null,
+  payload: unknown
+) {
+  if (!handle) return;
+  const stamp = Date.now();
+  // Native blob export (used by Whiteboard's Excalidraw exporter).
+  if (handle.exportBlob) {
+    try {
+      const native = await handle.exportBlob(format);
+      if (native) { triggerDownload(native, `${mode}-${stamp}.${format}`); return; }
+    } catch (err) { console.warn("exportBlob failed:", err); }
+  }
+  if (format === "json") {
+    const data = handle.serialize();
+    triggerDownload(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }),
+      `${mode}-${stamp}.json`);
+    return;
+  }
+  if (handle.exportText) {
+    const text = handle.exportText(format);
+    if (text != null) {
+      const ext = format === "ts" ? "ts" : format === "sql" ? "sql" : format === "md" ? "md" : "txt";
+      const mime = format === "ts" ? "text/typescript" : format === "sql" ? "text/x-sql" : format === "md" ? "text/markdown" : "text/plain";
+      triggerDownload(new Blob([text], { type: mime }), `${mode}-${stamp}.${ext}`);
+      return;
+    }
+  }
+  // Raster fallback for PNG / SVG.
+  const target =
+    (document.querySelector(".react-flow") as HTMLElement | null) ??
+    (document.querySelector(".excalidraw") as HTMLElement | null) ??
+    (document.querySelector("main") as HTMLElement | null);
+  if (!target) {
+    void payload; // unused — payload may be useful for future text exporters
+    return;
+  }
+  try {
+    const { toPng, toSvg } = await import("html-to-image");
+    if (format === "png" || format === "gif") {
+      const dataUrl = await toPng(target, { cacheBust: true, backgroundColor: "#0a0a0b", pixelRatio: 2 });
+      const blob = await (await fetch(dataUrl)).blob();
+      triggerDownload(blob, `${mode}-${stamp}.png`);
+    } else if (format === "svg") {
+      const dataUrl = await toSvg(target, { cacheBust: true, backgroundColor: "#0a0a0b" });
+      const blob = await (await fetch(dataUrl)).blob();
+      triggerDownload(blob, `${mode}-${stamp}.svg`);
+    }
+  } catch (err) {
+    console.error("Generic export failed:", err);
+  }
 }
