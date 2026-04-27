@@ -395,6 +395,7 @@ export function Workspace({
       <nav
         className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-zinc-800 bg-zinc-950 px-3 py-1.5"
         aria-label="Workspace modes"
+        role="tablist"
       >
         {(Object.keys(MODE_META) as DiagrammaticMode[]).map((m) => {
           const meta = MODE_META[m];
@@ -403,6 +404,9 @@ export function Workspace({
             <button
               key={m}
               type="button"
+              role="tab"
+              aria-selected={active}
+              aria-label={meta.label}
               onClick={() => setMode(m)}
               title={meta.tagline}
               className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition cursor-pointer ${

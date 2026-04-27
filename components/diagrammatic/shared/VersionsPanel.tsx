@@ -52,6 +52,7 @@ export function VersionsPanel({ scopeId, open, onClose, getCurrent, onRestore }:
 
   useEffect(() => {
     if (!open) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setVersions(load(scopeId));
   }, [open, scopeId]);
 
