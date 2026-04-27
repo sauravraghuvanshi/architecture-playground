@@ -37,9 +37,30 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import type { BaseCanvasHandle } from "../../shared/modeRegistry";
 
-export interface KanbanCard { id: string; title: string; description?: string; label?: string }
+export interface KanbanCard {
+  id: string;
+  title: string;
+  description?: string;
+  label?: string;
+  /** Cross-diagram link — opens /diagrammatic?mode=<m>&diagramId=<d>&select=<n>. */
+  linkedMode?: string;
+  linkedDiagramId?: string;
+  linkedNodeId?: string;
+}
 export interface KanbanColumn { id: string; title: string; wipLimit?: number; cardIds: string[] }
-export interface KanbanPayload { columns: KanbanColumn[]; cards: Record<string, KanbanCard> }
+export interface KanbanSprint {
+  name: string;
+  /** ISO date strings (YYYY-MM-DD). */
+  start?: string;
+  end?: string;
+  /** Velocity in story points (informational — not enforced). */
+  velocity?: number;
+}
+export interface KanbanPayload {
+  columns: KanbanColumn[];
+  cards: Record<string, KanbanCard>;
+  sprint?: KanbanSprint;
+}
 
 export const KANBAN_DEFAULT_PAYLOAD: KanbanPayload = {
   columns: [
@@ -73,6 +94,11 @@ const SortableCardImpl = ({ card }: SortableCardProps) => {
     transition,
     opacity: isDragging ? 0.4 : 1,
   };
+  // Build the link href client-side. linkedMode defaults to "architecture"
+  // when only diagramId is set (legacy), otherwise honour the mode.
+  const link = card.linkedDiagramId
+    ? `/diagrammatic?mode=${encodeURIComponent(card.linkedMode ?? "architecture")}&diagramId=${encodeURIComponent(card.linkedDiagramId)}${card.linkedNodeId ? `&select=${encodeURIComponent(card.linkedNodeId)}` : ""}`
+    : null;
   return (
     <div
       ref={setNodeRef}
@@ -83,11 +109,27 @@ const SortableCardImpl = ({ card }: SortableCardProps) => {
     >
       <div className="font-semibold">{card.title}</div>
       {card.description && <div className="mt-1 text-[11px] text-zinc-400">{card.description}</div>}
-      {card.label && (
-        <span className={`mt-2 inline-block rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${LABEL_COLORS[card.label] ?? "bg-zinc-700 text-zinc-100"}`}>
-          {card.label}
-        </span>
-      )}
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        {card.label && (
+          <span className={`inline-block rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${LABEL_COLORS[card.label] ?? "bg-zinc-700 text-zinc-100"}`}>
+            {card.label}
+          </span>
+        )}
+        {link && (
+          <a
+            href={link}
+            target="_blank"
+            rel="noopener"
+            // Stop propagation so clicking the link doesn't initiate a card drag.
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            title={`Linked to ${card.linkedMode ?? "architecture"} diagram${card.linkedNodeId ? ` (node ${card.linkedNodeId})` : ""}`}
+            className="inline-flex items-center gap-0.5 rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] font-medium text-sky-300 hover:bg-zinc-700 hover:text-sky-200"
+          >
+            🔗 {card.linkedMode ?? "diagram"}
+          </a>
+        )}
+      </div>
     </div>
   );
 };
@@ -237,21 +279,39 @@ export const KanbanCanvas = forwardRef<BaseCanvasHandle, Props>(function KanbanC
   const activeCard = activeId ? state.cards[activeId] : null;
 
   return (
-    <div className="h-full w-full overflow-x-auto bg-zinc-950 p-4">
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragEnd={onDragEnd}>
-        <div className="flex h-full gap-4">
-          {state.columns.map((col) => (
-            <Column key={col.id} column={col} cards={col.cardIds.map((id) => state.cards[id]).filter(Boolean)} onAddCard={onAddCard} />
-          ))}
+    <div className="flex h-full w-full flex-col bg-zinc-950">
+      {state.sprint && (
+        <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-zinc-800 bg-zinc-950/80 px-4 py-2 text-[11px] text-zinc-300">
+          <span className="font-semibold uppercase tracking-wide text-lime-300">Sprint</span>
+          <span className="font-medium text-zinc-100">{state.sprint.name}</span>
+          {(state.sprint.start || state.sprint.end) && (
+            <span className="text-zinc-400">
+              {state.sprint.start ?? "—"} → {state.sprint.end ?? "—"}
+            </span>
+          )}
+          {state.sprint.velocity !== undefined && (
+            <span className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] text-zinc-200">
+              velocity {state.sprint.velocity}
+            </span>
+          )}
         </div>
-        <DragOverlay>
-          {activeCard ? (
-            <div className="rounded-md border border-lime-300 bg-zinc-900 p-3 text-[13px] text-zinc-100 shadow-xl">
-              <div className="font-semibold">{activeCard.title}</div>
-            </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+      )}
+      <div className="h-full w-full flex-1 overflow-x-auto p-4">
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+          <div className="flex h-full gap-4">
+            {state.columns.map((col) => (
+              <Column key={col.id} column={col} cards={col.cardIds.map((id) => state.cards[id]).filter(Boolean)} onAddCard={onAddCard} />
+            ))}
+          </div>
+          <DragOverlay>
+            {activeCard ? (
+              <div className="rounded-md border border-lime-300 bg-zinc-900 p-3 text-[13px] text-zinc-100 shadow-xl">
+                <div className="font-semibold">{activeCard.title}</div>
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      </div>
     </div>
   );
 });
