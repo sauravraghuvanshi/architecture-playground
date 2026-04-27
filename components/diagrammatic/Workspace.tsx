@@ -531,13 +531,13 @@ async function exportCanvas(
     );
     return;
   }
-  // PNG / SVG operate on the rendered viewport.
+  // PNG / SVG / GIF operate on the rendered viewport.
   const viewport = document.querySelector(".react-flow__viewport") as HTMLElement | null;
   const target =
     (document.querySelector(".react-flow") as HTMLElement | null) ?? viewport;
   if (!target) return;
   try {
-    const { toPng, toSvg } = await import("html-to-image");
+    const { toPng, toSvg, toCanvas } = await import("html-to-image");
     const filter = (node: HTMLElement) => {
       // Skip the controls / minimap / panel chrome from the export.
       const cls = (node as Element).className;
@@ -563,10 +563,73 @@ async function exportCanvas(
       });
       const blob = await (await fetch(dataUrl)).blob();
       triggerDownload(blob, `architecture-${Date.now()}.svg`);
+    } else if (format === "gif") {
+      const blob = await exportSequenceGif(handle, target, toCanvas, filter);
+      if (blob) triggerDownload(blob, `architecture-${Date.now()}.gif`);
     }
   } catch (err) {
     console.error("Export failed:", err);
   }
+}
+
+// ─── GIF (animated) export ─────────────────────────────────────────────────
+//
+// Drives the canvas through `recordSequence`, captures one PNG frame per step
+// via html-to-image's toCanvas, then encodes the frames as an animated GIF
+// using gifenc (no worker required). Frame size is capped at 960px wide to
+// keep the resulting file under a reasonable size.
+async function exportSequenceGif(
+  handle: ArchitectureCanvasHandle,
+  target: HTMLElement,
+  toCanvas: (node: HTMLElement, opts?: Record<string, unknown>) => Promise<HTMLCanvasElement>,
+  filter: (node: HTMLElement) => boolean
+): Promise<Blob | null> {
+  const { GIFEncoder, quantize, applyPalette } = await import("gifenc");
+  // Compute output dimensions — cap longest side at 960 for size sanity.
+  const rect = target.getBoundingClientRect();
+  const maxWidth = 960;
+  const scale = Math.min(1, maxWidth / Math.max(1, rect.width));
+  const outW = Math.max(2, Math.round(rect.width * scale));
+  const outH = Math.max(2, Math.round(rect.height * scale));
+  const gif = GIFEncoder();
+  const frames: Uint8ClampedArray[] = [];
+
+  await handle.recordSequence(async () => {
+    const canvas = await toCanvas(target, {
+      cacheBust: true,
+      backgroundColor: "#0a0a0b",
+      pixelRatio: scale,
+      filter,
+      width: outW,
+      height: outH,
+    });
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    frames.push(new Uint8ClampedArray(data));
+  });
+
+  if (!frames.length) return null;
+  // Single 256-colour palette derived from the first frame keeps file size
+  // small and avoids per-frame palette flicker.
+  const palette = quantize(frames[0], 256);
+  for (let i = 0; i < frames.length; i += 1) {
+    const index = applyPalette(frames[i], palette);
+    // Hold start/end longer (1s) so viewers can see the steady states.
+    const isFirst = i === 0;
+    const isLast = i === frames.length - 1;
+    gif.writeFrame(index, outW, outH, {
+      palette: i === 0 ? palette : undefined,
+      delay: isFirst || isLast ? 1000 : 700,
+    });
+  }
+  gif.finish();
+  const bytes = gif.bytes();
+  // Copy into a fresh ArrayBuffer-backed Uint8Array so the Blob constructor
+  // accepts it under TS's strict ArrayBuffer/SharedArrayBuffer typing.
+  const buf = new Uint8Array(bytes.byteLength);
+  buf.set(bytes);
+  return new Blob([buf], { type: "image/gif" });
 }
 
 function triggerDownload(blob: Blob, filename: string) {

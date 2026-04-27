@@ -115,6 +115,13 @@ export interface ArchitectureCanvasHandle {
   playSequence: () => void;
   stopSequence: () => void;
   isPlaying: () => boolean;
+  /**
+   * Step the sequence one edge at a time, await a paint, and yield each
+   * highlighted state to the caller. Used by GIF export to capture frames.
+   * Calls `onFrame()` for: an initial idle frame, every edge step in order,
+   * and a final idle frame. Returns the number of frames produced.
+   */
+  recordSequence: (onFrame: (label: string) => Promise<void>) => Promise<number>;
 }
 
 interface Props {
@@ -261,6 +268,8 @@ const nodeTypes = { icon: IconNode, group: GroupNode };
 interface LabeledEdgeData {
   archStyle?: ArchEdgeStyle;
   label?: string;
+  /** Auto-assigned playback order index (1-based). Rendered as a chip. */
+  step?: number;
 }
 
 const LabeledEdgeImpl = ({
@@ -309,16 +318,29 @@ const LabeledEdgeImpl = ({
           transition: "stroke 120ms ease, stroke-width 120ms ease, opacity 200ms ease",
         }}
       />
-      {d.label && (
-        <EdgeLabelRenderer>
-          <div
-            className="nodrag nopan pointer-events-auto absolute rounded-md border border-zinc-700 bg-zinc-900/95 px-2 py-0.5 text-[10px] font-semibold text-zinc-200 shadow-md backdrop-blur"
-            style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
-          >
-            {d.label}
-          </div>
-        </EdgeLabelRenderer>
-      )}
+      <EdgeLabelRenderer>
+        <div
+          className="nodrag nopan pointer-events-none absolute flex items-center gap-1.5"
+          style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
+        >
+          {typeof d.step === "number" && (
+            <span
+              className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border text-[11px] font-bold shadow-md ${
+                isActive
+                  ? "border-lime-300 bg-lime-300 text-zinc-950"
+                  : "border-zinc-700 bg-zinc-900/95 text-lime-300"
+              }`}
+            >
+              {d.step}
+            </span>
+          )}
+          {d.label && (
+            <span className="pointer-events-auto rounded-md border border-zinc-700 bg-zinc-900/95 px-2 py-0.5 text-[10px] font-semibold text-zinc-200 shadow-md backdrop-blur">
+              {d.label}
+            </span>
+          )}
+        </div>
+      </EdgeLabelRenderer>
     </>
   );
 };
@@ -632,6 +654,30 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
     );
   }, []);
 
+  // Auto-assign 1-based step numbers on edges using the sequence playback
+  // order so users get nice numbered chips along the flow without manual work.
+  // Re-runs only when the underlying topology changes (not on selection-only
+  // edge updates) — and never writes if all numbers already match.
+  useEffect(() => {
+    const order = computeEdgePlaybackOrder(nodes, edges);
+    if (order.length === 0) return;
+    const numByEdge: Record<string, number> = {};
+    order.forEach((eid, idx) => { numByEdge[eid] = idx + 1; });
+    let changed = false;
+    const next = edges.map((e) => {
+      const want = numByEdge[e.id];
+      const have = (e.data as LabeledEdgeData | undefined)?.step;
+      if (want === have) return e;
+      changed = true;
+      return { ...e, data: { ...(e.data as object), step: want } };
+    });
+    if (changed) {
+      skipNextSnapshot.current = true;
+      setEdges(next);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [edges.length, nodes.length, edges.map((e) => `${e.source}>${e.target}`).join("|")]);
+
   // ─── Sequence playback ────────────────────────────────────────────────
   const stopSequence = useCallback(() => {
     if (seqTimer.current) clearTimeout(seqTimer.current);
@@ -785,6 +831,26 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
       playSequence,
       stopSequence,
       isPlaying: () => seq.isPlaying,
+      recordSequence: async (onFrame) => {
+        const order = computeEdgePlaybackOrder(nodes, edges);
+        if (seqTimer.current) clearTimeout(seqTimer.current);
+        // Idle start frame.
+        setSeq({ activeEdgeId: null, activeNodeId: null, isPlaying: true });
+        await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+        await onFrame("start");
+        for (let i = 0; i < order.length; i += 1) {
+          const eid = order[i];
+          const e = edges.find((x) => x.id === eid);
+          setSeq({ activeEdgeId: eid, activeNodeId: e?.target ?? null, isPlaying: true });
+          await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+          await onFrame(`step-${i + 1}`);
+        }
+        // Final idle frame, then reset.
+        setSeq({ activeEdgeId: null, activeNodeId: null, isPlaying: false });
+        await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+        await onFrame("end");
+        return order.length + 2;
+      },
     }),
     [
       nodes,

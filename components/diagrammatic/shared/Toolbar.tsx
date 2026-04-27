@@ -12,6 +12,7 @@ const TIERS = ["Edge", "Frontend", "Gateway", "Compute", "Messaging", "Data", "O
 const EXPORT_FORMATS = [
   { id: "png" as const, label: "PNG image" },
   { id: "svg" as const, label: "SVG vector" },
+  { id: "gif" as const, label: "Animated GIF (sequence)" },
   { id: "json" as const, label: "JSON (re-importable)" },
 ];
 export type ExportFormat = (typeof EXPORT_FORMATS)[number]["id"];
