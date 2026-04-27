@@ -9,6 +9,30 @@ export const KANBAN_TEMPLATES: ModeTemplate[] = [
     payload: KANBAN_DEFAULT_PAYLOAD,
   },
   {
+    id: "sprint-with-metadata",
+    name: "Sprint 24 — Payments",
+    description: "Two-week sprint with start/end + velocity + cross-diagram link",
+    payload: {
+      sprint: { name: "Sprint 24 — Payments", start: "2025-04-01", end: "2025-04-14", velocity: 28 },
+      columns: [
+        { id: "backlog", title: "Backlog", cardIds: ["s1", "s2"] },
+        { id: "doing", title: "In progress", wipLimit: 3, cardIds: ["s3"] },
+        { id: "review", title: "Review", wipLimit: 2, cardIds: ["s4"] },
+        { id: "done", title: "Done", cardIds: ["s5"] },
+      ],
+      cards: {
+        s1: { id: "s1", title: "Refund flow API", label: "feature",
+              linkedMode: "architecture", linkedDiagramId: "draft", linkedNodeId: "api" },
+        s2: { id: "s2", title: "Update ER for refunds table", label: "feature",
+              linkedMode: "er", linkedDiagramId: "draft" },
+        s3: { id: "s3", title: "Stripe webhook handler", label: "feature",
+              linkedMode: "sequence", linkedDiagramId: "draft" },
+        s4: { id: "s4", title: "QA — partial refund edge cases", label: "design" },
+        s5: { id: "s5", title: "Telemetry dashboard wiring", label: "growth" },
+      },
+    },
+  },
+  {
     id: "bug-triage",
     name: "Bug triage",
     description: "New / Triage / Fixing / Verifying / Closed",
