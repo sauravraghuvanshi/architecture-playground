@@ -32,6 +32,8 @@ import { promptToArchitecture } from "@/lib/prompt-to-arch";
 import { MODE_REGISTRY } from "./shared/modeCatalog";
 import type { BaseCanvasHandle } from "./shared/modeRegistry";
 import { AiPromptModal } from "./shared/AiPromptModal";
+import { CommentsPanel } from "./shared/CommentsPanel";
+import { VersionsPanel } from "./shared/VersionsPanel";
 
 // Shared with /templates/GalleryClient.tsx
 const TEMPLATE_HANDOFF_KEY = "architecture-playground:template-handoff";
@@ -82,6 +84,8 @@ export function Workspace({
   const [cmdOpen, setCmdOpen] = useState(false);
   const [hintsOpen, setHintsOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [versionsOpen, setVersionsOpen] = useState(false);
   const [aiConfigured, setAiConfigured] = useState<boolean | null>(null);
   const [edgeStyle, setEdgeStyle] = useState<ArchEdgeStyle>("flow");
   const canvasRef = useRef<ArchitectureCanvasHandle | null>(null);
@@ -379,6 +383,10 @@ export function Workspace({
         } : undefined}
         onAiAssist={mode !== "whiteboard" ? () => setAiOpen(true) : undefined}
         aiDisabledReason={aiConfigured === false ? "AI is not configured. Set Azure OpenAI env vars on the server." : undefined}
+        onToggleComments={() => setCommentsOpen((v) => !v)}
+        commentsOpen={commentsOpen}
+        onToggleVersions={() => setVersionsOpen((v) => !v)}
+        versionsOpen={versionsOpen}
         saving={saving}
         saved={saved}
       />
@@ -448,6 +456,27 @@ export function Workspace({
         </main>
 
         {mode === "architecture" && <Inspector issues={issues} />}
+        <CommentsPanel
+          scopeId={`${mode}:${initialDiagramId ?? "draft"}`}
+          open={commentsOpen}
+          onClose={() => setCommentsOpen(false)}
+        />
+        <VersionsPanel
+          scopeId={`${mode}:${initialDiagramId ?? "draft"}`}
+          open={versionsOpen}
+          onClose={() => setVersionsOpen(false)}
+          getCurrent={() => (mode === "architecture" ? archPayload : otherPayloads[mode])}
+          onRestore={(payload) => {
+            if (mode === "architecture") {
+              setArchPayload(payload as ArchPayload);
+              requestAnimationFrame(() => canvasRef.current?.setAllEdgeStyle(edgeStyle));
+            } else {
+              setOtherPayloads((prev) => ({ ...prev, [mode]: payload }));
+              otherCanvasRef.current?.hydrate(payload);
+            }
+            setSaved(false);
+          }}
+        />
       </div>
 
       <StatusBar

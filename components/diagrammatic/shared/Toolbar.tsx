@@ -6,7 +6,7 @@
 "use client";
 
 import { useState } from "react";
-import { Undo2, Redo2, Maximize2, Trash2, Activity, Save, Loader2, Check, LayoutGrid, Play, Square, ChevronDown, Download, FolderOpen, Sparkles } from "lucide-react";
+import { Undo2, Redo2, Maximize2, Trash2, Activity, Save, Loader2, Check, LayoutGrid, Play, Square, ChevronDown, Download, FolderOpen, Sparkles, MessageSquare, History } from "lucide-react";
 
 const TIERS = ["Edge", "Frontend", "Gateway", "Compute", "Messaging", "Data", "Ops", "Custom"] as const;
 const EXPORT_FORMATS = [
@@ -51,6 +51,12 @@ interface Props {
   onAiAssist?: () => void;
   /** Disables the AI button + shows a tooltip when AI env vars are absent. */
   aiDisabledReason?: string;
+  /** Toggle the right-rail comments panel. */
+  onToggleComments?: () => void;
+  commentsOpen?: boolean;
+  /** Toggle the right-rail versions panel. */
+  onToggleVersions?: () => void;
+  versionsOpen?: boolean;
   saving?: boolean;
   saved?: boolean;
 }
@@ -75,6 +81,10 @@ export function Toolbar({
   onApplyTemplate,
   onAiAssist,
   aiDisabledReason,
+  onToggleComments,
+  commentsOpen,
+  onToggleVersions,
+  versionsOpen,
   saving,
   saved,
 }: Props) {
@@ -266,6 +276,30 @@ export function Toolbar({
         {onSave && (
           <>
             <span className="mx-2 h-5 w-px bg-zinc-800" />
+            {onToggleVersions && (
+              <button
+                type="button"
+                onClick={onToggleVersions}
+                title="Version history"
+                aria-label="Toggle version history"
+                aria-pressed={!!versionsOpen}
+                className={`cursor-pointer rounded-md p-1.5 transition ${versionsOpen ? "bg-zinc-800 text-white" : "text-zinc-300 hover:bg-zinc-800 hover:text-white"}`}
+              >
+                <History className="h-4 w-4" />
+              </button>
+            )}
+            {onToggleComments && (
+              <button
+                type="button"
+                onClick={onToggleComments}
+                title="Comments"
+                aria-label="Toggle comments"
+                aria-pressed={!!commentsOpen}
+                className={`cursor-pointer rounded-md p-1.5 transition ${commentsOpen ? "bg-zinc-800 text-white" : "text-zinc-300 hover:bg-zinc-800 hover:text-white"}`}
+              >
+                <MessageSquare className="h-4 w-4" />
+              </button>
+            )}
             <button
               type="button"
               onClick={onSave}
