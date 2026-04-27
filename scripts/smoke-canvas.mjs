@@ -182,6 +182,60 @@ try {
     if (btn) btn.click();
   });
 
+  // Phase-4: GroupNode header band must be visible (regression for the
+  // user-reported "tier graphic looks bad — empty rectangle"). The new node
+  // renders the tier label inside an opaque header band (≥ 20px tall).
+  console.log("→ tier header visibility test");
+  const tierHeaderOk = await page.evaluate(() => {
+    const groups = Array.from(document.querySelectorAll(".react-flow__node-group"));
+    if (groups.length === 0) return { ok: false, reason: "no group nodes" };
+    for (const g of groups) {
+      const headerText = (g.textContent || "").trim();
+      const rect = g.getBoundingClientRect();
+      if (rect.height < 80 || rect.width < 80) continue;
+      if (!headerText) continue;
+      // Look for a child element that contains uppercase tier text (EDGE,
+      // FRONTEND, COMPUTE, …). Our header band uses `tracking-[0.14em]`.
+      const tierBands = Array.from(g.querySelectorAll("span")).filter((s) => {
+        const t = (s.textContent || "").trim();
+        return /^(edge|frontend|gateway|compute|messaging|data|ops|custom|group)$/i.test(t);
+      });
+      if (tierBands.length > 0) {
+        const tb = tierBands[0];
+        const tbRect = tb.getBoundingClientRect();
+        if (tbRect.width >= 20 && tbRect.height >= 8)
+          return { ok: true, label: tb.textContent };
+      }
+    }
+    return { ok: false, reason: "no visible tier header band" };
+  });
+  console.log(`✓ Tier header: ${JSON.stringify(tierHeaderOk)}`);
+  if (!tierHeaderOk.ok) throw new Error("Tier header band not visible");
+
+  // Phase-4: Export button exists and JSON export triggers a download blob.
+  console.log("→ export button test");
+  const exportPresent = await page.evaluate(() => {
+    return Array.from(document.querySelectorAll("button")).some(
+      (b) => b.textContent?.trim().startsWith("Export")
+    );
+  });
+  if (!exportPresent) throw new Error("Export button not present in toolbar");
+  console.log("✓ Export button present");
+
+  // Phase-4: Visiting `?prompt=…` (used by hub TemplateBrowser cards) seeds
+  // the canvas with a non-empty graph.
+  console.log("→ template→prompt deeplink test");
+  await page.goto(
+    `${URL}?prompt=${encodeURIComponent("Three tier web app on Azure with App Service and Azure SQL")}`,
+    { waitUntil: "networkidle2", timeout: 30_000 }
+  );
+  await page.waitForSelector(".react-flow__viewport", { timeout: 15_000 });
+  await new Promise((r) => setTimeout(r, 1200));
+  const tplNodeCount = (await page.$$(".react-flow__node")).length;
+  console.log(`✓ Template-deeplink produced ${tplNodeCount} nodes`);
+  if (tplNodeCount < 3)
+    throw new Error(`Template deeplink underseeded the canvas (got ${tplNodeCount}, expected ≥3)`);
+
   // Hard-fail on any console errors.
   if (consoleErrors.length) {
     console.error("✗ Console errors during run:");

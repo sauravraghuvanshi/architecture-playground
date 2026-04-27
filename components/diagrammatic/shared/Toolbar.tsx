@@ -6,9 +6,15 @@
 "use client";
 
 import { useState } from "react";
-import { Undo2, Redo2, Maximize2, Trash2, Activity, Save, Loader2, Check, LayoutGrid, Play, Square, ChevronDown } from "lucide-react";
+import { Undo2, Redo2, Maximize2, Trash2, Activity, Save, Loader2, Check, LayoutGrid, Play, Square, ChevronDown, Download } from "lucide-react";
 
 const TIERS = ["Edge", "Frontend", "Gateway", "Compute", "Messaging", "Data", "Ops", "Custom"] as const;
+const EXPORT_FORMATS = [
+  { id: "png" as const, label: "PNG image" },
+  { id: "svg" as const, label: "SVG vector" },
+  { id: "json" as const, label: "JSON (re-importable)" },
+];
+export type ExportFormat = (typeof EXPORT_FORMATS)[number]["id"];
 
 interface Props {
   title: string;
@@ -29,6 +35,8 @@ interface Props {
   onStop?: () => void;
   /** Whether the sequence playback is currently active. */
   playing?: boolean;
+  /** Trigger an export of the canvas. */
+  onExport?: (format: ExportFormat) => void;
   saving?: boolean;
   saved?: boolean;
 }
@@ -46,10 +54,12 @@ export function Toolbar({
   onPlay,
   onStop,
   playing,
+  onExport,
   saving,
   saved,
 }: Props) {
   const [tierMenuOpen, setTierMenuOpen] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
   return (
     <header className="flex items-center justify-between border-b border-zinc-800 bg-zinc-950 px-4 py-2 text-sm text-zinc-200">
       <div className="flex items-center gap-3">
@@ -124,6 +134,39 @@ export function Toolbar({
             <Activity className="h-3.5 w-3.5" />
             {edgeStyle}
           </button>
+        )}
+        {onExport && (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setExportMenuOpen((o) => !o)}
+              onBlur={() => setTimeout(() => setExportMenuOpen(false), 150)}
+              title="Export the canvas"
+              className="flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export
+              <ChevronDown className="h-3 w-3" />
+            </button>
+            {exportMenuOpen && (
+              <div className="absolute right-0 z-50 mt-1 w-48 overflow-hidden rounded-md border border-zinc-800 bg-zinc-900 py-1 shadow-2xl">
+                {EXPORT_FORMATS.map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      onExport(f.id);
+                      setExportMenuOpen(false);
+                    }}
+                    className="flex w-full cursor-pointer items-center px-2.5 py-1.5 text-left text-[11px] font-medium text-zinc-300 hover:bg-zinc-800 hover:text-white"
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         )}
         {onSave && (
           <>

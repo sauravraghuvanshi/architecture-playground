@@ -184,41 +184,51 @@ interface GroupNodeData {
   tier?: string;
 }
 
-const TIER_STYLES: Record<string, { border: string; bg: string; chipBg: string; chipText: string }> = {
-  Edge:       { border: "border-sky-400/50",     bg: "bg-sky-500/[0.04]",     chipBg: "bg-sky-400",     chipText: "text-sky-950" },
-  Frontend:   { border: "border-violet-400/50",  bg: "bg-violet-500/[0.04]",  chipBg: "bg-violet-400",  chipText: "text-violet-950" },
-  Gateway:    { border: "border-fuchsia-400/50", bg: "bg-fuchsia-500/[0.04]", chipBg: "bg-fuchsia-400", chipText: "text-fuchsia-950" },
-  Compute:    { border: "border-lime-400/50",    bg: "bg-lime-500/[0.04]",    chipBg: "bg-lime-300",    chipText: "text-lime-950" },
-  Messaging:  { border: "border-amber-400/50",   bg: "bg-amber-500/[0.04]",   chipBg: "bg-amber-400",   chipText: "text-amber-950" },
-  Data:       { border: "border-emerald-400/50", bg: "bg-emerald-500/[0.04]", chipBg: "bg-emerald-400", chipText: "text-emerald-950" },
-  Ops:        { border: "border-zinc-400/50",    bg: "bg-zinc-500/[0.04]",    chipBg: "bg-zinc-400",    chipText: "text-zinc-950" },
-  Custom:     { border: "border-zinc-500/50",    bg: "bg-zinc-700/[0.05]",    chipBg: "bg-zinc-500",    chipText: "text-zinc-50" },
+const TIER_STYLES: Record<string, { border: string; bg: string; headerBg: string; headerText: string; dot: string }> = {
+  Edge:       { border: "border-sky-400/60",     bg: "bg-sky-500/[0.05]",     headerBg: "bg-sky-400/90",     headerText: "text-sky-950",     dot: "bg-sky-300" },
+  Frontend:   { border: "border-violet-400/60",  bg: "bg-violet-500/[0.05]",  headerBg: "bg-violet-400/90",  headerText: "text-violet-950",  dot: "bg-violet-300" },
+  Gateway:    { border: "border-fuchsia-400/60", bg: "bg-fuchsia-500/[0.05]", headerBg: "bg-fuchsia-400/90", headerText: "text-fuchsia-950", dot: "bg-fuchsia-300" },
+  Compute:    { border: "border-lime-400/60",    bg: "bg-lime-500/[0.05]",    headerBg: "bg-lime-300/90",    headerText: "text-lime-950",    dot: "bg-lime-300" },
+  Messaging:  { border: "border-amber-400/60",   bg: "bg-amber-500/[0.05]",   headerBg: "bg-amber-400/90",   headerText: "text-amber-950",   dot: "bg-amber-300" },
+  Data:       { border: "border-emerald-400/60", bg: "bg-emerald-500/[0.05]", headerBg: "bg-emerald-400/90", headerText: "text-emerald-950", dot: "bg-emerald-300" },
+  Ops:        { border: "border-zinc-400/60",    bg: "bg-zinc-500/[0.05]",    headerBg: "bg-zinc-400/90",    headerText: "text-zinc-950",    dot: "bg-zinc-300" },
+  Custom:     { border: "border-zinc-500/60",    bg: "bg-zinc-700/[0.06]",    headerBg: "bg-zinc-600/90",    headerText: "text-zinc-50",     dot: "bg-zinc-300" },
 };
 
 const GroupNodeImpl = ({ data, selected }: NodeProps) => {
   const d = data as unknown as GroupNodeData;
   const v = TIER_STYLES[d.tier ?? "Custom"] ?? TIER_STYLES.Custom;
+  const tierName = d.tier ?? "Group";
+  const showSubLabel = d.label && d.label !== d.tier;
   return (
     <div
-      className={`relative h-full w-full overflow-hidden rounded-2xl border-2 border-dashed ${v.border} ${v.bg} ${
-        selected ? "ring-2 ring-lime-300/50" : ""
+      className={`relative flex h-full w-full flex-col rounded-2xl border-2 border-dashed ${v.border} ${v.bg} ${
+        selected ? "ring-2 ring-lime-300/60" : ""
       }`}
     >
       <NodeResizer
-        minWidth={200}
-        minHeight={140}
+        minWidth={240}
+        minHeight={160}
         isVisible={selected}
         lineClassName="!border-lime-300"
         handleClassName="!bg-lime-300 !border-zinc-950"
       />
-      <div className={`absolute -top-3 left-3 inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-sm ${v.chipBg} ${v.chipText}`}>
-        {d.tier ?? "Group"}
+      {/* Header band — solid, prominent, always inside bounds */}
+      <div
+        className={`flex shrink-0 items-center gap-2 rounded-t-xl px-3 py-1.5 ${v.headerBg} ${v.headerText}`}
+        style={{ pointerEvents: "none" }}
+      >
+        <span className={`h-1.5 w-1.5 rounded-full ${v.dot} ring-2 ring-white/30`} />
+        <span className="text-[11px] font-bold uppercase tracking-[0.14em]">{tierName}</span>
+        {showSubLabel && (
+          <span className="ml-auto truncate text-[10px] font-medium opacity-80">{d.label}</span>
+        )}
       </div>
-      {d.label && d.label !== d.tier && (
-        <div className="absolute left-3 top-3 text-[11px] font-semibold tracking-tight text-zinc-300">
-          {d.label}
-        </div>
-      )}
+      {/* Soft inner gradient for depth */}
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 rounded-b-2xl bg-gradient-to-t from-zinc-950/40 to-transparent"
+        aria-hidden
+      />
     </div>
   );
 };
@@ -663,19 +673,18 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
           x: window.innerWidth / 2,
           y: window.innerHeight / 2,
         });
-        const groupHit = groupAtPosition(center.x, center.y);
-        const jitter = () => (Math.random() - 0.5) * 60;
+        // Click-to-add never auto-parents into a group — that caused the icon
+        // to render with negative local coords, hidden under the group surface.
+        // Drag-drop still parents intentionally via dropIcon.
+        const jitter = () => (Math.random() - 0.5) * 80;
         snapshot();
-        const localPos = groupHit
-          ? { x: center.x - groupHit.position.x - 60 + jitter(), y: center.y - groupHit.position.y - 55 + jitter() }
-          : { x: center.x - 60 + jitter(), y: center.y - 55 + jitter() };
         setNodes((nds) =>
           nds.concat({
             id: `n_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
             type: "icon",
-            position: localPos,
+            position: { x: center.x - 60 + jitter(), y: center.y - 55 + jitter() },
             data: { label: icon.label, iconPath: icon.path, iconId: icon.id },
-            ...(groupHit ? { parentId: groupHit.id, extent: "parent" as const } : {}),
+            zIndex: 10,
           })
         );
       },
@@ -686,14 +695,17 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
           y: window.innerHeight / 2,
         });
         snapshot();
+        // Place the group OFFSET from the canvas center so it doesn't land
+        // directly on top of existing icons. zIndex stays low so icons render
+        // above the group surface.
         setNodes((nds) =>
           nds.concat({
             id: `g_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
             type: "group",
-            position: { x: center.x - 200, y: center.y - 130 },
+            position: { x: center.x - 220, y: center.y + 80 },
             data: { label, tier: tier ?? "Custom" },
-            style: { width: 400, height: 260 },
-            zIndex: -1,
+            style: { width: 440, height: 220 },
+            zIndex: 0,
           })
         );
       },

@@ -62,7 +62,7 @@ export function TemplateGalleryClient({ templates }: Props) {
       TEMPLATE_HANDOFF_KEY,
       JSON.stringify({ id: t.id, name: t.name, graph, savedAt: new Date().toISOString() })
     );
-    router.push("/");
+    router.push("/diagrammatic");
   }
 
   return (

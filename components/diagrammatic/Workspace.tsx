@@ -18,15 +18,33 @@ import type {
   ArchitectureCanvasHandle,
   ArchPayload,
   ArchEdgeStyle,
+  ArchNode,
+  ArchEdge,
 } from "./modes/architecture/ArchitectureCanvas";
 import { Palette } from "./shared/Palette";
-import { Toolbar } from "./shared/Toolbar";
+import { Toolbar, type ExportFormat } from "./shared/Toolbar";
 import { MODE_META, type DiagrammaticMode, type IconLite } from "./shared/types";
 import { CommandPalette } from "./shared/CommandPalette";
 import { Inspector, deriveArchIssues } from "./shared/Inspector";
 import { StatusBar } from "./shared/StatusBar";
 import { KeyboardHints } from "./shared/KeyboardHints";
 import { promptToArchitecture } from "@/lib/prompt-to-arch";
+
+// Shared with /templates/GalleryClient.tsx
+const TEMPLATE_HANDOFF_KEY = "architecture-playground:template-handoff";
+
+// Map hub TemplateBrowser ids → seed prompts. Keeps the cards working without
+// shipping a full graph registry per id.
+const HUB_TEMPLATE_PROMPTS: Record<string, string> = {
+  "azure-3tier": "Three tier web app on Azure with Front Door, App Service, and Azure SQL Database",
+  "aws-serverless-images": "Serverless image processing pipeline on AWS with S3, Lambda, CloudFront, and DynamoDB",
+  "gcp-event-driven": "Event driven order system on GCP with Pub/Sub, Cloud Run, Firestore, and BigQuery",
+  "azure-aks-microservices": "AKS microservices on Azure with API Management, Cosmos DB, and Service Bus",
+  "aws-data-lakehouse": "Data lakehouse on AWS with S3, Glue, Athena, Redshift, and QuickSight",
+  "azure-ai-rag": "AI RAG pipeline on Azure with Azure OpenAI, AI Search, Functions, and Cosmos DB",
+  "gcp-streaming-iot": "Streaming IoT analytics on GCP with Pub/Sub, Dataflow, BigQuery, and Looker",
+  "multi-region-active": "Multi-region active-active on Azure with Front Door, Azure SQL HA, and Cosmos multi-write",
+};
 
 // maxGraph touches `window` and SVG namespaces — must load client-only.
 const ArchitectureCanvas = dynamic(
@@ -93,19 +111,47 @@ export function Workspace({
   }, []);
 
   // ─── AI prompt → architecture (heuristic, no LLM) ───────────────────
-  // When `/diagrammatic?prompt=…` lands, run the deterministic generator
-  // against the manifest and seed the canvas. One-shot per page load.
+  // When `/diagrammatic?prompt=…` (or `?template=<id>`) lands, run the
+  // deterministic generator against the manifest and seed the canvas.
+  // One-shot per page load.
   const promptApplied = useRef(false);
   useEffect(() => {
     if (promptApplied.current) return;
     const prompt = searchParams?.get("prompt");
-    if (!prompt) return;
-    const generated = promptToArchitecture(prompt, icons, { animateEdges: true });
+    const templateId = searchParams?.get("template");
+    const seed = prompt ?? (templateId ? HUB_TEMPLATE_PROMPTS[templateId] ?? templateId.replace(/-/g, " ") : null);
+    if (!seed) return;
+    const generated = promptToArchitecture(seed, icons, { animateEdges: true });
     if (generated && generated.nodes.length) {
       promptApplied.current = true;
       setArchPayload(generated);
+      // Re-apply the current edge style ONCE after a generated payload arrives.
+      requestAnimationFrame(() => canvasRef.current?.setAllEdgeStyle(edgeStyle));
     }
-  }, [searchParams, icons]);
+  }, [searchParams, icons, edgeStyle]);
+
+  // Templates Gallery handoff: parameterized template resolved into a
+  // playground-format graph stowed in sessionStorage. Convert + hydrate.
+  const handoffApplied = useRef(false);
+  useEffect(() => {
+    if (handoffApplied.current) return;
+    try {
+      const raw = sessionStorage.getItem(TEMPLATE_HANDOFF_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { graph?: PlaygroundLikeGraph };
+      const arch = parsed?.graph ? playgroundGraphToArchPayload(parsed.graph) : null;
+      if (arch && arch.nodes.length) {
+        handoffApplied.current = true;
+        promptApplied.current = true; // suppress the prompt path on the same load
+        setArchPayload(arch);
+        sessionStorage.removeItem(TEMPLATE_HANDOFF_KEY);
+        requestAnimationFrame(() => canvasRef.current?.setAllEdgeStyle(edgeStyle));
+      }
+    } catch {
+      /* ignore handoff failures — falls back to empty canvas */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Mark unsaved when canvas state changes.
   const handleArchChange = useCallback((next: ArchPayload) => {
@@ -173,11 +219,10 @@ export function Workspace({
   }, []);
 
   // Re-apply the current edge style after an external hydration (e.g. a
-  // freshly generated AI payload) so any pre-existing animation classes stick.
-  useEffect(() => {
-    canvasRef.current?.setAllEdgeStyle(edgeStyle);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [archPayload]);
+  // template handoff). Triggered explicitly by the handoff/prompt paths above
+  // — NOT on every archPayload change, which previously caused a render storm
+  // on each node-add.
+  // (intentionally blank — replaced by explicit calls in the prompt/handoff effects)
 
   // Route command-palette actions back to canvas / state.
   const handleCommand = useCallback(
@@ -255,6 +300,7 @@ export function Workspace({
         onPlay={() => canvasRef.current?.playSequence()}
         onStop={() => canvasRef.current?.stopSequence()}
         playing={playing}
+        onExport={(format) => exportCanvas(format, canvasRef.current)}
         saving={saving}
         saved={saved}
       />
@@ -358,4 +404,157 @@ function ComingSoon({ mode }: { mode: DiagrammaticMode }) {
       </div>
     </div>
   );
+}
+
+// ─── Playground graph → ArchPayload adapter ────────────────────────────────
+// The /templates registry returns a `PlaygroundGraph` (service / group nodes
+// with rich data). We map the subset the architecture canvas understands.
+
+interface PlaygroundLikeGraph {
+  nodes: Array<{
+    id: string;
+    type: string;
+    position: { x: number; y: number };
+    data: {
+      label?: string;
+      iconId?: string;
+      variant?: string;
+      [k: string]: unknown;
+    };
+    parentId?: string;
+    width?: number;
+    height?: number;
+  }>;
+  edges: Array<{
+    id: string;
+    source: string;
+    target: string;
+    data?: { label?: string; protocol?: string; animated?: boolean };
+  }>;
+}
+
+const VARIANT_TO_TIER: Record<string, string> = {
+  vpc: "Edge",
+  region: "Edge",
+  subnet: "Frontend",
+  "resource-group": "Compute",
+  project: "Compute",
+  custom: "Custom",
+};
+
+function playgroundGraphToArchPayload(graph: PlaygroundLikeGraph): ArchPayload {
+  const nodes: ArchNode[] = [];
+  for (const n of graph.nodes ?? []) {
+    if (n.type === "group") {
+      const variant = (n.data?.variant as string) ?? "custom";
+      nodes.push({
+        kind: "group",
+        id: n.id,
+        x: n.position.x,
+        y: n.position.y,
+        width: n.width ?? 440,
+        height: n.height ?? 220,
+        label: (n.data?.label as string) ?? "Group",
+        tier: VARIANT_TO_TIER[variant] ?? "Custom",
+      });
+    } else if (n.type === "service") {
+      const iconId = (n.data?.iconId as string) ?? "";
+      nodes.push({
+        kind: "icon",
+        id: n.id,
+        x: n.position.x,
+        y: n.position.y,
+        label: (n.data?.label as string) ?? iconId,
+        iconId,
+        // The canvas keeps iconPath in node data; resolve at hydrate time
+        // by deriving from iconId. The manifest path convention is
+        // /cloud-icons/<cloud>/<category>/<slug>.svg — but iconId already
+        // matches that exact slug-tail so we can construct it.
+        iconPath: iconIdToPath(iconId),
+        ...(n.parentId ? { parentId: n.parentId } : {}),
+      });
+    }
+    // (sticky / other types are ignored for now)
+  }
+
+  const edges: ArchEdge[] = (graph.edges ?? []).map((e) => ({
+    id: e.id,
+    source: e.source,
+    target: e.target,
+    label: e.data?.label ?? e.data?.protocol,
+    archStyle: e.data?.animated ? "flow" : "solid",
+  }));
+
+  return { nodes, edges };
+}
+
+function iconIdToPath(iconId: string): string {
+  // iconId in the playground manifest already encodes the path: e.g.
+  // "azure/compute/azure-app-service" → "/cloud-icons/azure/compute/azure-app-service.svg"
+  if (!iconId) return "";
+  return `/cloud-icons/${iconId}.svg`;
+}
+
+// ─── Export helpers ────────────────────────────────────────────────────────
+
+async function exportCanvas(
+  format: ExportFormat,
+  handle: ArchitectureCanvasHandle | null
+) {
+  if (!handle) return;
+  if (format === "json") {
+    const payload = handle.serialize();
+    triggerDownload(
+      new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }),
+      `architecture-${Date.now()}.json`
+    );
+    return;
+  }
+  // PNG / SVG operate on the rendered viewport.
+  const viewport = document.querySelector(".react-flow__viewport") as HTMLElement | null;
+  const target =
+    (document.querySelector(".react-flow") as HTMLElement | null) ?? viewport;
+  if (!target) return;
+  try {
+    const { toPng, toSvg } = await import("html-to-image");
+    const filter = (node: HTMLElement) => {
+      // Skip the controls / minimap / panel chrome from the export.
+      const cls = (node as Element).className;
+      const s = typeof cls === "string" ? cls : (cls as { baseVal?: string })?.baseVal ?? "";
+      return !s.includes("react-flow__controls") &&
+             !s.includes("react-flow__minimap") &&
+             !s.includes("react-flow__panel");
+    };
+    if (format === "png") {
+      const dataUrl = await toPng(target, {
+        cacheBust: true,
+        backgroundColor: "#0a0a0b",
+        pixelRatio: 2,
+        filter,
+      });
+      const blob = await (await fetch(dataUrl)).blob();
+      triggerDownload(blob, `architecture-${Date.now()}.png`);
+    } else if (format === "svg") {
+      const dataUrl = await toSvg(target, {
+        cacheBust: true,
+        backgroundColor: "#0a0a0b",
+        filter,
+      });
+      const blob = await (await fetch(dataUrl)).blob();
+      triggerDownload(blob, `architecture-${Date.now()}.svg`);
+    }
+  } catch (err) {
+    console.error("Export failed:", err);
+  }
+}
+
+function triggerDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
