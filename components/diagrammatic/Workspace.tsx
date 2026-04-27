@@ -161,6 +161,7 @@ export function Workspace({
 
   const meta = MODE_META[mode];
 
+  const [playing, setPlaying] = useState(false);
   // Cycle global edge style: solid → dashed → flow → solid.
   const cycleEdgeStyle = useCallback(() => {
     setEdgeStyle((prev) => {
@@ -250,6 +251,10 @@ export function Workspace({
         onSave={handleSave}
         onCycleEdgeStyle={cycleEdgeStyle}
         edgeStyle={edgeStyle}
+        onAddTier={(tier) => canvasRef.current?.addGroup(tier, tier)}
+        onPlay={() => canvasRef.current?.playSequence()}
+        onStop={() => canvasRef.current?.stopSequence()}
+        playing={playing}
         saving={saving}
         saved={saved}
       />
@@ -294,6 +299,7 @@ export function Workspace({
               ref={canvasRef}
               value={archPayload}
               onChange={handleArchChange}
+              onPlayingChange={setPlaying}
             />
           ) : (
             <ComingSoon mode={mode} />

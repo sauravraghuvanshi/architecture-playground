@@ -118,6 +118,70 @@ try {
   if (promptNodes.length < 3) throw new Error(`Prompt produced <3 nodes (got ${promptNodes.length})`);
   if (promptEdges.length < 2) throw new Error(`Prompt produced <2 edges (got ${promptEdges.length})`);
 
+  // Phase-3: prompt should now produce at least one group/swimlane node.
+  const groupNodes = await page.$$(".react-flow__node.react-flow__node-group");
+  console.log(`✓ Group/swimlane nodes from prompt: ${groupNodes.length}`);
+  if (groupNodes.length < 2)
+    throw new Error(`Expected ≥2 group nodes from tiered prompt, got ${groupNodes.length}`);
+
+  // Phase-3: addGroup via toolbar dropdown
+  console.log("→ addGroup test");
+  // Open the Tier dropdown.
+  const tierBtn = await page.$$eval("button", (btns) => {
+    const i = btns.findIndex((b) => /^Tier/.test(b.textContent ?? ""));
+    return i;
+  });
+  if (tierBtn === -1) throw new Error("Tier dropdown button not found");
+  const allBtnsAfter = await page.$$("button");
+  await allBtnsAfter[tierBtn].click();
+  await new Promise((r) => setTimeout(r, 250));
+  const groupCountBefore = (await page.$$(".react-flow__node.react-flow__node-group")).length;
+  // Click the "Compute" item in the menu.
+  const clicked = await page.evaluate(() => {
+    const items = Array.from(document.querySelectorAll("button"));
+    const compute = items.find((b) => b.textContent?.trim() === "Compute");
+    if (!compute) return false;
+    compute.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    return true;
+  });
+  if (!clicked) throw new Error("Couldn't find Compute tier menu item");
+  await new Promise((r) => setTimeout(r, 500));
+  const groupCountAfter = (await page.$$(".react-flow__node.react-flow__node-group")).length;
+  console.log(`✓ Groups before/after addGroup: ${groupCountBefore} → ${groupCountAfter}`);
+  if (groupCountAfter !== groupCountBefore + 1)
+    throw new Error(`addGroup didn't add a group node (before=${groupCountBefore}, after=${groupCountAfter})`);
+
+  // Phase-3: sequence playback — clicking Play should add an active class
+  // to at least one edge over time.
+  console.log("→ sequence playback test");
+  const playClicked = await page.evaluate(() => {
+    const btn = Array.from(document.querySelectorAll("button")).find(
+      (b) => b.textContent?.trim() === "Play"
+    );
+    if (!btn) return false;
+    btn.click();
+    return true;
+  });
+  if (!playClicked) throw new Error("Play button not found");
+  // After 800ms one edge should have an active stroke style on its <path>.
+  await new Promise((r) => setTimeout(r, 800));
+  const animatedCount = await page.evaluate(() => {
+    const paths = Array.from(document.querySelectorAll(".react-flow__edge path.react-flow__edge-path"));
+    return paths.filter((p) => {
+      const s = p.style.animation;
+      return s && s.includes("diagrammaticDash");
+    }).length;
+  });
+  console.log(`✓ Edges with active animation during playback: ${animatedCount}`);
+  if (animatedCount < 1) throw new Error("No edges show active sequence animation");
+  // Stop playback.
+  await page.evaluate(() => {
+    const btn = Array.from(document.querySelectorAll("button")).find(
+      (b) => b.textContent?.trim() === "Stop"
+    );
+    if (btn) btn.click();
+  });
+
   // Hard-fail on any console errors.
   if (consoleErrors.length) {
     console.error("✗ Console errors during run:");

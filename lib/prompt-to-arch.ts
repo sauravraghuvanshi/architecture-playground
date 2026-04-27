@@ -111,17 +111,33 @@ function pickIcons(prompt: string, icons: IconLite[]): Picked[] {
   return picked;
 }
 
-const COL_W = 220;
+const COL_W = 280;
 const ROW_H = 170;
 const NODE_W = 120;
 const NODE_H = 120;
 const ORIGIN_X = 80;
 const ORIGIN_Y = 80;
+const GROUP_PAD_X = 30;
+const GROUP_PAD_TOP = 50;
+const GROUP_PAD_BOTTOM = 30;
+
+const TIER_DISPLAY: Record<Tier, string> = {
+  edge: "Edge",
+  frontend: "Frontend",
+  gateway: "Gateway",
+  compute: "Compute",
+  messaging: "Messaging",
+  data: "Data",
+  ops: "Ops",
+};
 
 /**
  * Produce an ArchPayload from a free-form prompt + the icon manifest.
  * Returns `null` if no keywords matched (caller can fall back to an empty
  * canvas rather than a single mystery node).
+ *
+ * Phase-3: now emits ONE group per tier and parents its icon nodes into
+ * it. Children use parent-relative coords.
  */
 export function promptToArchitecture(
   prompt: string,
@@ -131,12 +147,10 @@ export function promptToArchitecture(
   const picked = pickIcons(prompt, icons);
   if (!picked.length) return null;
 
-  // Group by tier in canonical column order.
   const byTier = new Map<Tier, IconLite[]>();
   for (const t of TIER_ORDER) byTier.set(t, []);
   for (const p of picked) byTier.get(p.tier)!.push(p.icon);
 
-  // Drop empty tiers so column indices are dense (no gaps in the layout).
   const usedTiers = TIER_ORDER.filter((t) => (byTier.get(t)!.length ?? 0) > 0);
 
   const nodes: ArchNode[] = [];
@@ -144,18 +158,38 @@ export function promptToArchitecture(
 
   usedTiers.forEach((tier, colIdx) => {
     const list = byTier.get(tier)!;
+    const groupId = `g_${tier}`;
+    const groupX = ORIGIN_X + colIdx * COL_W;
+    const groupY = ORIGIN_Y;
+    const groupW = NODE_W + GROUP_PAD_X * 2;
+    const groupH = GROUP_PAD_TOP + list.length * ROW_H + GROUP_PAD_BOTTOM - (ROW_H - NODE_H);
+
+    nodes.push({
+      kind: "group",
+      id: groupId,
+      label: TIER_DISPLAY[tier],
+      tier: TIER_DISPLAY[tier],
+      x: groupX,
+      y: groupY,
+      width: groupW,
+      height: groupH,
+    });
+
     const ids: string[] = [];
     list.forEach((icon, rowIdx) => {
       const id = `n_${tier}_${rowIdx}_${Math.random().toString(36).slice(2, 6)}`;
       nodes.push({
+        kind: "icon",
         id,
         label: icon.label,
         iconId: icon.id,
         iconPath: icon.path,
-        x: ORIGIN_X + colIdx * COL_W,
-        y: ORIGIN_Y + rowIdx * ROW_H,
+        // parent-relative
+        x: GROUP_PAD_X,
+        y: GROUP_PAD_TOP + rowIdx * ROW_H,
         width: NODE_W,
         height: NODE_H,
+        parentId: groupId,
       });
       ids.push(id);
     });
@@ -164,7 +198,6 @@ export function promptToArchitecture(
 
   const edges: ArchEdge[] = [];
   const edgeStyle: ArchEdgeStyle = opts.animateEdges === false ? "solid" : "flow";
-  // Connect every node in tier N to every node in tier N+1.
   for (let i = 0; i < usedTiers.length - 1; i++) {
     const fromIds = tierToNodeIds.get(usedTiers[i]) ?? [];
     const toIds = tierToNodeIds.get(usedTiers[i + 1]) ?? [];

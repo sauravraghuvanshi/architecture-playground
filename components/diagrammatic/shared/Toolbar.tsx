@@ -5,7 +5,10 @@
  */
 "use client";
 
-import { Undo2, Redo2, Maximize2, Trash2, Activity, Save, Loader2, Check } from "lucide-react";
+import { useState } from "react";
+import { Undo2, Redo2, Maximize2, Trash2, Activity, Save, Loader2, Check, LayoutGrid, Play, Square, ChevronDown } from "lucide-react";
+
+const TIERS = ["Edge", "Frontend", "Gateway", "Compute", "Messaging", "Data", "Ops", "Custom"] as const;
 
 interface Props {
   title: string;
@@ -18,6 +21,14 @@ interface Props {
   onCycleEdgeStyle?: () => void;
   /** Current global edge style (informational — affects the icon highlight). */
   edgeStyle?: "solid" | "dashed" | "flow";
+  /** Add a new group/swimlane node at the canvas center. */
+  onAddTier?: (tier: string) => void;
+  /** Start sequence playback. */
+  onPlay?: () => void;
+  /** Stop sequence playback. */
+  onStop?: () => void;
+  /** Whether the sequence playback is currently active. */
+  playing?: boolean;
   saving?: boolean;
   saved?: boolean;
 }
@@ -31,9 +42,14 @@ export function Toolbar({
   onSave,
   onCycleEdgeStyle,
   edgeStyle = "solid",
+  onAddTier,
+  onPlay,
+  onStop,
+  playing,
   saving,
   saved,
 }: Props) {
+  const [tierMenuOpen, setTierMenuOpen] = useState(false);
   return (
     <header className="flex items-center justify-between border-b border-zinc-800 bg-zinc-950 px-4 py-2 text-sm text-zinc-200">
       <div className="flex items-center gap-3">
@@ -46,6 +62,54 @@ export function Toolbar({
         <span className="mx-2 h-5 w-px bg-zinc-800" />
         <ToolButton onClick={onFit} title="Fit view (Ctrl+0)" Icon={Maximize2} />
         <ToolButton onClick={onDelete} title="Delete selection (Del)" Icon={Trash2} />
+        {onAddTier && (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setTierMenuOpen((o) => !o)}
+              onBlur={() => setTimeout(() => setTierMenuOpen(false), 150)}
+              title="Add tier / swimlane group"
+              className="flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+              Tier
+              <ChevronDown className="h-3 w-3" />
+            </button>
+            {tierMenuOpen && (
+              <div className="absolute right-0 z-50 mt-1 w-36 overflow-hidden rounded-md border border-zinc-800 bg-zinc-900 py-1 shadow-2xl">
+                {TIERS.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      onAddTier(t);
+                      setTierMenuOpen(false);
+                    }}
+                    className="flex w-full cursor-pointer items-center px-2.5 py-1.5 text-left text-[11px] font-medium text-zinc-300 hover:bg-zinc-800 hover:text-white"
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        {(onPlay || onStop) && (
+          <button
+            type="button"
+            onClick={() => (playing ? onStop?.() : onPlay?.())}
+            title={playing ? "Stop sequence" : "Play sequence (animate request flow)"}
+            className={`flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium uppercase tracking-wide transition ${
+              playing
+                ? "bg-rose-400 text-zinc-950 hover:bg-rose-300"
+                : "text-zinc-300 hover:bg-zinc-800 hover:text-white"
+            }`}
+          >
+            {playing ? <Square className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+            {playing ? "Stop" : "Play"}
+          </button>
+        )}
         {onCycleEdgeStyle && (
           <button
             type="button"

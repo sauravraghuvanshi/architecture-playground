@@ -56,6 +56,12 @@ body {
   to { stroke-dashoffset: -24; }
 }
 
+/* Phase-3 React Flow LabeledEdge animation. */
+@keyframes diagrammaticDash {
+  to { stroke-dashoffset: -24; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .dg-flow path { animation: none; }
+  .react-flow__edge path { animation: none !important; }
 }

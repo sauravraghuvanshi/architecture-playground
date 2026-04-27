@@ -58,3 +58,5 @@ task/
 # Prisma dev database
 *.db
 *.db-journal
+
+scripts/.screenshots/

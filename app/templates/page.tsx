@@ -37,30 +37,35 @@ export default async function TemplatesPage() {
   const templates = await loadParameterizedTemplates();
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link href="/" className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
-            Architecture Playground
+    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+      <header className="border-b border-zinc-800 bg-zinc-950/85 backdrop-blur-md sticky top-0 z-30">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3.5">
+          <Link href="/" className="flex items-center gap-2 cursor-pointer">
+            <span className="grid h-7 w-7 place-items-center rounded-md border border-zinc-800 bg-zinc-900 text-xs font-black text-lime-300">
+              ◆
+            </span>
+            <span className="text-[15px] font-semibold tracking-tight text-zinc-100">
+              Diagrammatic
+            </span>
           </Link>
-          <nav className="flex items-center gap-4 text-sm">
-            <Link href="/" className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100">
-              Playground
+          <nav className="flex items-center gap-1 text-sm">
+            <Link href="/" className="cursor-pointer rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100 transition-colors">
+              Hub
             </Link>
-            <Link href="/templates" className="font-medium text-zinc-900 dark:text-zinc-100">
+            <Link href="/templates" className="cursor-pointer rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-100 bg-zinc-900 border border-zinc-800">
               Templates
             </Link>
-            <Link href="/diagrammatic" className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100">
+            <Link href="/diagrammatic" className="cursor-pointer rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100 transition-colors">
               Canvas
             </Link>
           </nav>
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-6 py-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Template Gallery</h1>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+      <main className="mx-auto max-w-6xl px-6 py-10">
+        <div className="mb-8">
+          <h1 className="text-3xl font-semibold tracking-tight text-zinc-100">Template Gallery</h1>
+          <p className="mt-2 text-sm text-zinc-500">
             {templates.length} architecture patterns. Pick one to start, then customize on the canvas.
           </p>
         </div>

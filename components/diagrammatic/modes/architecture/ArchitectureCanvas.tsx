@@ -1,25 +1,23 @@
 /**
- * ArchitectureCanvas — React Flow (xyflow) cloud architecture surface.
+ * ArchitectureCanvas — React Flow (xyflow v12) cloud architecture surface.
  *
- * Why React Flow (replaced maxGraph in Phase 2.5):
- *   - maxGraph's image-style + custom-label rendering kept losing either the
- *     icon or the label (browser screenshots showed empty boxes).
- *   - React Flow lets us own a real React component per node — we render the
- *     SVG icon with a plain `<img>` and the label with a `<div>`. Same props
- *     shape, so nothing breaks.
- *   - Animated edges are a one-prop affair (`animated: true`) and they ship
- *     with proper marker arrows, smoothstep routing, MiniMap and viewport
- *     controls out of the box.
+ * Phase-3 capabilities (on top of Phase-2 React Flow rewrite):
+ *   - Group/swimlane nodes (resizable, named, color-coded by tier)
+ *   - Custom LabeledEdge with click-to-edit pill (HTTPS / gRPC / Async / etc.)
+ *   - Sequence-mode playback that pulses each edge in BFS-forest order
  *
- * The exported types (ArchPayload, ArchEdge, ArchEdgeStyle, etc.) are the
- * SAME shape we used with maxGraph so Workspace.tsx, lib/prompt-to-arch.ts
- * and any persisted JSON drafts continue to work without migration.
+ * Persistence model is a discriminated union (`kind: "icon" | "group"`) so
+ * width/height/parentId round-trip through ArchPayload. Children of a group
+ * are stored with parent-relative coordinates AND a `parentId`.
  */
 "use client";
 
 import {
+  createContext,
   forwardRef,
+  memo,
   useCallback,
+  useContext,
   useEffect,
   useImperativeHandle,
   useMemo,
@@ -31,37 +29,61 @@ import {
   ReactFlowProvider,
   Background,
   BackgroundVariant,
+  BaseEdge,
   Controls,
-  MiniMap,
+  EdgeLabelRenderer,
+  Handle,
   MarkerType,
+  MiniMap,
+  NodeResizer,
+  Position,
   addEdge,
   applyEdgeChanges,
   applyNodeChanges,
+  getSmoothStepPath,
   useReactFlow,
   type Connection,
   type Edge,
   type EdgeChange,
+  type EdgeProps,
   type Node,
   type NodeChange,
   type NodeProps,
   type ReactFlowInstance,
 } from "@xyflow/react";
-import { Handle, Position } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
 import type { IconLite } from "../../shared/types";
 
-// ─── Public types (preserved for callers) ─────────────────────────────────
+// ─── Public types (preserved + extended for Phase 3) ──────────────────────
 
-export interface ArchNode {
+export type ArchNode = ArchIconNode | ArchGroupNode;
+
+export interface ArchIconNode {
+  kind?: "icon"; // optional for back-compat with pre-phase-3 payloads
   id: string;
   label: string;
   iconId: string;
   iconPath: string;
+  /** Absolute coords, OR — if `parentId` is set — coords relative to the parent group. */
   x: number;
   y: number;
   width?: number;
   height?: number;
+  parentId?: string;
+}
+
+export interface ArchGroupNode {
+  kind: "group";
+  id: string;
+  label: string;
+  /** Always absolute. Groups are never nested for now. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Optional named tier (Edge/Frontend/Gateway/Compute/Messaging/Data/Ops). */
+  tier?: string;
 }
 
 export type ArchEdgeStyle = "solid" | "dashed" | "flow";
@@ -82,6 +104,7 @@ export interface ArchPayload {
 export interface ArchitectureCanvasHandle {
   dropIcon: (icon: IconLite, clientX: number, clientY: number) => void;
   addIconAtCenter: (icon: IconLite) => void;
+  addGroup: (label: string, tier?: string) => void;
   serialize: () => ArchPayload;
   hydrate: (payload: ArchPayload) => void;
   fit: () => void;
@@ -89,14 +112,33 @@ export interface ArchitectureCanvasHandle {
   undo: () => void;
   redo: () => void;
   setAllEdgeStyle: (style: ArchEdgeStyle) => void;
+  playSequence: () => void;
+  stopSequence: () => void;
+  isPlaying: () => boolean;
 }
 
 interface Props {
   value: ArchPayload;
   onChange?: (next: ArchPayload) => void;
+  onPlayingChange?: (playing: boolean) => void;
 }
 
-// ─── Custom node ──────────────────────────────────────────────────────────
+// ─── Sequence playback context ────────────────────────────────────────────
+// Runtime-only (NOT persisted), so playback never pollutes onChange/undo.
+
+interface SequenceState {
+  activeEdgeId: string | null;
+  activeNodeId: string | null;
+  isPlaying: boolean;
+}
+const SequenceCtx = createContext<SequenceState>({
+  activeEdgeId: null,
+  activeNodeId: null,
+  isPlaying: false,
+});
+const useSequence = () => useContext(SequenceCtx);
+
+// ─── Custom icon node ─────────────────────────────────────────────────────
 
 interface IconNodeData {
   label: string;
@@ -104,18 +146,20 @@ interface IconNodeData {
   iconId: string;
 }
 
-/**
- * Node renders the icon SVG + label inside a rounded card. Four handles
- * (top/right/bottom/left) so users can connect from any side. Lime-300 on
- * selection.
- */
-const IconNode = ({ data, selected }: NodeProps) => {
+const IconNodeImpl = ({ id, data, selected }: NodeProps) => {
   const d = data as unknown as IconNodeData;
+  const { activeNodeId, isPlaying } = useSequence();
+  const isPulsing = isPlaying && activeNodeId === id;
   return (
     <div
-      className={`group relative flex h-[110px] w-[120px] flex-col items-center justify-center gap-2 rounded-xl border bg-zinc-900/95 px-2 py-3 text-center shadow-lg backdrop-blur transition ${
-        selected ? "border-lime-300 ring-2 ring-lime-300/40" : "border-zinc-700 hover:border-zinc-500"
+      className={`group relative flex h-[110px] w-[120px] flex-col items-center justify-center gap-2 rounded-xl border bg-zinc-900/95 px-2 py-3 text-center shadow-lg backdrop-blur transition-all ${
+        selected
+          ? "border-lime-300 ring-2 ring-lime-300/40"
+          : isPulsing
+          ? "border-lime-300 ring-4 ring-lime-300/60 scale-[1.06]"
+          : "border-zinc-700 hover:border-zinc-500"
       }`}
+      style={{ transitionDuration: "200ms" }}
     >
       <Handle type="target" position={Position.Top} className="!h-2 !w-2 !bg-lime-300 !border-zinc-950" />
       <Handle type="source" position={Position.Right} className="!h-2 !w-2 !bg-lime-300 !border-zinc-950" />
@@ -123,103 +167,296 @@ const IconNode = ({ data, selected }: NodeProps) => {
       <Handle type="source" position={Position.Bottom} className="!h-2 !w-2 !bg-lime-300 !border-zinc-950" />
       {d.iconPath ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={d.iconPath}
-          alt=""
-          className="h-10 w-10 select-none object-contain"
-          draggable={false}
-        />
+        <img src={d.iconPath} alt="" className="h-10 w-10 select-none object-contain" draggable={false} />
       ) : (
         <div className="grid h-10 w-10 place-items-center rounded bg-zinc-800 text-xs text-zinc-500">?</div>
       )}
-      <div className="line-clamp-2 text-[11px] font-medium leading-tight text-zinc-100">
-        {d.label}
-      </div>
+      <div className="line-clamp-2 text-[11px] font-medium leading-tight text-zinc-100">{d.label}</div>
     </div>
   );
 };
+const IconNode = memo(IconNodeImpl);
 
-const nodeTypes = { icon: IconNode };
+// ─── Group / swimlane node ────────────────────────────────────────────────
 
-// ─── Helpers ──────────────────────────────────────────────────────────────
+interface GroupNodeData {
+  label: string;
+  tier?: string;
+}
 
-const STYLE_TO_EDGE_PROPS: Record<ArchEdgeStyle, Partial<Edge>> = {
-  solid: {
-    animated: false,
-    style: { stroke: "#a1a1aa", strokeWidth: 1.6 },
-  },
-  dashed: {
-    animated: false,
-    style: { stroke: "#a1a1aa", strokeWidth: 1.6, strokeDasharray: "6 4" },
-  },
-  flow: {
-    animated: true,
-    style: { stroke: "#bef264", strokeWidth: 1.8 },
-  },
+const TIER_STYLES: Record<string, { border: string; bg: string; chipBg: string; chipText: string }> = {
+  Edge:       { border: "border-sky-400/50",     bg: "bg-sky-500/[0.04]",     chipBg: "bg-sky-400",     chipText: "text-sky-950" },
+  Frontend:   { border: "border-violet-400/50",  bg: "bg-violet-500/[0.04]",  chipBg: "bg-violet-400",  chipText: "text-violet-950" },
+  Gateway:    { border: "border-fuchsia-400/50", bg: "bg-fuchsia-500/[0.04]", chipBg: "bg-fuchsia-400", chipText: "text-fuchsia-950" },
+  Compute:    { border: "border-lime-400/50",    bg: "bg-lime-500/[0.04]",    chipBg: "bg-lime-300",    chipText: "text-lime-950" },
+  Messaging:  { border: "border-amber-400/50",   bg: "bg-amber-500/[0.04]",   chipBg: "bg-amber-400",   chipText: "text-amber-950" },
+  Data:       { border: "border-emerald-400/50", bg: "bg-emerald-500/[0.04]", chipBg: "bg-emerald-400", chipText: "text-emerald-950" },
+  Ops:        { border: "border-zinc-400/50",    bg: "bg-zinc-500/[0.04]",    chipBg: "bg-zinc-400",    chipText: "text-zinc-950" },
+  Custom:     { border: "border-zinc-500/50",    bg: "bg-zinc-700/[0.05]",    chipBg: "bg-zinc-500",    chipText: "text-zinc-50" },
 };
+
+const GroupNodeImpl = ({ data, selected }: NodeProps) => {
+  const d = data as unknown as GroupNodeData;
+  const v = TIER_STYLES[d.tier ?? "Custom"] ?? TIER_STYLES.Custom;
+  return (
+    <div
+      className={`relative h-full w-full overflow-hidden rounded-2xl border-2 border-dashed ${v.border} ${v.bg} ${
+        selected ? "ring-2 ring-lime-300/50" : ""
+      }`}
+    >
+      <NodeResizer
+        minWidth={200}
+        minHeight={140}
+        isVisible={selected}
+        lineClassName="!border-lime-300"
+        handleClassName="!bg-lime-300 !border-zinc-950"
+      />
+      <div className={`absolute -top-3 left-3 inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-sm ${v.chipBg} ${v.chipText}`}>
+        {d.tier ?? "Group"}
+      </div>
+      {d.label && d.label !== d.tier && (
+        <div className="absolute left-3 top-3 text-[11px] font-semibold tracking-tight text-zinc-300">
+          {d.label}
+        </div>
+      )}
+    </div>
+  );
+};
+const GroupNode = memo(GroupNodeImpl);
+
+const nodeTypes = { icon: IconNode, group: GroupNode };
+
+// ─── Custom labeled edge ──────────────────────────────────────────────────
+
+interface LabeledEdgeData {
+  archStyle?: ArchEdgeStyle;
+  label?: string;
+}
+
+const LabeledEdgeImpl = ({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  data,
+  selected,
+  markerEnd,
+  style,
+}: EdgeProps) => {
+  const d = (data ?? {}) as LabeledEdgeData;
+  const archStyle = d.archStyle ?? "flow";
+  const { activeEdgeId, isPlaying } = useSequence();
+  const isActive = activeEdgeId === id;
+
+  const [path, labelX, labelY] = getSmoothStepPath({
+    sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition,
+    borderRadius: 12,
+  });
+
+  const baseStroke = archStyle === "flow" ? "#bef264" : "#a1a1aa";
+  const stroke = isActive ? "#bef264" : selected ? "#bef264" : baseStroke;
+  const strokeWidth = isActive ? 3 : selected ? 2.2 : 1.6;
+  const dashArray =
+    archStyle === "dashed" || archStyle === "flow" || isActive ? "8 4" : undefined;
+  const animated = archStyle === "flow" || isActive;
+
+  return (
+    <>
+      <BaseEdge
+        id={id}
+        path={path}
+        markerEnd={markerEnd}
+        style={{
+          ...style,
+          stroke,
+          strokeWidth,
+          strokeDasharray: dashArray,
+          animation: animated ? "diagrammaticDash 1.2s linear infinite" : undefined,
+          opacity: isPlaying && !isActive ? 0.35 : 1,
+          transition: "stroke 120ms ease, stroke-width 120ms ease, opacity 200ms ease",
+        }}
+      />
+      {d.label && (
+        <EdgeLabelRenderer>
+          <div
+            className="nodrag nopan pointer-events-auto absolute rounded-md border border-zinc-700 bg-zinc-900/95 px-2 py-0.5 text-[10px] font-semibold text-zinc-200 shadow-md backdrop-blur"
+            style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
+          >
+            {d.label}
+          </div>
+        </EdgeLabelRenderer>
+      )}
+    </>
+  );
+};
+const LabeledEdge = memo(LabeledEdgeImpl);
+
+const edgeTypes = { labeled: LabeledEdge };
+
+// ─── Edge style helpers ──────────────────────────────────────────────────
 
 const DEFAULT_MARKER = { type: MarkerType.ArrowClosed, color: "#a1a1aa", width: 18, height: 18 };
 const FLOW_MARKER = { type: MarkerType.ArrowClosed, color: "#bef264", width: 18, height: 18 };
 
 function edgePropsForStyle(style: ArchEdgeStyle): Partial<Edge> {
-  const base = STYLE_TO_EDGE_PROPS[style];
   return {
-    ...base,
-    type: "smoothstep",
+    type: "labeled",
+    animated: false, // visual animation happens in LabeledEdge via CSS
     markerEnd: style === "flow" ? FLOW_MARKER : DEFAULT_MARKER,
     data: { archStyle: style },
   };
 }
 
+// ─── Serialization ────────────────────────────────────────────────────────
+
 function archToFlow(payload: ArchPayload): { nodes: Node[]; edges: Edge[] } {
-  const nodes: Node[] = (payload.nodes ?? []).map((n) => ({
-    id: n.id,
-    type: "icon",
-    position: { x: n.x, y: n.y },
-    data: { label: n.label, iconPath: n.iconPath, iconId: n.iconId },
-  }));
+  const groupIds = new Set(
+    (payload.nodes ?? []).filter((n) => n.kind === "group").map((n) => n.id)
+  );
+  const nodes: Node[] = (payload.nodes ?? []).map((n) => {
+    if (n.kind === "group") {
+      return {
+        id: n.id,
+        type: "group",
+        position: { x: n.x, y: n.y },
+        data: { label: n.label, tier: n.tier },
+        style: { width: n.width, height: n.height },
+        zIndex: -1,
+        selectable: true,
+      };
+    }
+    const parentId = n.parentId && groupIds.has(n.parentId) ? n.parentId : undefined;
+    return {
+      id: n.id,
+      type: "icon",
+      position: { x: n.x, y: n.y },
+      data: { label: n.label, iconPath: n.iconPath, iconId: n.iconId },
+      ...(parentId ? { parentId, extent: "parent" as const } : {}),
+    };
+  });
   const edges: Edge[] = (payload.edges ?? []).map((e) => ({
     id: e.id,
     source: e.source,
     target: e.target,
-    label: e.label,
+    label: undefined,
     ...edgePropsForStyle(e.style ?? "flow"),
+    data: { archStyle: e.style ?? "flow", label: e.label },
   }));
   return { nodes, edges };
 }
 
 function flowToArch(nodes: Node[], edges: Edge[]): ArchPayload {
   return {
-    nodes: nodes.map((n) => {
+    nodes: nodes.map((n): ArchNode => {
+      if (n.type === "group") {
+        const d = n.data as unknown as GroupNodeData;
+        const w =
+          (n.measured?.width as number | undefined) ??
+          ((n.style?.width as number | undefined)) ??
+          280;
+        const h =
+          (n.measured?.height as number | undefined) ??
+          ((n.style?.height as number | undefined)) ??
+          200;
+        return {
+          kind: "group",
+          id: n.id,
+          label: d?.label ?? "",
+          tier: d?.tier,
+          x: n.position.x,
+          y: n.position.y,
+          width: w,
+          height: h,
+        };
+      }
       const d = n.data as unknown as IconNodeData;
       return {
+        kind: "icon",
         id: n.id,
         label: d?.label ?? "",
         iconId: d?.iconId ?? "",
         iconPath: d?.iconPath ?? "",
         x: n.position.x,
         y: n.position.y,
+        ...(n.parentId ? { parentId: n.parentId } : {}),
       };
     }),
     edges: edges.map((e) => {
-      const archStyle =
-        ((e.data as { archStyle?: ArchEdgeStyle } | undefined)?.archStyle) ??
-        (e.animated ? "flow" : "solid");
+      const d = (e.data ?? {}) as LabeledEdgeData;
       return {
         id: e.id,
         source: e.source,
         target: e.target,
-        label: typeof e.label === "string" ? e.label : undefined,
-        style: archStyle,
+        label: d.label,
+        style: d.archStyle ?? "flow",
       };
     }),
   };
 }
 
-// ─── Inner canvas (must live inside ReactFlowProvider) ────────────────────
+// ─── BFS forest traversal for sequence playback ──────────────────────────
+// Visits roots first (no incoming edges), then any unvisited node, so
+// disconnected cycles still get covered.
+
+function computeEdgePlaybackOrder(nodes: Node[], edges: Edge[]): string[] {
+  const iconIds = new Set(nodes.filter((n) => n.type !== "group").map((n) => n.id));
+  const incoming = new Map<string, number>();
+  const adj = new Map<string, Array<{ edgeId: string; target: string }>>();
+  for (const id of iconIds) {
+    incoming.set(id, 0);
+    adj.set(id, []);
+  }
+  for (const e of edges) {
+    if (!iconIds.has(e.source) || !iconIds.has(e.target)) continue;
+    incoming.set(e.target, (incoming.get(e.target) ?? 0) + 1);
+    adj.get(e.source)!.push({ edgeId: e.id, target: e.target });
+  }
+  const order: string[] = [];
+  const visitedNodes = new Set<string>();
+  const visitedEdges = new Set<string>();
+
+  const bfsFrom = (start: string) => {
+    const queue = [start];
+    visitedNodes.add(start);
+    while (queue.length) {
+      const cur = queue.shift()!;
+      const outs = adj.get(cur) ?? [];
+      for (const { edgeId, target } of outs) {
+        if (visitedEdges.has(edgeId)) continue;
+        visitedEdges.add(edgeId);
+        order.push(edgeId);
+        if (!visitedNodes.has(target)) {
+          visitedNodes.add(target);
+          queue.push(target);
+        }
+      }
+    }
+  };
+
+  // Roots first (insertion-stable).
+  for (const n of nodes) {
+    if (n.type === "group") continue;
+    if ((incoming.get(n.id) ?? 0) === 0 && !visitedNodes.has(n.id)) {
+      bfsFrom(n.id);
+    }
+  }
+  // Catch disconnected cycles.
+  for (const n of nodes) {
+    if (n.type === "group") continue;
+    if (!visitedNodes.has(n.id)) bfsFrom(n.id);
+  }
+  return order;
+}
+
+// ─── Inner canvas ────────────────────────────────────────────────────────
+
+const STEP_MS = 700;
 
 const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasInner(
-  { value, onChange },
+  { value, onChange, onPlayingChange },
   ref
 ) {
   const { nodes: initialNodes, edges: initialEdges } = useMemo(() => archToFlow(value), []);
@@ -229,10 +466,17 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const defaultEdgeStyle = useRef<ArchEdgeStyle>("flow");
 
-  // Undo/redo: snapshot stacks of {nodes, edges} arrays.
   const past = useRef<Array<{ nodes: Node[]; edges: Edge[] }>>([]);
   const future = useRef<Array<{ nodes: Node[]; edges: Edge[] }>>([]);
   const skipNextSnapshot = useRef(false);
+
+  // Sequence playback (runtime-only).
+  const [seq, setSeq] = useState<SequenceState>({
+    activeEdgeId: null,
+    activeNodeId: null,
+    isPlaying: false,
+  });
+  const seqTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { screenToFlowPosition } = useReactFlow();
 
@@ -246,7 +490,6 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
     future.current = [];
   }, [nodes, edges]);
 
-  // Notify parent on every node/edge change (debounced via microtask).
   const notifyRef = useRef<number | null>(null);
   useEffect(() => {
     if (notifyRef.current) cancelAnimationFrame(notifyRef.current);
@@ -258,24 +501,18 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
     };
   }, [nodes, edges, onChange]);
 
-  // External `value` changes (e.g. AI-generated payload) → rehydrate.
-  // Keyed by node-count + edge-count + first-id to avoid endless loops with
-  // the parent's onChange feedback (parent stores what we serialized).
   const lastHydrateKey = useRef<string>("");
   useEffect(() => {
     const key = `${value.nodes?.length ?? 0}:${value.edges?.length ?? 0}:${value.nodes?.[0]?.id ?? ""}`;
     if (key === lastHydrateKey.current) return;
-    // Only hydrate when the payload looks externally seeded — i.e. the local
-    // graph is empty or radically different in size.
     const localCount = nodes.length + edges.length;
     const incomingCount = (value.nodes?.length ?? 0) + (value.edges?.length ?? 0);
-    if (incomingCount > 0 && Math.abs(incomingCount - localCount) >= 2) {
+    if (incomingCount > 0 && (localCount === 0 || Math.abs(incomingCount - localCount) >= 2)) {
       const flow = archToFlow(value);
       skipNextSnapshot.current = true;
       setNodes(flow.nodes);
       setEdges(flow.edges);
       lastHydrateKey.current = key;
-      // Fit after the next paint so the new graph is centered.
       requestAnimationFrame(() => rfInstance?.fitView({ padding: 0.2, duration: 400 }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -318,40 +555,105 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
     [snapshot]
   );
 
-  // ─── Drag-and-drop from palette ─────────────────────────────────────────
+  // Find the smallest group node whose bounding box contains the given
+  // (flow-space) point. Returns null if none.
+  const groupAtPosition = useCallback(
+    (flowX: number, flowY: number): Node | null => {
+      const groups = nodes.filter((n) => n.type === "group");
+      let best: Node | null = null;
+      let bestArea = Infinity;
+      for (const g of groups) {
+        const w = (g.measured?.width as number | undefined) ?? ((g.style?.width as number | undefined) ?? 280);
+        const h = (g.measured?.height as number | undefined) ?? ((g.style?.height as number | undefined) ?? 200);
+        if (
+          flowX >= g.position.x &&
+          flowX <= g.position.x + w &&
+          flowY >= g.position.y &&
+          flowY <= g.position.y + h
+        ) {
+          const area = w * h;
+          if (area < bestArea) {
+            bestArea = area;
+            best = g;
+          }
+        }
+      }
+      return best;
+    },
+    [nodes]
+  );
+
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
   }, []);
 
-  const onDrop = useCallback(
-    (event: React.DragEvent) => {
-      event.preventDefault();
-      const id = event.dataTransfer.getData("application/x-diagrammatic-icon");
-      if (!id) return;
-      // Re-emit so Workspace can resolve the IconLite from its manifest map.
-      window.dispatchEvent(
-        new CustomEvent("diagrammatic-drop", {
-          detail: { payload: id, clientX: event.clientX, clientY: event.clientY },
-        })
-      );
-    },
-    []
-  );
+  const onDrop = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    const id = event.dataTransfer.getData("application/x-diagrammatic-icon");
+    if (!id) return;
+    window.dispatchEvent(
+      new CustomEvent("diagrammatic-drop", {
+        detail: { payload: id, clientX: event.clientX, clientY: event.clientY },
+      })
+    );
+  }, []);
 
-  // ─── Imperative handle ──────────────────────────────────────────────────
+  // ─── Sequence playback ────────────────────────────────────────────────
+  const stopSequence = useCallback(() => {
+    if (seqTimer.current) clearTimeout(seqTimer.current);
+    seqTimer.current = null;
+    setSeq({ activeEdgeId: null, activeNodeId: null, isPlaying: false });
+    onPlayingChange?.(false);
+  }, [onPlayingChange]);
+
+  const playSequence = useCallback(() => {
+    const order = computeEdgePlaybackOrder(nodes, edges);
+    if (order.length === 0) return;
+    if (seqTimer.current) clearTimeout(seqTimer.current);
+    onPlayingChange?.(true);
+    let i = 0;
+    const step = () => {
+      if (i >= order.length) {
+        stopSequence();
+        return;
+      }
+      const edgeId = order[i];
+      const e = edges.find((x) => x.id === edgeId);
+      setSeq({
+        activeEdgeId: edgeId,
+        activeNodeId: e?.target ?? null,
+        isPlaying: true,
+      });
+      i += 1;
+      seqTimer.current = setTimeout(step, STEP_MS);
+    };
+    step();
+  }, [nodes, edges, onPlayingChange, stopSequence]);
+
+  useEffect(() => {
+    return () => {
+      if (seqTimer.current) clearTimeout(seqTimer.current);
+    };
+  }, []);
+
   useImperativeHandle(
     ref,
     () => ({
       dropIcon: (icon, clientX, clientY) => {
         const pos = screenToFlowPosition({ x: clientX, y: clientY });
+        const groupHit = groupAtPosition(pos.x, pos.y);
         snapshot();
+        const localPos = groupHit
+          ? { x: pos.x - groupHit.position.x - 60, y: pos.y - groupHit.position.y - 55 }
+          : { x: pos.x - 60, y: pos.y - 55 };
         setNodes((nds) =>
           nds.concat({
             id: `n_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
             type: "icon",
-            position: { x: pos.x - 60, y: pos.y - 55 },
+            position: localPos,
             data: { label: icon.label, iconPath: icon.path, iconId: icon.id },
+            ...(groupHit ? { parentId: groupHit.id, extent: "parent" as const } : {}),
           })
         );
       },
@@ -361,14 +663,37 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
           x: window.innerWidth / 2,
           y: window.innerHeight / 2,
         });
+        const groupHit = groupAtPosition(center.x, center.y);
         const jitter = () => (Math.random() - 0.5) * 60;
         snapshot();
+        const localPos = groupHit
+          ? { x: center.x - groupHit.position.x - 60 + jitter(), y: center.y - groupHit.position.y - 55 + jitter() }
+          : { x: center.x - 60 + jitter(), y: center.y - 55 + jitter() };
         setNodes((nds) =>
           nds.concat({
             id: `n_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
             type: "icon",
-            position: { x: center.x - 60 + jitter(), y: center.y - 55 + jitter() },
+            position: localPos,
             data: { label: icon.label, iconPath: icon.path, iconId: icon.id },
+            ...(groupHit ? { parentId: groupHit.id, extent: "parent" as const } : {}),
+          })
+        );
+      },
+      addGroup: (label, tier) => {
+        if (!rfInstance) return;
+        const center = rfInstance.screenToFlowPosition({
+          x: window.innerWidth / 2,
+          y: window.innerHeight / 2,
+        });
+        snapshot();
+        setNodes((nds) =>
+          nds.concat({
+            id: `g_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+            type: "group",
+            position: { x: center.x - 200, y: center.y - 130 },
+            data: { label, tier: tier ?? "Custom" },
+            style: { width: 400, height: 260 },
+            zIndex: -1,
           })
         );
       },
@@ -388,7 +713,7 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
         const selEdgeIds = new Set(edges.filter((e) => e.selected).map((e) => e.id));
         if (selNodeIds.size === 0 && selEdgeIds.size === 0) return;
         snapshot();
-        setNodes((nds) => nds.filter((n) => !selNodeIds.has(n.id)));
+        setNodes((nds) => nds.filter((n) => !selNodeIds.has(n.id) && (!n.parentId || !selNodeIds.has(n.parentId))));
         setEdges((eds) =>
           eds.filter((e) => !selEdgeIds.has(e.id) && !selNodeIds.has(e.source) && !selNodeIds.has(e.target))
         );
@@ -411,58 +736,79 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
       },
       setAllEdgeStyle: (style) => {
         defaultEdgeStyle.current = style;
+        const props = edgePropsForStyle(style);
         setEdges((eds) =>
-          eds.map((e) => ({
-            ...e,
-            ...edgePropsForStyle(style),
-          }))
+          eds.map((e) => {
+            const prevData = (e.data ?? {}) as LabeledEdgeData;
+            return {
+              ...e,
+              ...props,
+              data: { ...prevData, archStyle: style },
+            };
+          })
         );
       },
+      playSequence,
+      stopSequence,
+      isPlaying: () => seq.isPlaying,
     }),
-    [nodes, edges, rfInstance, screenToFlowPosition, snapshot]
+    [
+      nodes,
+      edges,
+      rfInstance,
+      screenToFlowPosition,
+      snapshot,
+      groupAtPosition,
+      playSequence,
+      stopSequence,
+      seq.isPlaying,
+    ]
   );
 
   return (
-    <div
-      ref={wrapperRef}
-      className="h-full w-full bg-zinc-950"
-      onDragOver={onDragOver}
-      onDrop={onDrop}
-    >
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onInit={setRfInstance}
-        fitView
-        fitViewOptions={{ padding: 0.2 }}
-        proOptions={{ hideAttribution: true }}
-        defaultEdgeOptions={edgePropsForStyle("flow")}
-        snapToGrid
-        snapGrid={[12, 12]}
-        minZoom={0.2}
-        maxZoom={2.5}
-        deleteKeyCode={["Backspace", "Delete"]}
-        multiSelectionKeyCode={["Meta", "Control", "Shift"]}
+    <SequenceCtx.Provider value={seq}>
+      <div
+        ref={wrapperRef}
+        className="h-full w-full bg-zinc-950"
+        onDragOver={onDragOver}
+        onDrop={onDrop}
       >
-        <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#27272a" />
-        <Controls
-          showInteractive={false}
-          className="!bg-zinc-900 !border-zinc-800 [&>button]:!bg-zinc-900 [&>button]:!border-zinc-800 [&>button]:!text-zinc-300 [&>button:hover]:!bg-zinc-800"
-        />
-        <MiniMap
-          pannable
-          zoomable
-          className="!bg-zinc-900 !border !border-zinc-800"
-          nodeColor={() => "#bef264"}
-          nodeStrokeColor="#52525b"
-          maskColor="rgba(9, 9, 11, 0.7)"
-        />
-      </ReactFlow>
-    </div>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onInit={setRfInstance}
+          fitView
+          fitViewOptions={{ padding: 0.2 }}
+          proOptions={{ hideAttribution: true }}
+          defaultEdgeOptions={edgePropsForStyle("flow")}
+          snapToGrid
+          snapGrid={[12, 12]}
+          minZoom={0.2}
+          maxZoom={2.5}
+          deleteKeyCode={["Backspace", "Delete"]}
+          multiSelectionKeyCode={["Meta", "Control", "Shift"]}
+        >
+          <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#27272a" />
+          <Controls
+            showInteractive={false}
+            className="!bg-zinc-900 !border-zinc-800 [&>button]:!bg-zinc-900 [&>button]:!border-zinc-800 [&>button]:!text-zinc-300 [&>button:hover]:!bg-zinc-800"
+          />
+          <MiniMap
+            pannable
+            zoomable
+            className="!bg-zinc-900 !border !border-zinc-800"
+            nodeColor={(n) => (n.type === "group" ? "#3f3f46" : "#bef264")}
+            nodeStrokeColor="#52525b"
+            maskColor="rgba(9, 9, 11, 0.7)"
+          />
+        </ReactFlow>
+      </div>
+    </SequenceCtx.Provider>
   );
 });
 

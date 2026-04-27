@@ -14,8 +14,8 @@ type Recent = {
 };
 
 /**
- * Reads recent drafts from localStorage. Server-side persistence lands
- * with /api/diagrams in the next phase.
+ * Reads recent drafts from localStorage. Dark-editorial pass — matches
+ * the rest of the hub.
  */
 export function RecentDiagrams() {
   const [recents, setRecents] = useState<Recent[] | null>(null);
@@ -57,12 +57,12 @@ export function RecentDiagrams() {
   if (recents.length === 0) {
     return (
       <SectionShell title="Recent" subtitle="Your recent diagrams will show up here">
-        <div className="grid place-items-center py-12 rounded-xl border border-dashed border-slate-200 bg-slate-50/50">
-          <FileText className="w-8 h-8 text-slate-300 mb-2" />
-          <p className="text-sm text-slate-500">No diagrams yet</p>
+        <div className="grid place-items-center py-12 rounded-xl border border-dashed border-zinc-800 bg-zinc-900/40">
+          <FileText className="w-8 h-8 text-zinc-600 mb-2" />
+          <p className="text-sm text-zinc-500">No diagrams yet</p>
           <Link
             href="/diagrammatic"
-            className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-violet-700 hover:text-violet-900 transition-colors cursor-pointer"
+            className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-lime-300 hover:text-lime-200 transition-colors cursor-pointer"
           >
             Create your first diagram →
           </Link>
@@ -80,25 +80,26 @@ export function RecentDiagrams() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: i * 0.04 }}
-            className="group relative rounded-xl border border-slate-200 bg-white hover:border-slate-300 hover:shadow-md transition-all overflow-hidden"
+            whileHover={{ y: -2 }}
+            className="group relative rounded-xl border border-zinc-800 bg-zinc-900/60 hover:border-lime-300/40 transition-all overflow-hidden"
           >
             <Link href={r.id === "draft" ? "/diagrammatic" : `/diagrammatic/${r.id}`} className="block cursor-pointer">
-              <div className="relative h-28 bg-gradient-to-br from-violet-50 via-fuchsia-50 to-orange-50 border-b border-slate-100">
-                <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(15,23,42,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,0.04)_1px,transparent_1px)] bg-[size:16px_16px]" />
+              <div className="relative h-28 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 border-b border-zinc-800/60">
+                <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:16px_16px]" />
                 <div className="absolute inset-0 grid place-items-center">
                   <div className="flex gap-1.5">
-                    <span className="w-8 h-6 rounded bg-white/90 shadow-sm" />
-                    <span className="w-8 h-6 rounded bg-white/70 shadow-sm" />
-                    <span className="w-8 h-6 rounded bg-white/90 shadow-sm" />
+                    <span className="w-8 h-6 rounded bg-zinc-800 shadow-sm" />
+                    <span className="w-8 h-6 rounded bg-zinc-700 shadow-sm" />
+                    <span className="w-8 h-6 rounded bg-lime-300/70 shadow-sm" />
                   </div>
                 </div>
-                <span className="absolute top-2 left-2 px-1.5 py-0.5 text-[9px] uppercase tracking-wider font-bold text-slate-600 bg-white/90 rounded">
+                <span className="absolute top-2 left-2 px-1.5 py-0.5 text-[9px] uppercase tracking-wider font-bold text-zinc-300 bg-zinc-950/80 border border-zinc-800 rounded">
                   {r.mode}
                 </span>
               </div>
               <div className="p-3">
-                <div className="text-sm font-semibold text-slate-900 truncate">{r.name}</div>
-                <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500">
+                <div className="text-sm font-semibold text-zinc-100 truncate">{r.name}</div>
+                <div className="mt-1 flex items-center gap-1.5 text-[11px] text-zinc-500">
                   <Clock className="w-3 h-3" />
                   {timeAgo(r.updatedAt)}
                   {r.nodeCount != null && <span className="ml-auto">{r.nodeCount} nodes</span>}
@@ -109,7 +110,7 @@ export function RecentDiagrams() {
               type="button"
               onClick={() => clearDraft(r.id)}
               aria-label="Delete"
-              className="absolute top-2 right-2 p-1 rounded text-slate-400 bg-white/80 opacity-0 group-hover:opacity-100 hover:text-rose-600 transition-all cursor-pointer"
+              className="absolute top-2 right-2 p-1 rounded text-zinc-500 bg-zinc-950/80 border border-zinc-800 opacity-0 group-hover:opacity-100 hover:text-rose-400 transition-all cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -133,8 +134,8 @@ function SectionShell({
     <section className="py-6">
       <div className="flex items-baseline justify-between mb-4">
         <div>
-          <h2 className="text-base font-bold text-slate-900">{title}</h2>
-          {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
+          <h2 className="text-base font-semibold text-zinc-100">{title}</h2>
+          {subtitle && <p className="text-xs text-zinc-500 mt-0.5">{subtitle}</p>}
         </div>
       </div>
       {children}
