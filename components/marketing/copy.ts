@@ -11,30 +11,26 @@ import {
   Cpu,
   Sparkles,
   Wand2,
-  ImageIcon,
   FileText,
-  MessagesSquare,
-  Calculator,
-  ShieldCheck,
-  Lock,
-  Server,
-  Globe,
-  Zap,
-  Network,
+  MousePointerClick,
+  Activity,
+  Code2,
 } from "lucide-react";
 
 export const BRAND = {
   name: "Diagrammatic",
-  tagline: "Design any system. With words. With AI. In one canvas.",
+  tagline: "An open architect's canvas. Type a system, watch it draw itself.",
   domain: "diagrammatic.app",
 };
 
+/**
+ * Top-nav links. Anchors must point to sections that actually render below
+ * (no broken in-page links). External destinations only when they exist.
+ */
 export const NAV = [
-  { label: "Product", href: "#tools" },
-  { label: "AI Tools", href: "#ai" },
-  { label: "Pricing", href: "#pricing" },
-  { label: "Templates", href: "#templates" },
-  { label: "Security", href: "#security" },
+  { label: "Modes", href: "#modes" },
+  { label: "Capabilities", href: "#capabilities" },
+  { label: "Roadmap", href: "#roadmap" },
 ];
 
 export type Tool = {
@@ -45,99 +41,94 @@ export type Tool = {
   icon: LucideIcon;
   ready: boolean;
   href: string;
-  accent: string;
 };
 
+/**
+ * The 9 modes. `ready: true` is the truth — only Architecture is in users'
+ * hands today. Soon-flagged modes link to `/diagrammatic` so the click still
+ * goes somewhere useful, but the card explicitly labels them as not-yet-built.
+ */
 export const TOOLS: Tool[] = [
   {
     id: "architecture",
     title: "Cloud Architecture",
-    blurb: "Drag 1,400+ AWS, Azure & GCP icons. Snap, connect, label, export.",
-    bullets: ["1,400+ official cloud icons", "Smart snapping & routing", "PNG / SVG / JSON export"],
+    blurb: "Drag 1,400+ AWS, Azure & GCP icons. Animated request-flow edges out of the box.",
+    bullets: ["1,400+ official cloud icons", "Solid / dashed / animated flow edges", "JSON serialization (export coming)"],
     icon: Boxes,
     ready: true,
     href: "/diagrammatic",
-    accent: "from-violet-500 to-fuchsia-500",
-  },
-  {
-    id: "flowchart",
-    title: "Flowcharts",
-    blurb: "Process diagrams, decision trees, swimlanes — built for clarity.",
-    bullets: ["BPMN-friendly shapes", "Auto-layout", "Branch & merge logic"],
-    icon: Workflow,
-    ready: false,
-    href: "/diagrammatic?mode=flowchart",
-    accent: "from-sky-500 to-cyan-500",
-  },
-  {
-    id: "mindmap",
-    title: "Mind Maps",
-    blurb: "Capture ideas radially. Re-organize without losing the thread.",
-    bullets: ["Radial auto-layout", "Collapse / expand branches", "Color-coded themes"],
-    icon: Brain,
-    ready: false,
-    href: "/diagrammatic?mode=mindmap",
-    accent: "from-orange-500 to-rose-500",
   },
   {
     id: "sequence",
     title: "Sequence Diagrams",
-    blurb: "Lifelines, async messages, activations. Then animate it as a GIF.",
-    bullets: ["Sync & async arrows", "Activation bars", "Animated playback to GIF"],
+    blurb: "Lifelines, async messages, activations — replayable as animated GIFs.",
+    bullets: ["Sync & async arrows", "Activation bars", "Animated GIF export (planned)"],
     icon: GitBranch,
     ready: false,
-    href: "/diagrammatic?mode=sequence",
-    accent: "from-emerald-500 to-teal-500",
+    href: "/diagrammatic",
   },
   {
-    id: "er",
-    title: "ER Diagrams",
-    blurb: "Model your schema. Generate SQL. Reverse-engineer existing DBs.",
-    bullets: ["Crow's-foot notation", "SQL DDL export", "Postgres / MySQL / SQLite"],
-    icon: Database,
+    id: "flowchart",
+    title: "Flowcharts",
+    blurb: "BPMN-friendly shapes for processes and decision trees.",
+    bullets: ["Standard BPMN stencils", "Auto-layout", "Branch & merge logic"],
+    icon: Workflow,
     ready: false,
-    href: "/diagrammatic?mode=er",
-    accent: "from-indigo-500 to-violet-500",
+    href: "/diagrammatic",
   },
   {
-    id: "uml",
-    title: "UML Class Diagrams",
-    blurb: "Classes, interfaces, generalization. Sync to TypeScript and Java.",
-    bullets: ["All 14 UML diagram types", "Round-trip to code", "Stereotype support"],
-    icon: Layers,
+    id: "mindmap",
+    title: "Mind Maps",
+    blurb: "Radial brainstorm canvas with collapse / expand.",
+    bullets: ["Radial auto-layout", "Collapse branches", "Color-coded themes"],
+    icon: Brain,
     ready: false,
-    href: "/diagrammatic?mode=uml",
-    accent: "from-pink-500 to-rose-500",
+    href: "/diagrammatic",
   },
   {
     id: "whiteboard",
     title: "Whiteboard",
-    blurb: "Sketch freely. Sticky notes. Hand-drawn vibe. Real-time cursors.",
-    bullets: ["Excalidraw-class drawing", "Sticky notes & frames", "Live multiplayer (soon)"],
+    blurb: "Excalidraw-grade hand-drawn surface for ideation.",
+    bullets: ["Sketchy strokes", "Sticky notes & frames", "Single-player today"],
     icon: PenTool,
     ready: false,
-    href: "/diagrammatic?mode=whiteboard",
-    accent: "from-amber-500 to-orange-500",
+    href: "/diagrammatic",
+  },
+  {
+    id: "er",
+    title: "ER Diagrams",
+    blurb: "Model schemas with crow's-foot notation, emit SQL DDL.",
+    bullets: ["Crow's-foot notation", "Postgres / MySQL DDL", "Reverse-engineer from URL (planned)"],
+    icon: Database,
+    ready: false,
+    href: "/diagrammatic",
+  },
+  {
+    id: "uml",
+    title: "UML",
+    blurb: "Class, state, activity. Round-trip to TypeScript planned.",
+    bullets: ["Class & interface stencils", "Stereotype tags", "TS sync (planned)"],
+    icon: Layers,
+    ready: false,
+    href: "/diagrammatic",
   },
   {
     id: "kanban",
-    title: "Kanban / Sprint Board",
-    blurb: "Lightweight board with columns, swimlanes, WIP limits.",
-    bullets: ["Drag-and-drop columns", "WIP limits", "Sprint velocity chart"],
+    title: "Kanban",
+    blurb: "Lightweight sprint board with columns and WIP limits.",
+    bullets: ["Drag-and-drop columns", "WIP limits", "Sprint velocity (planned)"],
     icon: ListChecks,
     ready: false,
-    href: "/diagrammatic?mode=kanban",
-    accent: "from-lime-500 to-green-500",
+    href: "/diagrammatic",
   },
   {
     id: "system",
-    title: "System Diagrams",
-    blurb: "C4, network topology, microservices — engineer-grade clarity.",
-    bullets: ["C4 model templates", "Network shapes", "Container & component views"],
+    title: "System / C4",
+    blurb: "C4 model templates and network topologies.",
+    bullets: ["C4 Context / Container / Component", "Network shapes", "Engineer-grade clarity"],
     icon: Cpu,
     ready: false,
-    href: "/diagrammatic?mode=system",
-    accent: "from-blue-500 to-indigo-500",
+    href: "/diagrammatic",
   },
 ];
 
@@ -145,143 +136,57 @@ export const HERO_PROMPTS = [
   "A serverless image-resize pipeline on AWS",
   "Multi-region active-active Postgres on Azure",
   "Event-driven order workflow with Kafka & GCP",
-  "Mind map for our Q1 product launch",
-  "Sequence diagram of an OAuth 2.0 PKCE flow",
+  "OAuth 2.0 PKCE flow",
+  "C4 container view of a notifications service",
 ];
 
 export const HERO_CHIPS = [
-  "Cloud architecture",
-  "Flowchart",
-  "Mind map",
-  "Sequence",
-  "ER model",
-  "Whiteboard",
+  "Three-tier web app on Azure",
+  "Event-driven microservices",
+  "Serverless image pipeline",
+  "Real-time chat with WebSockets",
+  "Data lakehouse on GCP",
 ];
 
-export type AITool = {
+/**
+ * Capabilities that are real today (or in active development this phase).
+ * No SOC2 claims, no testimonials, no fake comparisons.
+ */
+export type Capability = {
   title: string;
   blurb: string;
   icon: LucideIcon;
-  accent: string;
+  status: "live" | "next" | "planned";
 };
 
-export const AI_TOOLS: AITool[] = [
-  { title: "Diagram from prompt", blurb: "Describe a system, get a diagram you can edit.", icon: Sparkles, accent: "from-violet-500 to-fuchsia-500" },
-  { title: "Auto-layout", blurb: "One click to clean up any messy canvas.", icon: Wand2, accent: "from-sky-500 to-cyan-500" },
-  { title: "Explain this diagram", blurb: "Plain-English summary your team will actually read.", icon: FileText, accent: "from-emerald-500 to-teal-500" },
-  { title: "Image to diagram", blurb: "Upload a whiteboard photo — get an editable canvas.", icon: ImageIcon, accent: "from-orange-500 to-rose-500" },
-  { title: "Code to diagram", blurb: "Paste Terraform, Bicep, or k8s YAML — see the topology.", icon: Cpu, accent: "from-indigo-500 to-violet-500" },
-  { title: "Diagram to code", blurb: "Generate Terraform / Bicep / Mermaid from your design.", icon: Network, accent: "from-pink-500 to-rose-500" },
-  { title: "Animated request flows", blurb: "Turn any sequence into a GIF, like the AI-Gateway labs.", icon: Zap, accent: "from-amber-500 to-orange-500" },
-  { title: "Chat with your canvas", blurb: "Ask 'what fails if region us-east-1 goes down?'", icon: MessagesSquare, accent: "from-lime-500 to-green-500" },
-  { title: "Cost estimator", blurb: "AI-priced from your architecture. Roadmap.", icon: Calculator, accent: "from-blue-500 to-indigo-500" },
+export const CAPABILITIES: Capability[] = [
+  { title: "Prompt → architecture", blurb: "Type a system in plain English; we scaffold the canvas with real cloud icons and connect tiers automatically.", icon: Sparkles, status: "live" },
+  { title: "Animated request flows", blurb: "Toggle every edge between solid, dashed, and a flowing animation that visualizes data movement.", icon: Activity, status: "live" },
+  { title: "1,400+ cloud icons", blurb: "Official AWS, Azure, and GCP icon sets, searchable. Click to add or drag onto canvas.", icon: Boxes, status: "live" },
+  { title: "Click-or-drag placement", blurb: "Click an icon to drop at the canvas center, or drag to a precise spot. No modal, no friction.", icon: MousePointerClick, status: "live" },
+  { title: "Validation linter", blurb: "Inspector flags disconnected nodes and missing labels. The list updates as you draw.", icon: FileText, status: "live" },
+  { title: "Auto-layout", blurb: "One click cleans up any messy canvas — tier-aware columns, orthogonal routing.", icon: Wand2, status: "next" },
+  { title: "Export (PNG / SVG / JSON)", blurb: "Render the canvas to bitmap, vector, or structured JSON for your wiki or repo.", icon: Code2, status: "next" },
+  { title: "Sequence-diagram GIF recorder", blurb: "Record a sequence diagram as an animated GIF — the differentiator that AI-Gateway docs use.", icon: GitBranch, status: "planned" },
+  { title: "Image / code → diagram", blurb: "Drop a whiteboard photo or paste Bicep/Terraform; we infer the topology.", icon: Brain, status: "planned" },
 ];
 
-export const REPLACED_APPS = [
-  "Lucidchart",
-  "Miro",
-  "Visio",
-  "draw.io",
-  "Whimsical",
-  "Excalidraw",
-  "FigJam",
-  "Mural",
-  "ChatGPT (for diagrams)",
-  "Gliffy",
-  "Cacoo",
-  "SmartDraw",
-];
-
-export const TRUST_LOGOS = [
-  "Acme Cloud",
-  "Northwind",
-  "Contoso",
-  "Initech",
-  "Globex",
-  "Stark Labs",
-  "Wayne Inc",
-  "Umbrella",
-];
-
-export type Testimonial = {
-  quote: string;
-  name: string;
-  role: string;
-  company: string;
-};
-
-export const TESTIMONIALS: Testimonial[] = [
-  {
-    quote:
-      "We replaced three diagramming tools with one canvas. Architecture reviews used to take a week — now it's a Friday afternoon.",
-    name: "Priya Shah",
-    role: "Principal Cloud Architect",
-    company: "Northwind",
-  },
-  {
-    quote:
-      "The 'diagram from prompt' feature is genuinely good. Our SAs ship customer architectures in minutes, not days.",
-    name: "Marcus Lee",
-    role: "Director, Solutions Engineering",
-    company: "Contoso",
-  },
-  {
-    quote:
-      "Finally a whiteboard, a flowchart tool, and a real cloud-architecture editor in the same tab. My toolbar thanks you.",
-    name: "Elena Rossi",
-    role: "Staff Engineer",
-    company: "Globex",
-  },
-  {
-    quote:
-      "Animated request flows for our gateway docs used to be a video editor job. Diagrammatic exports them as GIFs in one click.",
-    name: "Jordan Kim",
-    role: "DevRel Lead",
-    company: "Stark Labs",
-  },
-];
-
-export const TRUST: { title: string; blurb: string; icon: LucideIcon }[] = [
-  { title: "Encrypted in transit & at rest", blurb: "TLS 1.3 everywhere. AES-256 on disk. Per-tenant keys on roadmap.", icon: Lock },
-  { title: "GitHub OAuth & SSO", blurb: "Sign in with GitHub today. SAML / OIDC SSO on enterprise plan.", icon: ShieldCheck },
-  { title: "Self-host friendly", blurb: "Open-source core. Bring your own Postgres. Run on your own Azure / AWS.", icon: Server },
-];
-
-export const TEMPLATE_PREVIEW = [
-  { title: "3-tier web app on Azure", tag: "Architecture", accent: "from-violet-500 to-fuchsia-500" },
-  { title: "Serverless image pipeline (AWS)", tag: "Architecture", accent: "from-sky-500 to-cyan-500" },
-  { title: "Event-driven orders (GCP)", tag: "Architecture", accent: "from-emerald-500 to-teal-500" },
-  { title: "OAuth 2.0 PKCE flow", tag: "Sequence", accent: "from-orange-500 to-rose-500" },
-  { title: "Org chart — engineering", tag: "Mind map", accent: "from-indigo-500 to-violet-500" },
-  { title: "E-commerce DB schema", tag: "ER", accent: "from-pink-500 to-rose-500" },
-  { title: "Sprint board template", tag: "Kanban", accent: "from-amber-500 to-orange-500" },
-  { title: "C4 container view", tag: "System", accent: "from-blue-500 to-indigo-500" },
+export const ROADMAP = [
+  { phase: "Now", items: ["Architecture mode (maxGraph)", "Animated edges", "Heuristic prompt → graph", "Click & drag placement", "localStorage drafts"] },
+  { phase: "Next", items: ["Inspector property editing", "Real LLM generation (Azure OpenAI)", "PNG / SVG / JSON export", "Template hydration"] },
+  { phase: "Then", items: ["Sequence diagram mode + GIF recorder", "Whiteboard mode (Excalidraw)", "Mind map mode (radial)", "Flowchart mode (BPMN)"] },
+  { phase: "Later", items: ["ER + UML modes", "Kanban", "Image-to-diagram", "Code-to-diagram"] },
 ];
 
 export const FOOTER_LINKS = {
-  Product: [
-    { label: "Cloud architecture", href: "/diagrammatic" },
-    { label: "Flowcharts", href: "/diagrammatic?mode=flowchart" },
-    { label: "Mind maps", href: "/diagrammatic?mode=mindmap" },
-    { label: "Whiteboard", href: "/diagrammatic?mode=whiteboard" },
+  Open: [
+    { label: "Source on GitHub", href: "https://github.com/sauravraghuvanshi/architecture-playground" },
+    { label: "Open the canvas", href: "/diagrammatic" },
+    { label: "Project hub", href: "/" },
   ],
   Resources: [
-    { label: "Templates", href: "#templates" },
-    { label: "Documentation", href: "/docs" },
-    { label: "Changelog", href: "/changelog" },
-    { label: "Roadmap", href: "/roadmap" },
-  ],
-  Company: [
-    { label: "About", href: "/about" },
-    { label: "Open source", href: "https://github.com/sauravraghuvanshi/architecture-playground" },
-    { label: "Privacy", href: "/privacy" },
-    { label: "Terms", href: "/terms" },
+    { label: "Roadmap", href: "#roadmap" },
+    { label: "Capabilities", href: "#capabilities" },
+    { label: "Modes", href: "#modes" },
   ],
 };
-
-export const STATS = [
-  { value: "1,400+", label: "Cloud icons" },
-  { value: "9", label: "Diagram modes" },
-  { value: "MIT / Apache-2.0", label: "Open core" },
-  { value: "0", label: "Vendor lock-in" },
-];

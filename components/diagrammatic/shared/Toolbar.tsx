@@ -1,8 +1,11 @@
 /**
- * Toolbar — shared mode-aware top bar (zoom, fit, undo/redo, export, save).
- * R1 wires only the architecture-relevant actions; future modes attach more.
+ * Toolbar — workspace top bar.
+ *
+ * Hosts: title, undo/redo, fit, delete, animate-flows toggle, save.
  */
 "use client";
+
+import { Undo2, Redo2, Maximize2, Trash2, Activity, Save, Loader2, Check } from "lucide-react";
 
 interface Props {
   title: string;
@@ -11,23 +14,53 @@ interface Props {
   onRedo: () => void;
   onDelete: () => void;
   onSave?: () => void;
+  /** Cycle every edge in the graph through solid → dashed → flow. */
+  onCycleEdgeStyle?: () => void;
+  /** Current global edge style (informational — affects the icon highlight). */
+  edgeStyle?: "solid" | "dashed" | "flow";
   saving?: boolean;
   saved?: boolean;
 }
 
-export function Toolbar({ title, onFit, onUndo, onRedo, onDelete, onSave, saving, saved }: Props) {
+export function Toolbar({
+  title,
+  onFit,
+  onUndo,
+  onRedo,
+  onDelete,
+  onSave,
+  onCycleEdgeStyle,
+  edgeStyle = "solid",
+  saving,
+  saved,
+}: Props) {
   return (
     <header className="flex items-center justify-between border-b border-zinc-800 bg-zinc-950 px-4 py-2 text-sm text-zinc-200">
       <div className="flex items-center gap-3">
         <span className="font-semibold text-zinc-100">{title}</span>
-        <span className="text-xs text-zinc-500">Diagrammatic · powered by maxGraph</span>
+        <span className="text-xs text-zinc-500">Diagrammatic · maxGraph</span>
       </div>
       <div className="flex items-center gap-1">
-        <ToolButton onClick={onUndo} title="Undo (Ctrl+Z)">↶</ToolButton>
-        <ToolButton onClick={onRedo} title="Redo (Ctrl+Y)">↷</ToolButton>
+        <ToolButton onClick={onUndo} title="Undo (Ctrl+Z)" Icon={Undo2} />
+        <ToolButton onClick={onRedo} title="Redo (Ctrl+Y)" Icon={Redo2} />
         <span className="mx-2 h-5 w-px bg-zinc-800" />
-        <ToolButton onClick={onFit} title="Fit view">⤢</ToolButton>
-        <ToolButton onClick={onDelete} title="Delete selection (Del)">🗑</ToolButton>
+        <ToolButton onClick={onFit} title="Fit view (Ctrl+0)" Icon={Maximize2} />
+        <ToolButton onClick={onDelete} title="Delete selection (Del)" Icon={Trash2} />
+        {onCycleEdgeStyle && (
+          <button
+            type="button"
+            onClick={onCycleEdgeStyle}
+            title={`Edge style: ${edgeStyle} — click to cycle (solid → dashed → flow)`}
+            className={`flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium uppercase tracking-wide transition ${
+              edgeStyle === "flow"
+                ? "bg-lime-300 text-zinc-900 hover:bg-lime-200"
+                : "text-zinc-300 hover:bg-zinc-800 hover:text-white"
+            }`}
+          >
+            <Activity className="h-3.5 w-3.5" />
+            {edgeStyle}
+          </button>
+        )}
         {onSave && (
           <>
             <span className="mx-2 h-5 w-px bg-zinc-800" />
@@ -35,8 +68,15 @@ export function Toolbar({ title, onFit, onUndo, onRedo, onDelete, onSave, saving
               type="button"
               onClick={onSave}
               disabled={saving}
-              className="rounded-md bg-emerald-600 px-3 py-1 text-xs font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-60"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-lime-300 px-3 py-1 text-xs font-semibold text-zinc-900 transition hover:bg-lime-200 disabled:opacity-60"
             >
+              {saving ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : saved ? (
+                <Check className="h-3.5 w-3.5" />
+              ) : (
+                <Save className="h-3.5 w-3.5" />
+              )}
               {saving ? "Saving…" : saved ? "Saved" : "Save"}
             </button>
           </>
@@ -49,20 +89,21 @@ export function Toolbar({ title, onFit, onUndo, onRedo, onDelete, onSave, saving
 function ToolButton({
   onClick,
   title,
-  children,
+  Icon,
 }: {
   onClick: () => void;
   title: string;
-  children: React.ReactNode;
+  Icon: React.ComponentType<{ className?: string }>;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       title={title}
-      className="rounded-md px-2 py-1 text-base text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+      aria-label={title}
+      className="cursor-pointer rounded-md p-1.5 text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
     >
-      {children}
+      <Icon className="h-4 w-4" />
     </button>
   );
 }

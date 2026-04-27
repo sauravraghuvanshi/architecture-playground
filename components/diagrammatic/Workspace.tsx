@@ -13,9 +13,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import { useSearchParams } from "next/navigation";
 import type {
   ArchitectureCanvasHandle,
   ArchPayload,
+  ArchEdgeStyle,
 } from "./modes/architecture/ArchitectureCanvas";
 import { Palette } from "./shared/Palette";
 import { Toolbar } from "./shared/Toolbar";
@@ -24,6 +26,7 @@ import { CommandPalette } from "./shared/CommandPalette";
 import { Inspector, deriveArchIssues } from "./shared/Inspector";
 import { StatusBar } from "./shared/StatusBar";
 import { KeyboardHints } from "./shared/KeyboardHints";
+import { promptToArchitecture } from "@/lib/prompt-to-arch";
 
 // maxGraph touches `window` and SVG namespaces — must load client-only.
 const ArchitectureCanvas = dynamic(
@@ -52,7 +55,9 @@ export function Workspace({
   const [saved, setSaved] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
   const [hintsOpen, setHintsOpen] = useState(false);
+  const [edgeStyle, setEdgeStyle] = useState<ArchEdgeStyle>("flow");
   const canvasRef = useRef<ArchitectureCanvasHandle | null>(null);
+  const searchParams = useSearchParams();
 
   const issues = useMemo(() => deriveArchIssues(archPayload), [archPayload]);
 
@@ -65,16 +70,42 @@ export function Workspace({
   // The architecture canvas dispatches `diagrammatic-drop` with the dragged
   // icon id + client coords. We resolve the icon and forward to dropIcon.
   useEffect(() => {
-    const handler = (e: Event) => {
+    const onDrop = (e: Event) => {
       const ce = e as CustomEvent<{ payload: string; clientX: number; clientY: number }>;
       const icon = iconById.current.get(ce.detail.payload);
       if (icon && canvasRef.current) {
         canvasRef.current.dropIcon(icon, ce.detail.clientX, ce.detail.clientY);
       }
     };
-    window.addEventListener("diagrammatic-drop", handler as EventListener);
-    return () => window.removeEventListener("diagrammatic-drop", handler as EventListener);
+    const onAdd = (e: Event) => {
+      const ce = e as CustomEvent<{ id: string }>;
+      const icon = iconById.current.get(ce.detail.id);
+      if (icon && canvasRef.current) {
+        canvasRef.current.addIconAtCenter(icon);
+      }
+    };
+    window.addEventListener("diagrammatic-drop", onDrop as EventListener);
+    window.addEventListener("diagrammatic-add-icon", onAdd as EventListener);
+    return () => {
+      window.removeEventListener("diagrammatic-drop", onDrop as EventListener);
+      window.removeEventListener("diagrammatic-add-icon", onAdd as EventListener);
+    };
   }, []);
+
+  // ─── AI prompt → architecture (heuristic, no LLM) ───────────────────
+  // When `/diagrammatic?prompt=…` lands, run the deterministic generator
+  // against the manifest and seed the canvas. One-shot per page load.
+  const promptApplied = useRef(false);
+  useEffect(() => {
+    if (promptApplied.current) return;
+    const prompt = searchParams?.get("prompt");
+    if (!prompt) return;
+    const generated = promptToArchitecture(prompt, icons, { animateEdges: true });
+    if (generated && generated.nodes.length) {
+      promptApplied.current = true;
+      setArchPayload(generated);
+    }
+  }, [searchParams, icons]);
 
   // Mark unsaved when canvas state changes.
   const handleArchChange = useCallback((next: ArchPayload) => {
@@ -129,6 +160,23 @@ export function Workspace({
   }, []);
 
   const meta = MODE_META[mode];
+
+  // Cycle global edge style: solid → dashed → flow → solid.
+  const cycleEdgeStyle = useCallback(() => {
+    setEdgeStyle((prev) => {
+      const next: ArchEdgeStyle =
+        prev === "solid" ? "dashed" : prev === "dashed" ? "flow" : "solid";
+      canvasRef.current?.setAllEdgeStyle(next);
+      return next;
+    });
+  }, []);
+
+  // Re-apply the current edge style after an external hydration (e.g. a
+  // freshly generated AI payload) so any pre-existing animation classes stick.
+  useEffect(() => {
+    canvasRef.current?.setAllEdgeStyle(edgeStyle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [archPayload]);
 
   // Route command-palette actions back to canvas / state.
   const handleCommand = useCallback(
@@ -194,12 +242,14 @@ export function Workspace({
   return (
     <div className="flex h-screen flex-col bg-zinc-950 text-zinc-100">
       <Toolbar
-        title={`${meta.icon} ${meta.label}`}
+        title={meta.label}
         onFit={() => canvasRef.current?.fit()}
         onUndo={() => canvasRef.current?.undo()}
         onRedo={() => canvasRef.current?.redo()}
         onDelete={() => canvasRef.current?.deleteSelection()}
         onSave={handleSave}
+        onCycleEdgeStyle={cycleEdgeStyle}
+        edgeStyle={edgeStyle}
         saving={saving}
         saved={saved}
       />

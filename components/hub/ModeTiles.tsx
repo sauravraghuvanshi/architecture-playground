@@ -27,15 +27,15 @@ type Mode = {
 };
 
 const MODES: Mode[] = [
-  { id: "architecture", label: "Cloud architecture", blurb: "1,400+ AWS / Azure / GCP icons", icon: Boxes, accent: "from-violet-500 to-fuchsia-500", ready: true, hint: "⌘1" },
-  { id: "flowchart", label: "Flowchart", blurb: "BPMN-friendly process flows", icon: Workflow, accent: "from-sky-500 to-cyan-500", ready: false, hint: "⌘2" },
-  { id: "mindmap", label: "Mind map", blurb: "Radial brainstorming", icon: Brain, accent: "from-orange-500 to-rose-500", ready: false, hint: "⌘3" },
-  { id: "sequence", label: "Sequence", blurb: "Lifelines + GIF playback", icon: GitBranch, accent: "from-emerald-500 to-teal-500", ready: false, hint: "⌘4" },
-  { id: "er", label: "ER diagram", blurb: "Schema + SQL DDL export", icon: Database, accent: "from-indigo-500 to-violet-500", ready: false, hint: "⌘5" },
-  { id: "uml", label: "UML class", blurb: "Round-trip to TypeScript", icon: Layers, accent: "from-pink-500 to-rose-500", ready: false, hint: "⌘6" },
-  { id: "whiteboard", label: "Whiteboard", blurb: "Sketch · sticky · multiplayer", icon: PenTool, accent: "from-amber-500 to-orange-500", ready: false, hint: "⌘7" },
-  { id: "kanban", label: "Kanban", blurb: "Sprint board · WIP limits", icon: ListChecks, accent: "from-lime-500 to-green-500", ready: false, hint: "⌘8" },
-  { id: "system", label: "C4 / System", blurb: "Context → Container → Component", icon: Cpu, accent: "from-blue-500 to-indigo-500", ready: false, hint: "⌘9" },
+  { id: "architecture", label: "Cloud architecture", blurb: "1,400+ AWS / Azure / GCP icons", icon: Boxes, accent: "from-lime-300 to-emerald-300", ready: true, hint: "⌘1" },
+  { id: "flowchart", label: "Flowchart", blurb: "BPMN-friendly process flows", icon: Workflow, accent: "from-zinc-700 to-zinc-600", ready: false, hint: "⌘2" },
+  { id: "mindmap", label: "Mind map", blurb: "Radial brainstorming", icon: Brain, accent: "from-zinc-700 to-zinc-600", ready: false, hint: "⌘3" },
+  { id: "sequence", label: "Sequence", blurb: "Lifelines + GIF playback", icon: GitBranch, accent: "from-zinc-700 to-zinc-600", ready: false, hint: "⌘4" },
+  { id: "er", label: "ER diagram", blurb: "Schema + SQL DDL export", icon: Database, accent: "from-zinc-700 to-zinc-600", ready: false, hint: "⌘5" },
+  { id: "uml", label: "UML class", blurb: "Round-trip to TypeScript", icon: Layers, accent: "from-zinc-700 to-zinc-600", ready: false, hint: "⌘6" },
+  { id: "whiteboard", label: "Whiteboard", blurb: "Sketch · sticky · multiplayer", icon: PenTool, accent: "from-zinc-700 to-zinc-600", ready: false, hint: "⌘7" },
+  { id: "kanban", label: "Kanban", blurb: "Sprint board · WIP limits", icon: ListChecks, accent: "from-zinc-700 to-zinc-600", ready: false, hint: "⌘8" },
+  { id: "system", label: "C4 / System", blurb: "Context → Container → Component", icon: Cpu, accent: "from-zinc-700 to-zinc-600", ready: false, hint: "⌘9" },
 ];
 
 export function ModeTiles() {
@@ -57,7 +57,7 @@ export function ModeTiles() {
               />
               <div className="relative flex items-start gap-3">
                 <span
-                  className={`grid place-items-center w-10 h-10 rounded-lg bg-gradient-to-br ${m.accent} text-white shadow-sm shrink-0`}
+                  className={`grid place-items-center w-10 h-10 rounded-lg bg-gradient-to-br ${m.accent} ${m.ready ? "text-zinc-950" : "text-zinc-400"} shadow-sm shrink-0`}
                 >
                   <I className="w-5 h-5" />
                 </span>

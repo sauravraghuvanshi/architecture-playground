@@ -1,14 +1,18 @@
 /**
  * Palette — searchable, category-grouped icon picker.
  *
- * Drag-source: each tile sets `application/x-diagrammatic-icon` on the
- * dataTransfer with the icon id. The architecture canvas listens for the
- * matching drop event at the canvas level; the Workspace bridges the two by
- * resolving the id back to an IconLite and calling `canvas.dropIcon(...)`.
+ * Two ways to add a service:
+ *   - **Drag** onto the canvas — sets `application/x-diagrammatic-icon` on the
+ *     dataTransfer; the architecture canvas catches the drop and re-dispatches
+ *     a custom event the Workspace listens for.
+ *   - **Click** the tile — dispatches a window-level `diagrammatic-add-icon`
+ *     event with the icon id; the Workspace forwards it to the canvas's
+ *     `addIconAtCenter` imperative method.
  */
 "use client";
 
 import { useMemo, useState } from "react";
+import { Search, MousePointerClick } from "lucide-react";
 import type { IconLite } from "./types";
 
 interface Props {
@@ -51,27 +55,34 @@ export function Palette({ icons }: Props) {
   return (
     <aside className="flex h-full w-72 flex-col border-r border-zinc-800 bg-zinc-950 text-zinc-200">
       <div className="space-y-2 border-b border-zinc-800 p-3">
-        <input
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search 1,400+ icons…"
-          className="w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm placeholder:text-zinc-500 focus:border-zinc-600 focus:outline-none"
-        />
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
+          <input
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search 1,400+ icons…"
+            className="w-full rounded-md border border-zinc-800 bg-zinc-900 py-1.5 pl-8 pr-3 text-sm placeholder:text-zinc-500 focus:border-zinc-600 focus:outline-none"
+          />
+        </div>
         <div className="flex flex-wrap gap-1">
           {clouds.map((c) => (
             <button
               key={c}
               type="button"
               onClick={() => setCloud(c)}
-              className={`rounded px-2 py-0.5 text-[11px] uppercase tracking-wide transition ${
-                cloud === c ? "bg-zinc-100 text-zinc-900" : "bg-zinc-900 text-zinc-400 hover:bg-zinc-800"
+              className={`cursor-pointer rounded px-2 py-0.5 text-[11px] uppercase tracking-wide transition ${
+                cloud === c ? "bg-lime-300 text-zinc-900" : "bg-zinc-900 text-zinc-400 hover:bg-zinc-800"
               }`}
             >
               {c}
             </button>
           ))}
         </div>
+        <p className="flex items-center gap-1.5 text-[10px] text-zinc-500">
+          <MousePointerClick className="h-3 w-3" />
+          Click to add at center, or drag onto canvas
+        </p>
       </div>
       <div className="flex-1 overflow-y-auto p-2">
         {grouped.length === 0 && (
@@ -92,8 +103,16 @@ export function Palette({ icons }: Props) {
                     e.dataTransfer.setData("application/x-diagrammatic-icon", icon.id);
                     e.dataTransfer.effectAllowed = "copy";
                   }}
-                  className="group/btn flex flex-col items-center gap-1 rounded border border-transparent p-1.5 hover:border-zinc-700 hover:bg-zinc-900"
-                  title={icon.label}
+                  onClick={() => {
+                    // Click-to-add: surfaces the icon at the canvas center.
+                    // Workspace listens at window-level and forwards to the
+                    // canvas's `addIconAtCenter` imperative.
+                    window.dispatchEvent(
+                      new CustomEvent("diagrammatic-add-icon", { detail: { id: icon.id } })
+                    );
+                  }}
+                  className="group/btn flex cursor-pointer flex-col items-center gap-1 rounded border border-transparent p-1.5 hover:border-lime-300/50 hover:bg-zinc-900"
+                  title={`Click to add · drag for placement: ${icon.label}`}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -119,3 +138,4 @@ export function Palette({ icons }: Props) {
     </aside>
   );
 }
+

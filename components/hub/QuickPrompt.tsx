@@ -66,43 +66,43 @@ export function QuickPrompt() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="group relative rounded-2xl bg-white border border-slate-200 shadow-[0_10px_40px_-15px_rgba(124,58,237,0.25)] focus-within:border-violet-400 focus-within:shadow-[0_20px_60px_-15px_rgba(124,58,237,0.4)] transition-all"
+          className="group relative rounded-2xl border border-zinc-200 bg-white shadow-[0_10px_40px_-15px_rgba(15,23,42,0.18)] transition-all focus-within:border-lime-300 focus-within:shadow-[0_20px_60px_-15px_rgba(190,242,100,0.35)]"
         >
-          <div className="flex items-center gap-2 p-2 pl-4">
-            <Sparkles className="w-5 h-5 text-violet-500 shrink-0" />
-            <div className="flex-1 relative h-9">
-              <input
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                className="absolute inset-0 bg-transparent outline-none text-[15px] text-slate-900 placeholder:text-transparent"
-                aria-label="Describe a system"
-              />
-              {!value && (
-                <div className="pointer-events-none absolute inset-0 flex items-center text-[15px] text-slate-400 overflow-hidden">
-                  <AnimatePresence mode="wait">
-                    <motion.span
-                      key={idx}
-                      initial={{ y: 12, opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
-                      exit={{ y: -12, opacity: 0 }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      {ROTATING[idx]}
-                    </motion.span>
-                  </AnimatePresence>
-                </div>
-              )}
+            <div className="flex items-center gap-2 p-2 pl-4">
+              <Sparkles className="h-5 w-5 shrink-0 text-lime-500" />
+              <div className="relative h-9 flex-1">
+                <input
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  className="absolute inset-0 bg-transparent text-[15px] text-zinc-900 outline-none placeholder:text-transparent"
+                  aria-label="Describe a system"
+                />
+                {!value && (
+                  <div className="pointer-events-none absolute inset-0 flex items-center overflow-hidden text-[15px] text-zinc-400">
+                    <AnimatePresence mode="wait">
+                      <motion.span
+                        key={idx}
+                        initial={{ y: 12, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: -12, opacity: 0 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        {ROTATING[idx]}
+                      </motion.span>
+                    </AnimatePresence>
+                  </div>
+                )}
+              </div>
+              <button
+                type="submit"
+                disabled={busy || !value.trim()}
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-lime-300 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                Generate
+              </button>
             </div>
-            <button
-              type="submit"
-              disabled={busy || !value.trim()}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 shadow-md hover:shadow-lg hover:brightness-110 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
-              Generate
-            </button>
-          </div>
-        </motion.div>
+          </motion.div>
 
         <div className="mt-3 flex items-center justify-center gap-1.5 flex-wrap">
           {SUGGESTIONS.map((s) => (
@@ -113,7 +113,7 @@ export function QuickPrompt() {
                 setValue(s);
                 submit(s);
               }}
-              className="px-2.5 py-1 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors cursor-pointer"
+              className="cursor-pointer rounded-md bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900"
             >
               {s}
             </button>

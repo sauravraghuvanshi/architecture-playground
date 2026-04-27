@@ -33,11 +33,15 @@ export interface ArchNode {
   height?: number;
 }
 
+export type ArchEdgeStyle = "solid" | "dashed" | "flow";
+
 export interface ArchEdge {
   id: string;
   source: string;
   target: string;
   label?: string;
+  /** Visual style. `flow` animates a dashed line in the source→target direction. */
+  style?: ArchEdgeStyle;
 }
 
 export interface ArchPayload {
@@ -48,6 +52,8 @@ export interface ArchPayload {
 export interface ArchitectureCanvasHandle {
   /** Drop a service from the palette at canvas-local coords. */
   dropIcon: (icon: IconLite, clientX: number, clientY: number) => void;
+  /** Drop a service at the canvas center (used by click-to-add from palette). */
+  addIconAtCenter: (icon: IconLite) => void;
   /** Get the current graph as a plain JSON payload. */
   serialize: () => ArchPayload;
   /** Force re-hydration from an external payload. */
@@ -60,6 +66,8 @@ export interface ArchitectureCanvasHandle {
   undo: () => void;
   /** Redo a previously undone mutation. */
   redo: () => void;
+  /** Set the visual style on every edge in the graph. */
+  setAllEdgeStyle: (style: ArchEdgeStyle) => void;
 }
 
 interface Props {
@@ -79,6 +87,9 @@ export const ArchitectureCanvas = forwardRef<ArchitectureCanvasHandle, Props>(
     const undoManagerRef = useRef<any>(null);
     // Suppress onChange echoes while we're hydrating from the value prop.
     const hydratingRef = useRef(false);
+    // Default style applied to user-drawn edges (connect-drag). Starts as
+    // `flow` so the first edge already animates without any extra click.
+    const defaultEdgeStyleRef = useRef<ArchEdgeStyle>("flow");
 
     // ─── Serialize current graph state to plain JSON ────────────────────
     const serializeGraph = useCallback((): ArchPayload => {
@@ -93,10 +104,12 @@ export const ArchitectureCanvas = forwardRef<ArchitectureCanvasHandle, Props>(
         if (!cell?.id || cell.id === "0" || cell.id === "1") continue;
         if (cell.vertex) {
           const geo = cell.geometry;
-          const meta = cell.value && typeof cell.value === "object" ? cell.value : {};
+          // Cell value is the label string. Icon metadata lives on cell.dgMeta.
+          const meta = (cell as any).dgMeta ?? {};
+          const labelStr = typeof cell.value === "string" ? cell.value : meta.label ?? "";
           nodes.push({
             id: cell.id,
-            label: meta.label ?? "",
+            label: labelStr,
             iconId: meta.iconId ?? "",
             iconPath: meta.iconPath ?? "",
             x: geo?.x ?? 0,
@@ -111,6 +124,7 @@ export const ArchitectureCanvas = forwardRef<ArchitectureCanvasHandle, Props>(
             source: cell.source?.id ?? "",
             target: cell.target?.id ?? "",
             label: labelVal,
+            style: ((cell as any).dgEdgeStyle as ArchEdgeStyle | undefined) ?? "solid",
           });
         }
       }
@@ -139,27 +153,33 @@ export const ArchitectureCanvas = forwardRef<ArchitectureCanvasHandle, Props>(
             const v = graph.insertVertex({
               parent,
               id: n.id,
-              value: { label: n.label, iconId: n.iconId, iconPath: n.iconPath },
+              value: n.label ?? "",
               position: [n.x, n.y],
               size: [n.width ?? NODE_W, n.height ?? NODE_H],
-              style: nodeStyle(n.iconPath, n.label),
+              style: nodeStyle(n.iconPath),
             });
+            (v as any).dgMeta = { label: n.label, iconId: n.iconId, iconPath: n.iconPath };
             idMap.set(n.id, v);
           }
           for (const e of payload.edges) {
             const s = idMap.get(e.source);
             const t = idMap.get(e.target);
             if (!s || !t) continue;
-            graph.insertEdge({
+            const style: ArchEdgeStyle = e.style ?? "solid";
+            const cell = graph.insertEdge({
               parent,
               id: e.id,
               source: s,
               target: t,
               value: e.label ?? "",
-              style: edgeStyle(),
+              style: edgeStyle(style),
             });
+            (cell as any).dgEdgeStyle = style;
           }
         });
+        // Apply CSS animation classes for flow-styled edges (after batch commit
+        // so the DOM is in place).
+        requestAnimationFrame(() => applyEdgeFlowClasses(graph));
       } finally {
         hydratingRef.current = false;
       }
@@ -180,17 +200,24 @@ export const ArchitectureCanvas = forwardRef<ArchitectureCanvasHandle, Props>(
           // Convert client (page) coords to graph coords.
           const x = (clientX - rect.left) / scale - tx.x - NODE_W / 2;
           const y = (clientY - rect.top) / scale - tx.y - NODE_H / 2;
-          const id = `n_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
-          graph.batchUpdate(() => {
-            graph.insertVertex({
-              parent: graph.getDefaultParent(),
-              id,
-              value: { label: icon.label, iconId: icon.id, iconPath: icon.path },
-              position: [x, y],
-              size: [NODE_W, NODE_H],
-              style: nodeStyle(icon.path, icon.label),
-            });
-          });
+          insertIconAt(graph, icon, x, y);
+        },
+        addIconAtCenter: (icon) => {
+          const graph = graphRef.current;
+          const container = containerRef.current;
+          if (!graph || !container) return;
+          const rect = container.getBoundingClientRect();
+          const view = graph.getView();
+          const scale = view.getScale();
+          const tx = view.getTranslate();
+          // Place at the visible viewport center, with a small jitter so
+          // multiple clicks don't perfectly overlap.
+          const cx = rect.width / 2;
+          const cy = rect.height / 2;
+          const jitter = (Math.random() - 0.5) * 60;
+          const x = cx / scale - tx.x - NODE_W / 2 + jitter;
+          const y = cy / scale - tx.y - NODE_H / 2 + jitter;
+          insertIconAt(graph, icon, x, y);
         },
         serialize: serializeGraph,
         hydrate: hydrateGraph,
@@ -203,6 +230,23 @@ export const ArchitectureCanvas = forwardRef<ArchitectureCanvasHandle, Props>(
         },
         undo: () => undoManagerRef.current?.undo?.(),
         redo: () => undoManagerRef.current?.redo?.(),
+        setAllEdgeStyle: (style) => {
+          const g = graphRef.current;
+          if (!g) return;
+          defaultEdgeStyleRef.current = style;
+          const model = g.getDataModel();
+          const cells = model.cells ?? {};
+          g.batchUpdate(() => {
+            for (const id of Object.keys(cells)) {
+              const cell = cells[id];
+              if (!cell?.edge) continue;
+              const styleStr = stringifyStyle(edgeStyle(style));
+              model.setStyle(cell, styleStr);
+              (cell as any).dgEdgeStyle = style;
+            }
+          });
+          requestAnimationFrame(() => applyEdgeFlowClasses(g));
+        },
       }),
       [serializeGraph, hydrateGraph]
     );
@@ -245,28 +289,37 @@ export const ArchitectureCanvas = forwardRef<ArchitectureCanvasHandle, Props>(
         graph.getView().addListener(InternalEvent.UNDO, undoListener);
         undoManagerRef.current = undoManager;
 
-        // Custom HTML rendering for vertex labels: icon on top, label below.
-        // maxGraph supports HTML labels which we exploit to render the SVG.
-        graph.convertValueToString = (cell: any) => {
-          if (!cell?.vertex) return cell?.value ?? "";
-          const v = cell.value;
-          if (v && typeof v === "object" && v.iconPath) {
-            const safe = String(v.label ?? "").replace(/[<>&]/g, (c: string) =>
-              ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" } as Record<string, string>)[c]
-            );
-            return `
-              <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:4px;padding:6px;text-align:center;">
-                <img src="${v.iconPath}" alt="" style="width:56px;height:56px;object-fit:contain;pointer-events:none;" draggable="false" />
-                <div style="font-size:11px;line-height:1.2;color:#e4e4e7;font-weight:500;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${safe}</div>
-              </div>`;
-          }
-          return v?.label ?? "";
-        };
+        // Custom HTML rendering for vertex labels: maxGraph natively handles
+        // image+label via the `image` style + `verticalAlign: 'bottom'` combo
+        // so we no longer override convertValueToString. Cell value = label.
 
         // Echo every committed change back up to React state.
         graph.getDataModel().addListener(InternalEvent.CHANGE, () => {
           if (hydratingRef.current) return;
+          // Apply the current default style to any newly-added edge that
+          // doesn't yet carry a dgEdgeStyle marker (i.e. user-drawn via
+          // connect-drag). This is what makes user-drawn edges animate too.
+          try {
+            const model = graph.getDataModel();
+            const cells = model.cells ?? {};
+            const defaultStyle = defaultEdgeStyleRef.current;
+            graph.batchUpdate(() => {
+              for (const id of Object.keys(cells)) {
+                const cell = cells[id];
+                if (!cell?.edge) continue;
+                if ((cell as any).dgEdgeStyle) continue;
+                const styleStr = stringifyStyle(edgeStyle(defaultStyle));
+                model.setStyle(cell, styleStr);
+                (cell as any).dgEdgeStyle = defaultStyle;
+              }
+            });
+          } catch {
+            /* swallow; render path is best-effort */
+          }
           onChange(serializeGraph());
+          // New edges may have just been styled — ensure the CSS class for
+          // flow animation is reapplied to the freshly-rendered SVG paths.
+          requestAnimationFrame(() => applyEdgeFlowClasses(graph));
         });
 
         // Suppress browser context menu so right-click is available for us later.
@@ -358,34 +411,101 @@ export const ArchitectureCanvas = forwardRef<ArchitectureCanvasHandle, Props>(
 );
 
 // ─── Style helpers ────────────────────────────────────────────────────
-function nodeStyle(_iconPath: string, _label: string): Record<string, unknown> {
+function nodeStyle(iconPath: string): Record<string, unknown> {
+  // Native maxGraph rendering: the cell is a rounded rectangle with the icon
+  // image drawn inside (top-aligned) and the label rendered at the bottom.
+  // No HTML override — labels render reliably regardless of value coercion.
   return {
     shape: "rectangle",
     fillColor: "#18181b",        // zinc-900
     strokeColor: "#3f3f46",       // zinc-700
     strokeWidth: 1,
-    rounded: true,
-    arcSize: 12,
+    rounded: 1,
+    arcSize: 14,
+    image: iconPath,
+    imageWidth: 56,
+    imageHeight: 56,
+    imageAlign: "center",
+    imageVerticalAlign: "top",
+    verticalAlign: "bottom",      // label sits below the icon
+    align: "center",
+    spacingTop: 6,
+    spacingBottom: 8,
     fontColor: "#e4e4e7",
     fontSize: 11,
-    verticalAlign: "middle",
-    align: "center",
-    spacing: 6,
-    html: 1,
+    fontStyle: 0,
     whiteSpace: "wrap",
-    overflow: "hidden",
+    overflow: "visible",
   };
 }
 
-function edgeStyle(): Record<string, unknown> {
-  return {
-    strokeColor: "#71717a",       // zinc-500
-    strokeWidth: 1.5,
+function edgeStyle(style: ArchEdgeStyle = "solid"): Record<string, unknown> {
+  const base: Record<string, unknown> = {
+    strokeColor: "#a1a1aa",       // zinc-400 — readable on dark canvas
+    strokeWidth: 1.6,
     endArrow: "classic",
     endSize: 8,
     rounded: true,
     edgeStyle: "orthogonalEdgeStyle",
-    fontColor: "#a1a1aa",
+    fontColor: "#d4d4d8",
     fontSize: 10,
   };
+  if (style === "dashed") {
+    base.dashed = 1;
+    base.dashPattern = "6 4";
+  } else if (style === "flow") {
+    base.dashed = 1;
+    base.dashPattern = "8 4";
+    base.strokeColor = "#bef264"; // lime-300 — pops on dark, matches accent
+    base.strokeWidth = 2;
+  }
+  return base;
+}
+
+/** Stringify a maxGraph style object the way the engine expects via setStyle. */
+function stringifyStyle(s: Record<string, unknown>): string {
+  return Object.entries(s)
+    .map(([k, v]) => `${k}=${v}`)
+    .join(";");
+}
+
+/**
+ * Insert a vertex carrying icon metadata. Shared by drag-drop and click-to-add.
+ */
+function insertIconAt(graph: any, icon: IconLite, x: number, y: number): void {
+  const id = `n_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+  graph.batchUpdate(() => {
+    const v = graph.insertVertex({
+      parent: graph.getDefaultParent(),
+      id,
+      value: icon.label,
+      position: [x, y],
+      size: [NODE_W, NODE_H],
+      style: nodeStyle(icon.path),
+    });
+    (v as any).dgMeta = { label: icon.label, iconId: icon.id, iconPath: icon.path };
+  });
+}
+
+/**
+ * Walk the rendered SVG and toggle the `dg-flow` class on edge paths so the
+ * global CSS animation kicks in. Idempotent — safe to call after every change.
+ */
+function applyEdgeFlowClasses(graph: any): void {
+  try {
+    const model = graph.getDataModel();
+    const cells = model.cells ?? {};
+    for (const id of Object.keys(cells)) {
+      const cell = cells[id];
+      if (!cell?.edge) continue;
+      const state = graph.getView().getState(cell);
+      const node: SVGElement | undefined = state?.shape?.node;
+      if (!node) continue;
+      const wantsFlow = (cell as any).dgEdgeStyle === "flow";
+      if (wantsFlow) node.classList.add("dg-flow");
+      else node.classList.remove("dg-flow");
+    }
+  } catch {
+    /* ignore — DOM may not yet be ready */
+  }
 }

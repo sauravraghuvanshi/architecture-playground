@@ -8,6 +8,7 @@
  */
 import fs from "node:fs/promises";
 import path from "node:path";
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Workspace } from "@/components/diagrammatic/Workspace";
 import type { IconLite } from "@/components/diagrammatic/shared/types";
@@ -49,5 +50,9 @@ async function loadIcons(): Promise<IconLite[]> {
 
 export default async function DiagrammaticPage() {
   const icons = await loadIcons();
-  return <Workspace icons={icons} />;
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center bg-zinc-950 text-sm text-zinc-500">Loading workspace…</div>}>
+      <Workspace icons={icons} />
+    </Suspense>
+  );
 }

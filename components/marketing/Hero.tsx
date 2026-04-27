@@ -1,148 +1,170 @@
+/**
+ * Dark editorial hero — distinct from Cloudairy's pastel/glass aesthetic.
+ *
+ * What's gone (vs. the previous version):
+ *   - Violet→fuchsia→orange gradient on the title and CTA
+ *   - Pastel glow blobs in the background
+ *   - "Stats" row (numbers were padding, not real)
+ *   - References to replacing Lucid/Miro (marketing fiction, removed)
+ *
+ * What's here now:
+ *   - Near-black canvas, large editorial italic display H1
+ *   - Lime accent on the only colored interactive element
+ *   - Prompt input that submits to /diagrammatic?prompt=… (real generation)
+ */
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Sparkles, Play } from "lucide-react";
-import { BRAND, HERO_PROMPTS, HERO_CHIPS, STATS } from "./copy";
+import { ArrowRight, Sparkles, Github } from "lucide-react";
+import { BRAND, HERO_PROMPTS, HERO_CHIPS } from "./copy";
 
 export function Hero() {
+  const router = useRouter();
   const [idx, setIdx] = useState(0);
+  const [value, setValue] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const t = setInterval(() => setIdx((i) => (i + 1) % HERO_PROMPTS.length), 2800);
+    const t = setInterval(() => setIdx((i) => (i + 1) % HERO_PROMPTS.length), 3000);
     return () => clearInterval(t);
   }, []);
 
+  const submit = (text: string) => {
+    if (!text.trim()) return;
+    router.push(`/diagrammatic?prompt=${encodeURIComponent(text.trim())}`);
+  };
+
   return (
-    <section className="relative pt-36 pb-20 overflow-hidden">
-      {/* Decorative gradient blobs */}
-      <div aria-hidden className="absolute inset-0 -z-10">
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[1100px] h-[1100px] rounded-full bg-gradient-to-tr from-violet-200/50 via-fuchsia-200/40 to-orange-100/30 blur-3xl" />
-        <div className="absolute top-10 left-10 w-72 h-72 rounded-full bg-violet-300/30 blur-3xl" />
-        <div className="absolute top-32 right-10 w-72 h-72 rounded-full bg-fuchsia-300/30 blur-3xl" />
-      </div>
+    <section className="relative overflow-hidden bg-zinc-950 pt-32 pb-24 text-zinc-50">
       <div
         aria-hidden
-        className="absolute inset-0 -z-10 bg-[linear-gradient(to_right,rgba(15,23,42,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,0.04)_1px,transparent_1px)] bg-[size:48px_48px] [mask-image:radial-gradient(ellipse_at_center,black_40%,transparent_75%)]"
+        className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(190,242,100,0.08),transparent_55%)]"
+      />
+      <div
+        aria-hidden
+        className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:64px_64px] [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_70%)]"
       />
 
-      <div className="mx-auto max-w-6xl px-6 text-center">
+      <div className="relative mx-auto max-w-5xl px-6 text-center">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-violet-200 bg-violet-50 text-violet-700 text-xs font-semibold mb-6"
+          transition={{ duration: 0.5 }}
+          className="inline-flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900/60 px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-zinc-400 backdrop-blur"
         >
-          <Sparkles className="w-3.5 h-3.5" />
-          Open-source · MIT / Apache-2.0 · Built on maxGraph
+          <span className="h-1.5 w-1.5 rounded-full bg-lime-300" />
+          Open source · MIT &amp; Apache-2.0 · maxGraph engine
         </motion.div>
 
         <motion.h1
-          initial={{ opacity: 0, y: 24 }}
+          initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.05 }}
-          className="text-5xl md:text-7xl font-black tracking-tight text-slate-900 leading-[1.05]"
+          className="mt-8 text-balance text-5xl font-semibold leading-[1.04] tracking-tight md:text-7xl"
         >
-          Design any system.
+          An open architect&apos;s canvas.
           <br />
-          <span className="bg-gradient-to-r from-violet-600 via-fuchsia-600 to-orange-500 bg-clip-text text-transparent">
-            With words. With AI.
-          </span>
+          <span className="italic text-zinc-400">Type a system,</span>
+          <span className="text-lime-300"> watch it draw itself.</span>
         </motion.h1>
 
         <motion.p
-          initial={{ opacity: 0, y: 16 }}
+          initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.15 }}
-          className="mt-6 text-lg md:text-xl text-slate-600 max-w-2xl mx-auto"
+          className="mx-auto mt-6 max-w-2xl text-balance text-base text-zinc-400 md:text-lg"
         >
-          {BRAND.name} is the AI-native canvas for cloud architecture, flowcharts,
-          mind maps, ER, UML, sequence diagrams and whiteboarding — in one tab.
+          {BRAND.name} is a single canvas for cloud architecture today, with mind maps,
+          flowcharts, sequences, ER, UML, whiteboarding and Kanban arriving phase by
+          phase. No sign-in. Drafts stay in your browser.
         </motion.p>
 
-        {/* Prompt input */}
-        <motion.div
-          initial={{ opacity: 0, y: 24, scale: 0.97 }}
+        <motion.form
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit(value);
+          }}
+          initial={{ opacity: 0, y: 16, scale: 0.97 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.7, delay: 0.25 }}
-          className="mt-10 max-w-2xl mx-auto"
+          className="mx-auto mt-12 max-w-2xl"
         >
-          <div className="group relative rounded-2xl bg-white border border-slate-200 shadow-[0_20px_50px_-20px_rgba(124,58,237,0.35)] hover:shadow-[0_30px_70px_-20px_rgba(124,58,237,0.45)] transition-shadow">
-            <div className="flex items-center gap-3 p-3 pl-5">
-              <Sparkles className="w-5 h-5 text-violet-500 shrink-0" />
-              <div className="flex-1 text-left h-7 overflow-hidden relative">
-                <AnimatePresence mode="wait">
-                  <motion.span
-                    key={idx}
-                    initial={{ y: 14, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: -14, opacity: 0 }}
-                    transition={{ duration: 0.35 }}
-                    className="absolute inset-0 text-slate-500"
-                  >
-                    {HERO_PROMPTS[idx]}
-                  </motion.span>
-                </AnimatePresence>
+          <div className="group relative rounded-2xl border border-zinc-800 bg-zinc-900/80 backdrop-blur transition focus-within:border-lime-300/60">
+            <div className="flex items-center gap-3 p-2.5 pl-4">
+              <Sparkles className="h-4 w-4 shrink-0 text-lime-300" />
+              <div className="relative h-9 flex-1 text-left">
+                <input
+                  ref={inputRef}
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  className="absolute inset-0 bg-transparent text-[15px] text-zinc-100 outline-none placeholder:text-transparent"
+                  aria-label="Describe a system"
+                />
+                {!value && (
+                  <div className="pointer-events-none absolute inset-0 flex items-center overflow-hidden text-[15px] text-zinc-500">
+                    <AnimatePresence mode="wait">
+                      <motion.span
+                        key={idx}
+                        initial={{ y: 12, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: -12, opacity: 0 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        {HERO_PROMPTS[idx]}
+                      </motion.span>
+                    </AnimatePresence>
+                  </div>
+                )}
               </div>
-              <Link
-                href="/diagrammatic"
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 shadow-md hover:shadow-lg hover:brightness-110 transition-all cursor-pointer"
+              <button
+                type="submit"
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-lime-300 px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-lime-200"
               >
                 Generate
-                <ArrowRight className="w-4 h-4" />
-              </Link>
+                <ArrowRight className="h-4 w-4" />
+              </button>
             </div>
-            <div className="flex flex-wrap items-center gap-1.5 px-4 pb-3 pt-1 border-t border-slate-100">
+            <div className="flex flex-wrap items-center gap-1.5 border-t border-zinc-800 px-3 pt-2 pb-2.5">
               {HERO_CHIPS.map((chip) => (
                 <button
                   key={chip}
                   type="button"
-                  className="px-2.5 py-1 text-xs font-medium text-slate-600 rounded-md hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer"
+                  onClick={() => {
+                    setValue(chip);
+                    submit(chip);
+                  }}
+                  className="cursor-pointer rounded-md px-2 py-1 text-xs text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
                 >
                   {chip}
                 </button>
               ))}
             </div>
           </div>
-        </motion.div>
+        </motion.form>
 
-        {/* CTAs */}
         <motion.div
-          initial={{ opacity: 0, y: 16 }}
+          initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.4 }}
-          className="mt-8 flex items-center justify-center gap-3 flex-wrap"
+          className="mt-8 flex flex-wrap items-center justify-center gap-3"
         >
           <Link
             href="/diagrammatic"
-            className="inline-flex items-center gap-2 px-5 py-3 text-sm font-semibold text-white rounded-xl bg-slate-900 hover:bg-slate-800 transition-colors cursor-pointer"
+            className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-5 py-2.5 text-sm font-semibold text-zinc-100 transition hover:bg-zinc-800 cursor-pointer"
           >
             Open the canvas
-            <ArrowRight className="w-4 h-4" />
+            <ArrowRight className="h-4 w-4" />
           </Link>
           <Link
-            href="#tools"
-            className="inline-flex items-center gap-2 px-5 py-3 text-sm font-semibold text-slate-700 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer"
+            href="https://github.com/sauravraghuvanshi/architecture-playground"
+            className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium text-zinc-400 transition hover:text-zinc-100 cursor-pointer"
           >
-            <Play className="w-4 h-4" />
-            See how it works
+            <Github className="h-4 w-4" />
+            View source
           </Link>
-        </motion.div>
-
-        {/* Stats */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.55 }}
-          className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-6"
-        >
-          {STATS.map((s) => (
-            <div key={s.label} className="text-center">
-              <div className="text-2xl md:text-3xl font-black text-slate-900">{s.value}</div>
-              <div className="mt-1 text-xs uppercase tracking-wider text-slate-500 font-semibold">{s.label}</div>
-            </div>
-          ))}
         </motion.div>
       </div>
     </section>

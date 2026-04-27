@@ -7,38 +7,46 @@ import { BRAND, FOOTER_LINKS } from "./copy";
 
 export function FinalCTA() {
   return (
-    <section className="py-24 bg-white">
+    <section className="bg-zinc-950 py-24">
       <div className="mx-auto max-w-5xl px-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
-          className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 via-fuchsia-600 to-orange-500 p-12 md:p-16 text-center text-white shadow-[0_40px_100px_-20px_rgba(168,85,247,0.5)]"
+          className="relative overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900 p-12 text-center md:p-16"
         >
-          <div aria-hidden className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.08)_1px,transparent_1px)] bg-[size:32px_32px] [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_70%)]" />
-          <h2 className="relative text-4xl md:text-6xl font-black tracking-tight">
+          <div
+            aria-hidden
+            className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(190,242,100,0.10),transparent_60%)]"
+          />
+          <div
+            aria-hidden
+            className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:32px_32px] [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_70%)]"
+          />
+          <h2 className="relative text-balance text-4xl font-semibold tracking-tight text-zinc-50 md:text-6xl">
             Ship the diagram.
             <br />
-            Not the meeting.
+            <span className="italic text-zinc-400">Not the meeting.</span>
           </h2>
-          <p className="relative mt-4 text-lg text-white/90 max-w-xl mx-auto">
-            Open the canvas. Drop a prompt. Export to your wiki by lunch.
+          <p className="relative mx-auto mt-4 max-w-xl text-base text-zinc-400">
+            Open the canvas. Drop a prompt. Sketch the architecture. No sign-in,
+            no paywall, drafts stay in your browser.
           </p>
-          <div className="relative mt-8 flex items-center justify-center gap-3 flex-wrap">
+          <div className="relative mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/diagrammatic"
-              className="inline-flex items-center gap-1.5 px-6 py-3 text-sm font-semibold text-slate-900 rounded-xl bg-white hover:bg-slate-100 transition-colors cursor-pointer"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-lime-300 px-6 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-lime-200"
             >
               Open the canvas
-              <ArrowRight className="w-4 h-4" />
+              <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
               href="https://github.com/sauravraghuvanshi/architecture-playground"
-              className="inline-flex items-center gap-1.5 px-6 py-3 text-sm font-semibold text-white rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur border border-white/20 transition-colors cursor-pointer"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-950 px-6 py-3 text-sm font-semibold text-zinc-200 transition hover:bg-zinc-800"
             >
-              <Github className="w-4 h-4" />
-              Star on GitHub
+              <Github className="h-4 w-4" />
+              View source
             </Link>
           </div>
         </motion.div>
@@ -49,24 +57,22 @@ export function FinalCTA() {
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-slate-200 bg-slate-50 py-16">
+    <footer className="border-t border-zinc-900 bg-zinc-950 py-16">
       <div className="mx-auto max-w-6xl px-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+        <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
           <div className="col-span-2 md:col-span-1">
-            <Link href="/" className="flex items-center gap-2 cursor-pointer">
-              <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-violet-500 via-fuchsia-500 to-orange-500 text-white text-sm font-black shadow-md">
+            <Link href="/" className="flex cursor-pointer items-center gap-2">
+              <span className="grid h-8 w-8 place-items-center rounded-lg border border-zinc-800 bg-zinc-900 text-sm font-black text-lime-300">
                 ◆
               </span>
-              <span className="font-bold text-slate-900 tracking-tight">{BRAND.name}</span>
+              <span className="font-semibold tracking-tight text-zinc-100">{BRAND.name}</span>
             </Link>
-            <p className="mt-4 text-sm text-slate-600 leading-relaxed">
-              {BRAND.tagline}
-            </p>
+            <p className="mt-4 text-sm leading-relaxed text-zinc-500">{BRAND.tagline}</p>
           </div>
 
           {Object.entries(FOOTER_LINKS).map(([heading, links]) => (
             <div key={heading}>
-              <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">
+              <h4 className="mb-4 text-xs font-bold uppercase tracking-widest text-zinc-500">
                 {heading}
               </h4>
               <ul className="space-y-2.5">
@@ -74,7 +80,7 @@ export function SiteFooter() {
                   <li key={link.href}>
                     <Link
                       href={link.href}
-                      className="text-sm text-slate-700 hover:text-violet-700 transition-colors cursor-pointer"
+                      className="cursor-pointer text-sm text-zinc-400 transition-colors hover:text-lime-300"
                     >
                       {link.label}
                     </Link>
@@ -85,19 +91,17 @@ export function SiteFooter() {
           ))}
         </div>
 
-        <div className="mt-12 pt-8 border-t border-slate-200 flex items-center justify-between flex-wrap gap-4">
-          <p className="text-xs text-slate-500">
+        <div className="mt-12 flex flex-wrap items-center justify-between gap-4 border-t border-zinc-900 pt-8">
+          <p className="text-xs text-zinc-500">
             © {new Date().getFullYear()} {BRAND.name}. Open source under MIT &amp; Apache-2.0.
           </p>
-          <div className="flex items-center gap-4">
-            <Link
-              href="https://github.com/sauravraghuvanshi/architecture-playground"
-              className="text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
-              aria-label="GitHub"
-            >
-              <Github className="w-4 h-4" />
-            </Link>
-          </div>
+          <Link
+            href="https://github.com/sauravraghuvanshi/architecture-playground"
+            className="cursor-pointer text-zinc-500 transition-colors hover:text-zinc-200"
+            aria-label="GitHub"
+          >
+            <Github className="h-4 w-4" />
+          </Link>
         </div>
       </div>
     </footer>

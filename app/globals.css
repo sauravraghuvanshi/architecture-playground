@@ -41,3 +41,21 @@ body {
 .dark .react-flow__container {
   background: var(--color-brand-950);
 }
+
+/* ─── Diagrammatic: animated edge flow ─────────────────────────────────
+   maxGraph paints edges as <path> elements inside a wrapping <g>. We mark
+   flow-styled edges with `dg-flow` (see ArchitectureCanvas.applyEdgeFlowClasses)
+   then animate stroke-dashoffset to give the dashed line a steady "flow"
+   like the AI-Gateway sample. */
+.dg-flow path {
+  animation: dg-edge-flow 1.1s linear infinite;
+  stroke-linecap: round;
+}
+
+@keyframes dg-edge-flow {
+  to { stroke-dashoffset: -24; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dg-flow path { animation: none; }
+}
