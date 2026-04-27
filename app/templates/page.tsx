@@ -50,8 +50,8 @@ export default async function TemplatesPage() {
             <Link href="/templates" className="font-medium text-zinc-900 dark:text-zinc-100">
               Templates
             </Link>
-            <Link href="/dashboard" className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100">
-              Dashboard
+            <Link href="/diagrammatic" className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100">
+              Canvas
             </Link>
           </nav>
         </div>

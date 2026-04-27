@@ -56,7 +56,7 @@ export function Hero() {
           className="inline-flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900/60 px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-zinc-400 backdrop-blur"
         >
           <span className="h-1.5 w-1.5 rounded-full bg-lime-300" />
-          Open source · MIT &amp; Apache-2.0 · maxGraph engine
+          Open source · MIT · React Flow engine
         </motion.div>
 
         <motion.h1

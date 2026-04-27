@@ -172,7 +172,7 @@ export const CAPABILITIES: Capability[] = [
 ];
 
 export const ROADMAP = [
-  { phase: "Now", items: ["Architecture mode (maxGraph)", "Animated edges", "Heuristic prompt → graph", "Click & drag placement", "localStorage drafts"] },
+  { phase: "Now", items: ["Architecture mode (React Flow)", "Animated edges", "Heuristic prompt → graph", "Click & drag placement", "localStorage drafts"] },
   { phase: "Next", items: ["Inspector property editing", "Real LLM generation (Azure OpenAI)", "PNG / SVG / JSON export", "Template hydration"] },
   { phase: "Then", items: ["Sequence diagram mode + GIF recorder", "Whiteboard mode (Excalidraw)", "Mind map mode (radial)", "Flowchart mode (BPMN)"] },
   { phase: "Later", items: ["ER + UML modes", "Kanban", "Image-to-diagram", "Code-to-diagram"] },

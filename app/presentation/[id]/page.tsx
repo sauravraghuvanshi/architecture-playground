@@ -55,7 +55,7 @@ export default function PresentationPage({ params }: Props) {
         e.preventDefault();
         setStep((s) => Math.max(0, s - 1));
       } else if (e.key === "Escape") {
-        router.push("/dashboard");
+        router.push("/");
       }
     }
     window.addEventListener("keydown", onKey);
