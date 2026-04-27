@@ -15,6 +15,22 @@ import {
 
 export const TEMPLATE_HANDOFF_KEY = "architecture-playground:template-handoff";
 
+// Mode chips — clicking a non-architecture chip jumps to the workspace where
+// per-mode starter templates live in the in-canvas Templates dropdown. We
+// intentionally don't duplicate them here (they have heterogeneous payload
+// shapes that the architecture-shaped gallery cards can't render).
+const MODE_CHIPS = [
+  { id: "architecture", label: "Architecture", icon: "🏛" },
+  { id: "flowchart", label: "Flowchart", icon: "🔀" },
+  { id: "mindmap", label: "Mind Map", icon: "🌳" },
+  { id: "sequence", label: "Sequence", icon: "📨" },
+  { id: "er", label: "ER", icon: "🗄" },
+  { id: "uml", label: "UML", icon: "📐" },
+  { id: "c4", label: "C4", icon: "🧱" },
+  { id: "kanban", label: "Kanban", icon: "🗂" },
+  { id: "whiteboard", label: "Whiteboard", icon: "🖍" },
+] as const;
+
 interface Props {
   templates: ParameterizedTemplate[];
 }
@@ -25,8 +41,14 @@ export function TemplateGalleryClient({ templates }: Props) {
   const [provider, setProvider] = useState<string>("all");
   const [category, setCategory] = useState<string>("all");
   const [difficulty, setDifficulty] = useState<string>("all");
+  const [activeMode, setActiveMode] = useState<string>("architecture");
   const [active, setActive] = useState<ParameterizedTemplate | null>(null);
   const [paramValues, setParamValues] = useState<Record<string, ParameterValue>>({});
+
+  function jumpToMode(modeId: string) {
+    if (modeId === "architecture") return;
+    router.push(`/diagrammatic?mode=${encodeURIComponent(modeId)}`);
+  }
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -70,6 +92,36 @@ export function TemplateGalleryClient({ templates }: Props) {
 
   return (
     <>
+      {/* Mode chip strip — architecture stays here, other modes deep-link
+          into the workspace where their per-mode templates surface in the
+          in-canvas Templates dropdown. */}
+      <div className="mb-5 flex flex-wrap items-center gap-1.5">
+        {MODE_CHIPS.map((m) => {
+          const isActive = activeMode === m.id;
+          return (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => {
+                setActiveMode(m.id);
+                jumpToMode(m.id);
+              }}
+              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition ${
+                isActive
+                  ? "border-lime-300/50 bg-lime-300/15 text-lime-200"
+                  : "border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
+              }`}
+            >
+              <span aria-hidden>{m.icon}</span>
+              {m.label}
+              {m.id !== "architecture" && (
+                <span className="text-[9px] uppercase tracking-wide text-zinc-500">↗</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <input
           type="search"

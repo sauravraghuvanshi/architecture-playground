@@ -6,7 +6,7 @@
 "use client";
 
 import { useState } from "react";
-import { Undo2, Redo2, Maximize2, Trash2, Activity, Save, Loader2, Check, LayoutGrid, Play, Square, ChevronDown, Download, FolderOpen } from "lucide-react";
+import { Undo2, Redo2, Maximize2, Trash2, Activity, Save, Loader2, Check, LayoutGrid, Play, Square, ChevronDown, Download, FolderOpen, Sparkles } from "lucide-react";
 
 const TIERS = ["Edge", "Frontend", "Gateway", "Compute", "Messaging", "Data", "Ops", "Custom"] as const;
 const EXPORT_FORMATS = [
@@ -47,6 +47,10 @@ interface Props {
    *  dropdown that calls onApplyTemplate(id) on selection. */
   templates?: Array<{ id: string; name: string; description?: string }>;
   onApplyTemplate?: (id: string) => void;
+  /** Open the AI prompt modal (Phase 5 — per-mode generate). */
+  onAiAssist?: () => void;
+  /** Disables the AI button + shows a tooltip when AI env vars are absent. */
+  aiDisabledReason?: string;
   saving?: boolean;
   saved?: boolean;
 }
@@ -69,6 +73,8 @@ export function Toolbar({
   hideRasterExports,
   templates,
   onApplyTemplate,
+  onAiAssist,
+  aiDisabledReason,
   saving,
   saved,
 }: Props) {
@@ -148,6 +154,19 @@ export function Toolbar({
           >
             <Activity className="h-3.5 w-3.5" />
             {edgeStyle}
+          </button>
+        )}
+        {onAiAssist && (
+          <button
+            type="button"
+            onClick={onAiAssist}
+            disabled={!!aiDisabledReason}
+            title={aiDisabledReason ?? "Generate from a prompt with AI"}
+            aria-label="AI Assist"
+            className="flex cursor-pointer items-center gap-1 rounded-md bg-violet-500/15 px-2 py-1 text-[11px] font-medium text-violet-200 transition hover:bg-violet-500/25 hover:text-violet-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            AI
           </button>
         )}
         {templates && templates.length > 0 && onApplyTemplate && (

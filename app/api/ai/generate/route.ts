@@ -1,48 +1,42 @@
 /**
  * POST /api/ai/generate
- *   { prompt: string }
- *   → { graph: PlaygroundGraph }
+ *   { prompt: string, mode?: "architecture"|"flowchart"|"mindmap"|"sequence"|"er"|"uml"|"c4"|"kanban" }
+ *   → { graph: <mode-specific payload> }
  *
- * Generates a starter diagram from a natural-language prompt. The model is
- * instructed to return strict JSON matching the PlaygroundGraph shape. The
- * response is then JSON-parsed and lightly validated. If parsing fails or
- * the AI is not configured, returns a structured error.
+ * When `mode` is omitted (or "architecture"), returns a PlaygroundGraph
+ * (legacy shape) so the architecture canvas's existing prompt path keeps
+ * working. For any other mode, returns the mode's native payload shape;
+ * the workspace hydrates its canvas directly from `graph`.
  */
 import { NextResponse } from "next/server";
 import { chatComplete, aiConfigured } from "@/lib/ai";
+import { aiRateLimit } from "@/lib/ai-rate-limit";
+import { MODE_PROMPTS, validateModeOutput, type AiMode } from "@/lib/ai-mode-prompts";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const SYSTEM_PROMPT = `You are an expert cloud architect. Convert the user's
-description into a JSON object with this exact shape:
-
-{
-  "metadata": { "name": "<short title>", "description": "<one sentence>" },
-  "nodes": [
-    { "id": "<unique>", "type": "service",
-      "position": { "x": <number>, "y": <number> },
-      "data": { "iconId": "<provider>/<category>/<slug>", "label": "<name>", "cloud": "azure"|"aws"|"gcp" } }
-  ],
-  "edges": [
-    { "id": "<unique>", "source": "<nodeId>", "target": "<nodeId>",
-      "data": { "label": "<short>", "connectionType": "data-flow", "lineStyle": "solid", "arrowStyle": "forward" } }
-  ]
-}
-
-Rules:
-- Use realistic iconIds like "azure/compute/app-service", "azure/databases/sql-database", "aws/compute/lambda", "gcp/compute/cloud-functions". Don't invent paths beyond a 3-segment provider/category/slug.
-- Position nodes in a clear left-to-right flow with x spacing of 200 and y rows of 150.
-- Return ONLY valid JSON. No prose, no markdown, no code fences.`;
+const VALID_MODES: AiMode[] = ["architecture", "flowchart", "mindmap", "sequence", "er", "uml", "c4", "kanban"];
 
 export async function POST(req: Request) {
   if (!aiConfigured()) {
     return NextResponse.json({ error: "AI not configured" }, { status: 503 });
   }
+  const rate = aiRateLimit(req);
+  if (!rate.ok) {
+    return NextResponse.json({ error: "Rate limit exceeded", retryAfter: rate.retryAfterSec }, {
+      status: 429,
+      headers: { "Retry-After": String(rate.retryAfterSec) },
+    });
+  }
   let prompt = "";
+  let mode: AiMode = "architecture";
   try {
-    const body = (await req.json()) as { prompt?: string };
+    const body = (await req.json()) as { prompt?: string; mode?: string };
     prompt = (body.prompt || "").trim();
+    if (body.mode && (VALID_MODES as string[]).includes(body.mode)) {
+      mode = body.mode as AiMode;
+    }
   } catch {
     /* empty body */
   }
@@ -56,7 +50,7 @@ export async function POST(req: Request) {
   try {
     const raw = await chatComplete(
       [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: MODE_PROMPTS[mode] },
         { role: "user", content: prompt },
       ],
       { temperature: 0.4, maxTokens: 2000, responseFormat: "json_object" }
@@ -67,11 +61,11 @@ export async function POST(req: Request) {
     } catch {
       return NextResponse.json({ error: "Model returned non-JSON output", raw }, { status: 502 });
     }
-    const graph = parsed as { nodes?: unknown[]; edges?: unknown[] };
-    if (!Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) {
-      return NextResponse.json({ error: "Model output missing nodes/edges arrays" }, { status: 502 });
+    const err = validateModeOutput(mode, parsed);
+    if (err) {
+      return NextResponse.json({ error: `Schema validation: ${err}` }, { status: 502 });
     }
-    return NextResponse.json({ graph: parsed });
+    return NextResponse.json({ graph: parsed, mode });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "AI request failed" },

@@ -31,6 +31,7 @@ import { KeyboardHints } from "./shared/KeyboardHints";
 import { promptToArchitecture } from "@/lib/prompt-to-arch";
 import { MODE_REGISTRY } from "./shared/modeCatalog";
 import type { BaseCanvasHandle } from "./shared/modeRegistry";
+import { AiPromptModal } from "./shared/AiPromptModal";
 
 // Shared with /templates/GalleryClient.tsx
 const TEMPLATE_HANDOFF_KEY = "architecture-playground:template-handoff";
@@ -80,6 +81,8 @@ export function Workspace({
   const [saved, setSaved] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
   const [hintsOpen, setHintsOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiConfigured, setAiConfigured] = useState<boolean | null>(null);
   const [edgeStyle, setEdgeStyle] = useState<ArchEdgeStyle>("flow");
   const canvasRef = useRef<ArchitectureCanvasHandle | null>(null);
   const searchParams = useSearchParams();
@@ -233,6 +236,30 @@ export function Workspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ?mode=<id> on first load — set the mode if URL specifies one. One-shot;
+  // subsequent tab clicks own the mode via setMode.
+  const modeFromUrlApplied = useRef(false);
+  useEffect(() => {
+    if (modeFromUrlApplied.current) return;
+    const m = searchParams?.get("mode");
+    if (m && ["architecture","flowchart","mindmap","sequence","er","uml","c4","kanban","whiteboard"].includes(m)) {
+      modeFromUrlApplied.current = true;
+      setMode(m as DiagrammaticMode);
+    }
+  }, [searchParams]);
+
+  // Probe AI configuration once on mount so the toolbar can disable the AI
+  // button (and surface a tooltip) when env vars are missing — avoids a
+  // round-trip per click.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/ai/status")
+      .then((r) => r.json())
+      .then((j: { configured?: boolean }) => { if (!cancelled) setAiConfigured(!!j.configured); })
+      .catch(() => { if (!cancelled) setAiConfigured(false); });
+    return () => { cancelled = true; };
+  }, []);
+
   const meta = MODE_META[mode];
 
   const [playing, setPlaying] = useState(false);
@@ -350,6 +377,8 @@ export function Workspace({
             localStorage.setItem(`diagrammatic.draft.${mode}`, JSON.stringify({ payload: tpl.payload, savedAt: Date.now() }));
           } catch { /* ignore */ }
         } : undefined}
+        onAiAssist={mode !== "whiteboard" ? () => setAiOpen(true) : undefined}
+        aiDisabledReason={aiConfigured === false ? "AI is not configured. Set Azure OpenAI env vars on the server." : undefined}
         saving={saving}
         saved={saved}
       />
@@ -432,6 +461,32 @@ export function Workspace({
 
       <CommandPalette open={cmdOpen} onOpenChange={setCmdOpen} onAction={handleCommand} />
       <KeyboardHints open={hintsOpen} onClose={() => setHintsOpen(false)} />
+      <AiPromptModal
+        mode={mode}
+        open={aiOpen}
+        onClose={() => setAiOpen(false)}
+        onResult={(graph) => {
+          if (mode === "architecture") {
+            // Architecture API returns a PlaygroundGraph shape; convert.
+            try {
+              const arch = playgroundGraphToArchPayload(graph as PlaygroundLikeGraph);
+              if (arch.nodes.length) {
+                setArchPayload(arch);
+                requestAnimationFrame(() => canvasRef.current?.setAllEdgeStyle(edgeStyle));
+              }
+            } catch {
+              /* ignore malformed graph — modal will not open if API errored */
+            }
+          } else {
+            setOtherPayloads((prev) => ({ ...prev, [mode]: graph }));
+            otherCanvasRef.current?.hydrate(graph);
+            try {
+              localStorage.setItem(`diagrammatic.draft.${mode}`, JSON.stringify({ payload: graph, savedAt: Date.now() }));
+            } catch { /* ignore */ }
+          }
+          setSaved(false);
+        }}
+      />
     </div>
   );
 }
