@@ -6,7 +6,7 @@
 "use client";
 
 import { useState } from "react";
-import { Undo2, Redo2, Maximize2, Trash2, Activity, Save, Loader2, Check, LayoutGrid, Play, Square, ChevronDown, Download } from "lucide-react";
+import { Undo2, Redo2, Maximize2, Trash2, Activity, Save, Loader2, Check, LayoutGrid, Play, Square, ChevronDown, Download, FolderOpen } from "lucide-react";
 
 const TIERS = ["Edge", "Frontend", "Gateway", "Compute", "Messaging", "Data", "Ops", "Custom"] as const;
 const EXPORT_FORMATS = [
@@ -43,6 +43,10 @@ interface Props {
   /** Hide the default raster (PNG/SVG/GIF) export entries — used for modes
    *  whose visuals don't make sense as PNG/GIF (e.g. textual exports only). */
   hideRasterExports?: boolean;
+  /** Mode-specific starter templates. When provided, renders a Templates
+   *  dropdown that calls onApplyTemplate(id) on selection. */
+  templates?: Array<{ id: string; name: string; description?: string }>;
+  onApplyTemplate?: (id: string) => void;
   saving?: boolean;
   saved?: boolean;
 }
@@ -63,11 +67,14 @@ export function Toolbar({
   onExport,
   extraExports,
   hideRasterExports,
+  templates,
+  onApplyTemplate,
   saving,
   saved,
 }: Props) {
   const [tierMenuOpen, setTierMenuOpen] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
   return (
     <header className="flex items-center justify-between border-b border-zinc-800 bg-zinc-950 px-4 py-2 text-sm text-zinc-200">
       <div className="flex items-center gap-3">
@@ -142,6 +149,43 @@ export function Toolbar({
             <Activity className="h-3.5 w-3.5" />
             {edgeStyle}
           </button>
+        )}
+        {templates && templates.length > 0 && onApplyTemplate && (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setTemplatesOpen((o) => !o)}
+              onBlur={() => setTimeout(() => setTemplatesOpen(false), 150)}
+              title="Load a starter template"
+              aria-label="Templates"
+              className="flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+            >
+              <FolderOpen className="h-3.5 w-3.5" />
+              Templates
+              <ChevronDown className="h-3 w-3" />
+            </button>
+            {templatesOpen && (
+              <div className="absolute right-0 z-50 mt-1 w-72 overflow-hidden rounded-md border border-zinc-800 bg-zinc-900 py-1 shadow-2xl">
+                {templates.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      onApplyTemplate(t.id);
+                      setTemplatesOpen(false);
+                    }}
+                    className="flex w-full cursor-pointer flex-col items-start px-2.5 py-1.5 text-left hover:bg-zinc-800"
+                  >
+                    <span className="text-[11px] font-semibold text-zinc-100">{t.name}</span>
+                    {t.description && (
+                      <span className="text-[10px] text-zinc-400">{t.description}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         )}
         {onExport && (
           <div className="relative">

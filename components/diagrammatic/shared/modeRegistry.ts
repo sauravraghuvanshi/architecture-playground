@@ -32,6 +32,17 @@ export interface BaseCanvasHandle {
   exportBlob?: (format: string) => Promise<Blob | null>;
 }
 
+/**
+ * A starter document for a mode. Surfaced in the toolbar's Templates picker;
+ * applying one calls `BaseCanvasHandle.hydrate(payload)`.
+ */
+export interface ModeTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  payload: unknown;
+}
+
 /** Per-mode capability flags used to conditionally render toolbar buttons. */
 export interface ModeCapabilities {
   /** Tier-group ("swimlane") add button (Architecture only today). */

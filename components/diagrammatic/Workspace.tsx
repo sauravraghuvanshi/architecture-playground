@@ -334,6 +334,22 @@ export function Workspace({
         }}
         extraExports={mode !== "architecture" ? MODE_REGISTRY[mode]?.capabilities.textExports : undefined}
         hideRasterExports={mode === "kanban"}
+        templates={mode !== "architecture"
+          ? MODE_REGISTRY[mode]?.templates.map((t) => ({ id: t.id, name: t.name, description: t.description }))
+          : undefined}
+        onApplyTemplate={mode !== "architecture" ? (id) => {
+          const tpl = MODE_REGISTRY[mode]?.templates.find((t) => t.id === id);
+          if (!tpl) return;
+          // Replace the in-memory payload AND hydrate the canvas. The
+          // useFlowCanvas hook's hydrate suppresses the next snapshot so
+          // undo doesn't roll back into mid-template state.
+          setOtherPayloads((prev) => ({ ...prev, [mode]: tpl.payload }));
+          otherCanvasRef.current?.hydrate(tpl.payload);
+          setSaved(false);
+          try {
+            localStorage.setItem(`diagrammatic.draft.${mode}`, JSON.stringify({ payload: tpl.payload, savedAt: Date.now() }));
+          } catch { /* ignore */ }
+        } : undefined}
         saving={saving}
         saved={saved}
       />
