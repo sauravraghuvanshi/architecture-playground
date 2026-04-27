@@ -89,13 +89,13 @@ test.describe("Diagrammatic — mode workspace smoke", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/diagrammatic");
     // Workspace is client-only; wait for the mode tab strip to render.
-    await expect(page.getByRole("button", { name: /Cloud Architecture/ })).toBeVisible();
+    await expect(page.getByRole("tab", { name: /Cloud Architecture/ })).toBeVisible();
   });
 
   for (const c of CHECKS) {
     test(`mode "${c.mode}" mounts and applies a template`, async ({ page }) => {
       // Switch to mode.
-      await page.getByRole("button", { name: c.label }).first().click();
+      await page.getByRole("tab", { name: c.label }).first().click();
 
       // Canvas mounts (with its default payload).
       await expect(c.canvasReady(page)).toBeVisible({ timeout: 15_000 });

@@ -62,6 +62,7 @@ export function AiPromptModal({ mode, open, onClose, onResult }: Props) {
 
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setError(null);
       setBusy(false);
       setTimeout(() => inputRef.current?.focus(), 50);

@@ -42,7 +42,7 @@ const SECURITY_HEADERS: Record<string, string> = {
   "Cross-Origin-Opener-Policy": "same-origin",
 };
 
-export function middleware(_req: NextRequest) {
+export function middleware(_req: NextRequest) { // eslint-disable-line @typescript-eslint/no-unused-vars
   const res = NextResponse.next();
   for (const [k, v] of Object.entries(SECURITY_HEADERS)) {
     res.headers.set(k, v);
