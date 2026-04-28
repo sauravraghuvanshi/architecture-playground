@@ -15,7 +15,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Excalidraw, exportToBlob } from "@excalidraw/excalidraw";
+import { Excalidraw, exportToBlob, convertToExcalidrawElements } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import type { BaseCanvasHandle } from "../../shared/modeRegistry";
 
@@ -42,7 +42,15 @@ interface ExcalidrawAPI {
   getFiles: () => Record<string, unknown>;
   updateScene: (s: { elements?: unknown[]; appState?: Record<string, unknown> }) => void;
   scrollToContent: (els?: readonly unknown[], opts?: { fitToContent?: boolean }) => void;
+  addFiles: (files: Array<{ id: string; mimeType: string; dataURL: string; created: number }>) => void;
   history: { clear: () => void };
+}
+
+/** Extension to the standard handle so the workspace can drop AI-generated
+ *  images into the scene. Implemented by WhiteboardCanvas; consumers should
+ *  feature-detect via `"insertImage" in handle`. */
+export interface WhiteboardCanvasHandle extends BaseCanvasHandle {
+  insertImage: (b64: string, mime: string, opts?: { width?: number; height?: number }) => void;
 }
 
 export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function WhiteboardCanvas({ value, onChange }, ref) {
@@ -105,6 +113,47 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
       } catch {
         return null;
       }
+    },
+    /**
+     * Insert a base64-encoded image as a new Excalidraw image element at the
+     * current viewport center. Registers the binary via `addFiles` and adds
+     * an image element via `convertToExcalidrawElements` so it's a real
+     * Excalidraw element (selectable, exportable, undoable).
+     */
+    insertImage: (b64: string, mime: string, opts?: { width?: number; height?: number }) => {
+      const api = apiRef.current;
+      if (!api) return;
+      const fileId = `ai-img-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      api.addFiles([{
+        id: fileId,
+        mimeType: mime,
+        dataURL: `data:${mime};base64,${b64}`,
+        created: Date.now(),
+      }]);
+      // Place near the current scroll position so the user actually sees it.
+      const appState = api.getAppState() as { scrollX?: number; scrollY?: number; zoom?: { value?: number }; width?: number; height?: number };
+      const zoom = appState.zoom?.value ?? 1;
+      const vw = (appState.width ?? 1024) / zoom;
+      const vh = (appState.height ?? 768) / zoom;
+      const scrollX = appState.scrollX ?? 0;
+      const scrollY = appState.scrollY ?? 0;
+      const w = opts?.width ?? 480;
+      const h = opts?.height ?? 480;
+      // scrollX/scrollY are negative offsets of scene origin from viewport top-left.
+      const cx = -scrollX + vw / 2;
+      const cy = -scrollY + vh / 2;
+      const skeleton = [{
+        type: "image" as const,
+        x: cx - w / 2,
+        y: cy - h / 2,
+        width: w,
+        height: h,
+        fileId: fileId as never,
+        status: "saved" as const,
+      }];
+      const elements = convertToExcalidrawElements(skeleton as never);
+      const next = [...api.getSceneElements(), ...elements];
+      api.updateScene({ elements: next });
     },
   }), [value]);
 
