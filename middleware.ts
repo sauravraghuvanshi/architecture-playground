@@ -23,7 +23,11 @@ const CSP = [
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
-  "font-src 'self' data:",
+  // Excalidraw 0.18+ lazy-loads its rough-fonts (Excalifont, Cascadia, etc.)
+  // from esm.sh at runtime; without https: here the renderer ends up
+  // crashing the tab ("This page couldn't load") after dozens of CSP
+  // violations. Allow https: + data: globally — fonts are public, low risk.
+  "font-src 'self' data: https:",
   // Excalidraw fetches its own assets; AI image route may return blob:.
   "connect-src 'self' https: wss:",
   "worker-src 'self' blob:",
