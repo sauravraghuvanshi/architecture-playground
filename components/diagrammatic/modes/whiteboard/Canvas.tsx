@@ -53,7 +53,38 @@ export interface WhiteboardCanvasHandle extends BaseCanvasHandle {
   insertImage: (b64: string, mime: string, opts?: { width?: number; height?: number }) => void;
 }
 
+/**
+ * Excalidraw consumes URL-hash deep links on mount (`#addLibrary=...`,
+ * `#json=...`, `#room=...`). Those handlers fetch remote payloads + show
+ * confirm dialogs designed for the hosted excalidraw.com experience; in our
+ * embed they have crashed the renderer ("This page couldn't load" tab error)
+ * and the hash persists across reloads so the user gets stuck.
+ *
+ * We don't surface any of those features anyway (loadScene / saveToActiveFile
+ * are disabled in UIOptions), so it's safe to scrub these hashes before the
+ * first render.
+ */
+const EXCALIDRAW_HASH_KEYS = ["addLibrary", "json", "room"];
+function scrubExcalidrawHash() {
+  if (typeof window === "undefined") return;
+  const hash = window.location.hash.replace(/^#/, "");
+  if (!hash) return;
+  const params = new URLSearchParams(hash);
+  let dirty = false;
+  for (const k of EXCALIDRAW_HASH_KEYS) {
+    if (params.has(k)) { params.delete(k); dirty = true; }
+  }
+  if (params.has("token")) { params.delete("token"); dirty = true; }
+  if (dirty) {
+    const remaining = params.toString();
+    const next = `${window.location.pathname}${window.location.search}${remaining ? `#${remaining}` : ""}`;
+    window.history.replaceState(null, "", next);
+  }
+}
+
 export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function WhiteboardCanvas({ value, onChange }, ref) {
+  // Must run synchronously before the Excalidraw instance reads location.hash.
+  if (typeof window !== "undefined") scrubExcalidrawHash();
   const apiRef = useRef<ExcalidrawAPI | null>(null);
   const [initialData] = useState(() => ({
     elements: (value.elements ?? []) as never[],
