@@ -82,13 +82,38 @@ function scrubExcalidrawHash() {
   }
 }
 
+/**
+ * Sanitize a persisted Excalidraw appState before re-feeding it to the
+ * component. Several `appState` fields (notably `collaborators`) are runtime
+ * Map / Set instances that JSON.stringify silently flattens to {} — and
+ * Excalidraw 0.18 calls `.forEach` on them unconditionally, so the empty
+ * object explodes the renderer with
+ *
+ *   TypeError: e.appState.collaborators.forEach is not a function
+ *
+ * which then thrashes React's reconciler and Edge kills the tab
+ * ("This page couldn't load"). We coerce known map-shaped fields back to
+ * Maps (empty is fine; Excalidraw repopulates from peers) and drop
+ * anything else that's clearly broken.
+ */
+function sanitizeAppState(raw: Record<string, unknown> | undefined | null): Record<string, unknown> {
+  if (!raw || typeof raw !== "object") return {};
+  const out: Record<string, unknown> = { ...raw };
+  // collaborators is a Map<SocketId, Collaborator> at runtime.
+  const c = out.collaborators;
+  if (!(c instanceof Map)) {
+    out.collaborators = new Map();
+  }
+  return out;
+}
+
 export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function WhiteboardCanvas({ value, onChange }, ref) {
   // Must run synchronously before the Excalidraw instance reads location.hash.
   if (typeof window !== "undefined") scrubExcalidrawHash();
   const apiRef = useRef<ExcalidrawAPI | null>(null);
   const [initialData] = useState(() => ({
     elements: (value.elements ?? []) as never[],
-    appState: { ...(value.appState ?? {}) } as never,
+    appState: sanitizeAppState(value.appState) as never,
     files: (value.files ?? {}) as never,
     scrollToContent: true,
   }));
@@ -122,7 +147,10 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
       const api = apiRef.current;
       if (!api) return;
       const data = p as WhiteboardPayload;
-      api.updateScene({ elements: (data.elements ?? []) as unknown[], appState: data.appState as Record<string, unknown> });
+      api.updateScene({
+        elements: (data.elements ?? []) as unknown[],
+        appState: sanitizeAppState(data.appState as Record<string, unknown> | undefined),
+      });
       api.history.clear();
     },
     fit: () => apiRef.current?.scrollToContent(undefined, { fitToContent: true }),
