@@ -1,1 +1,10 @@
-Saurav Raghuvanshi <sauravraghuvanshi24@gmail.com> <sraghuvanshi@users.noreply.github.com>
+# Coalesce all of Saurav's commit identities under his canonical GitHub
+# noreply address (the numeric-ID noreply tied to the @sauravraghuvanshi
+# account). This is what GitHub uses to attribute the Contributors graph.
+#
+# Note: history was already rewritten so no commits author as
+# <sraghuvanshi@users.noreply.github.com> (an unrelated GitHub account).
+# The mapping below is kept as a defense-in-depth so any stale local clones
+# or future stray commits still display correctly under `git log --use-mailmap`.
+Saurav Raghuvanshi <47741547+sauravraghuvanshi@users.noreply.github.com> <sraghuvanshi@users.noreply.github.com>
+Saurav Raghuvanshi <47741547+sauravraghuvanshi@users.noreply.github.com> <sauravraghuvanshi24@gmail.com>
