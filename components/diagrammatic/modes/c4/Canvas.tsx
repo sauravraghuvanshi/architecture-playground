@@ -7,7 +7,7 @@
  */
 "use client";
 
-import { forwardRef, memo, useCallback, useImperativeHandle, useMemo, useRef } from "react";
+import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -134,9 +134,9 @@ interface Props { value: C4Payload; onChange?: (p: C4Payload) => void; }
 
 const Inner = forwardRef<BaseCanvasHandle, Props>(function Inner({ value, onChange }, ref) {
   const initial = useMemo(() => payloadToFlow(value), []); // eslint-disable-line react-hooks/exhaustive-deps
-  const { fitView } = useReactFlow();
+  const { fitView, screenToFlowPosition } = useReactFlow();
   const innerRef = useRef<BaseCanvasHandle | null>(null);
-  const { onNodesChange, onEdgesChange, setEdges, snapshot, nodes, edges } = useFlowCanvas<C4Payload>({
+  const { onNodesChange, onEdgesChange, setNodes, setEdges, snapshot, nodes, edges } = useFlowCanvas<C4Payload>({
     initial, toPayload: flowToPayload, fromPayload: payloadToFlow,
     onChange, fitView: () => fitView({ padding: 0.2, duration: 400 }), ref: innerRef,
   });
@@ -151,6 +151,27 @@ const Inner = forwardRef<BaseCanvasHandle, Props>(function Inner({ value, onChan
       style: { stroke: "#a1a1aa", strokeWidth: 1.6 },
     }, eds));
   }, [snapshot, setEdges]);
+
+  // BuilderPalette: add Person / System / Container / Component at viewport center.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ kind?: C4Kind }>;
+      const kind = (ce.detail?.kind ?? "container") as C4Kind;
+      const center = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+      const id = `n_${Date.now().toString(36)}`;
+      const NAMES: Record<C4Kind, string> = {
+        person: "User", system: "External System", container: "New Container", component: "New Component",
+      };
+      snapshot();
+      setNodes((nds) => nds.concat({
+        id, type: "c4",
+        position: { x: center.x - 100, y: center.y - 40 },
+        data: { kind, name: NAMES[kind], description: "", tech: "", external: kind === "system" },
+      }));
+    };
+    window.addEventListener("c4-add-node", handler as EventListener);
+    return () => window.removeEventListener("c4-add-node", handler as EventListener);
+  }, [snapshot, setNodes, screenToFlowPosition]);
 
   return (
     <div className="h-full w-full bg-zinc-950">

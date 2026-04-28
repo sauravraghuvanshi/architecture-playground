@@ -1,7 +1,13 @@
-import { MINDMAP_DEFAULT_PAYLOAD } from "../../shared/modeDefaults";
+import { MINDMAP_DEFAULT_PAYLOAD, MINDMAP_EMPTY_PAYLOAD } from "../../shared/modeDefaults";
 import type { ModeTemplate } from "../../shared/modeRegistry";
 
 export const MINDMAP_TEMPLATES: ModeTemplate[] = [
+  {
+    id: "blank",
+    name: "Blank canvas",
+    description: "Start fresh — add a root node from the builder palette",
+    payload: MINDMAP_EMPTY_PAYLOAD,
+  },
   {
     id: "product-strategy",
     name: "Product strategy",

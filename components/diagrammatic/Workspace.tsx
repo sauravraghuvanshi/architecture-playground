@@ -22,6 +22,7 @@ import type {
   ArchEdge,
 } from "./modes/architecture/ArchitectureCanvas";
 import { Palette } from "./shared/Palette";
+import { BuilderPalette } from "./shared/BuilderPalette";
 import { Toolbar, type ExportFormat } from "./shared/Toolbar";
 import { MODE_META, type DiagrammaticMode, type IconLite } from "./shared/types";
 import { CommandPalette } from "./shared/CommandPalette";
@@ -30,6 +31,14 @@ import { StatusBar } from "./shared/StatusBar";
 import { KeyboardHints } from "./shared/KeyboardHints";
 import { promptToArchitecture } from "@/lib/prompt-to-arch";
 import { MODE_REGISTRY } from "./shared/modeCatalog";
+import {
+  FLOWCHART_EMPTY_PAYLOAD,
+  SEQUENCE_EMPTY_PAYLOAD,
+  MINDMAP_EMPTY_PAYLOAD,
+  ER_EMPTY_PAYLOAD,
+  UML_EMPTY_PAYLOAD,
+  C4_EMPTY_PAYLOAD,
+} from "./shared/modeDefaults";
 import type { BaseCanvasHandle } from "./shared/modeRegistry";
 import { AiPromptModal } from "./shared/AiPromptModal";
 import { CommentsPanel } from "./shared/CommentsPanel";
@@ -37,6 +46,18 @@ import { VersionsPanel } from "./shared/VersionsPanel";
 
 // Shared with /templates/GalleryClient.tsx
 const TEMPLATE_HANDOFF_KEY = "architecture-playground:template-handoff";
+
+// Empty payloads keyed by mode — used by the BuilderPalette's Clear button
+// and accessible without dragging mode-specific Canvas modules into the
+// Workspace bundle (they're tiny structural literals from `shared/`).
+const EMPTY_PAYLOAD_FOR: Partial<Record<DiagrammaticMode, unknown>> = {
+  flowchart: FLOWCHART_EMPTY_PAYLOAD,
+  sequence: SEQUENCE_EMPTY_PAYLOAD,
+  mindmap: MINDMAP_EMPTY_PAYLOAD,
+  er: ER_EMPTY_PAYLOAD,
+  uml: UML_EMPTY_PAYLOAD,
+  c4: C4_EMPTY_PAYLOAD,
+};
 
 // Map hub TemplateBrowser ids → seed prompts. Keeps the cards working without
 // shipping a full graph registry per id.
@@ -442,6 +463,26 @@ export function Workspace({
                 setSaved(false);
                 try {
                   localStorage.setItem(`diagrammatic.draft.${mode}`, JSON.stringify({ payload: p, savedAt: Date.now() }));
+                } catch { /* ignore */ }
+              }}
+            />
+          )}
+
+          {/* Builder Palette — contextual tile rail to add nodes/relations.
+              Whiteboard (Excalidraw native sidebar), Kanban (in-column "+"
+              button), and Architecture (1,400-icon Palette on the left)
+              already provide their own builder UX, so skip those. */}
+          {mode !== "architecture" && mode !== "whiteboard" && mode !== "kanban" && (
+            <BuilderPalette
+              mode={mode}
+              onClear={() => {
+                const empty = EMPTY_PAYLOAD_FOR[mode];
+                if (!empty) return;
+                setOtherPayloads((prev) => ({ ...prev, [mode]: empty }));
+                otherCanvasRef.current?.hydrate(empty);
+                setSaved(false);
+                try {
+                  localStorage.setItem(`diagrammatic.draft.${mode}`, JSON.stringify({ payload: empty, savedAt: Date.now() }));
                 } catch { /* ignore */ }
               }}
             />
