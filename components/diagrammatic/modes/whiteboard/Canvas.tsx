@@ -15,7 +15,13 @@ import {
   useRef,
   useState,
 } from "react";
-import { Excalidraw, exportToBlob, convertToExcalidrawElements } from "@excalidraw/excalidraw";
+import {
+  Excalidraw,
+  MainMenu,
+  exportToBlob,
+  convertToExcalidrawElements,
+  useHandleLibrary,
+} from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import type { BaseCanvasHandle } from "../../shared/modeRegistry";
 
@@ -43,6 +49,12 @@ interface ExcalidrawAPI {
   updateScene: (s: { elements?: unknown[]; appState?: Record<string, unknown> }) => void;
   scrollToContent: (els?: readonly unknown[], opts?: { fitToContent?: boolean }) => void;
   addFiles: (files: Array<{ id: string; mimeType: string; dataURL: string; created: number }>) => void;
+  updateLibrary: (opts: {
+    libraryItems: unknown;
+    merge?: boolean;
+    prompt?: boolean;
+    openLibraryMenu?: boolean;
+  }) => Promise<unknown>;
   history: { clear: () => void };
 }
 
@@ -54,17 +66,13 @@ export interface WhiteboardCanvasHandle extends BaseCanvasHandle {
 }
 
 /**
- * Excalidraw consumes URL-hash deep links on mount (`#addLibrary=...`,
- * `#json=...`, `#room=...`). Those handlers fetch remote payloads + show
- * confirm dialogs designed for the hosted excalidraw.com experience; in our
- * embed they have crashed the renderer ("This page couldn't load" tab error)
- * and the hash persists across reloads so the user gets stuck.
- *
- * We don't surface any of those features anyway (loadScene / saveToActiveFile
- * are disabled in UIOptions), so it's safe to scrub these hashes before the
- * first render.
+ * Excalidraw consumes URL-hash deep links on mount. We allow `addLibrary`
+ * (handled via useHandleLibrary so libraries directory imports work) but
+ * scrub `json` / `room` / `token` which trigger the hosted excalidraw.com
+ * scene-import / collab flows we don't surface in this embed and which have
+ * crashed the renderer.
  */
-const EXCALIDRAW_HASH_KEYS = ["addLibrary", "json", "room"];
+const EXCALIDRAW_HASH_KEYS = ["json", "room"];
 function scrubExcalidrawHash() {
   if (typeof window === "undefined") return;
   const hash = window.location.hash.replace(/^#/, "");
@@ -111,6 +119,18 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
   // Must run synchronously before the Excalidraw instance reads location.hash.
   if (typeof window !== "undefined") scrubExcalidrawHash();
   const apiRef = useRef<ExcalidrawAPI | null>(null);
+  // useHandleLibrary needs the API as React state (re-runs when it changes
+  // from null → ready) so it can attach the `#addLibrary=` URL handler.
+  const [excalidrawAPI, setExcalidrawAPI] = useState<unknown>(null);
+  useHandleLibrary({
+    excalidrawAPI: excalidrawAPI as never,
+    // Accept any HTTPS .excalidrawlib URL — the directory at
+    // libraries.excalidraw.com serves them from libraries.excalidraw.com
+    // (not excalidraw.com), so the default validator rejects them.
+    validateLibraryUrl: (url: string) => {
+      try { return new URL(url).protocol === "https:"; } catch { return false; }
+    },
+  });
   const [initialData] = useState(() => ({
     elements: (value.elements ?? []) as never[],
     appState: sanitizeAppState(value.appState) as never,
@@ -216,15 +236,81 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
     },
   }), [value]);
 
+  /**
+   * Prompt the user for a `.excalidrawlib` URL (e.g. from
+   * libraries.excalidraw.com) and merge it into the local library. We have
+   * to fetch + import client-side because the directory's "Add to Excalidraw"
+   * button hard-codes a redirect to the public excalidraw.com app.
+   */
+  const importLibraryFromUrl = useCallback(async () => {
+    const api = apiRef.current;
+    if (!api) return;
+    const url = window.prompt(
+      "Paste a .excalidrawlib URL (e.g. from libraries.excalidraw.com):",
+      "",
+    );
+    if (!url) return;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      await api.updateLibrary({
+        libraryItems: data,
+        merge: true,
+        openLibraryMenu: true,
+      });
+    } catch (e) {
+      window.alert(`Couldn't import library: ${(e as Error).message}`);
+    }
+  }, []);
+
   return (
     <div className="h-full w-full bg-zinc-950">
       <Excalidraw
-        excalidrawAPI={(api) => { apiRef.current = api as unknown as ExcalidrawAPI; }}
+        excalidrawAPI={(api) => {
+          apiRef.current = api as unknown as ExcalidrawAPI;
+          setExcalidrawAPI(api);
+        }}
         initialData={initialData}
         onChange={onAnyChange}
         theme="dark"
         UIOptions={{ canvasActions: { saveToActiveFile: false, loadScene: false, export: false, saveAsImage: true, toggleTheme: false, changeViewBackgroundColor: true, clearCanvas: true } }}
-      />
+      >
+        {/*
+          Custom MainMenu — by passing children we override the default menu
+          contents and drop the `Socials` block (which renders an
+          "Excalidraw links" group with GitHub / Twitter / Discord). Each
+          item below is a re-export of an Excalidraw default; we just curate.
+        */}
+        <MainMenu>
+          <MainMenu.DefaultItems.SaveAsImage />
+          <MainMenu.DefaultItems.ClearCanvas />
+          <MainMenu.Separator />
+          <MainMenu.Item
+            icon={
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
+                <path d="M4 4h6l2 2h4v10H4z" />
+              </svg>
+            }
+            onSelect={() => { void importLibraryFromUrl(); }}
+          >
+            Import library from URL…
+          </MainMenu.Item>
+          <MainMenu.ItemLink
+            href="https://libraries.excalidraw.com/"
+            icon={
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
+                <path d="M3 5h14v10H3z M3 9h14" />
+              </svg>
+            }
+          >
+            Browse public libraries
+          </MainMenu.ItemLink>
+          <MainMenu.Separator />
+          <MainMenu.DefaultItems.ChangeCanvasBackground />
+          <MainMenu.DefaultItems.Help />
+        </MainMenu>
+      </Excalidraw>
     </div>
   );
 });
