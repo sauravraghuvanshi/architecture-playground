@@ -1,7 +1,13 @@
-import { SEQUENCE_DEFAULT_PAYLOAD } from "../../shared/modeDefaults";
+import { SEQUENCE_DEFAULT_PAYLOAD, SEQUENCE_EMPTY_PAYLOAD } from "../../shared/modeDefaults";
 import type { ModeTemplate } from "../../shared/modeRegistry";
 
 export const SEQUENCE_TEMPLATES: ModeTemplate[] = [
+  {
+    id: "blank",
+    name: "Blank canvas",
+    description: "Start fresh — add participants from the builder palette",
+    payload: SEQUENCE_EMPTY_PAYLOAD,
+  },
   {
     id: "rest-create-order",
     name: "REST: create order",

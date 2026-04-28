@@ -9,7 +9,7 @@
  */
 "use client";
 
-import { forwardRef, memo, useCallback, useImperativeHandle, useMemo, useRef } from "react";
+import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -126,14 +126,23 @@ const Inner = forwardRef<BaseCanvasHandle, Props>(function Inner({ value, onChan
   }, [snapshot, setEdges]);
 
   // Add child of currently-selected node at a fresh angle.
-  const onAddChild = useCallback(() => {
+  // If no parent is provided and no nodes exist, seeds a root at (0, 0).
+  const onAddNode = useCallback((kind: "root" | "child") => {
+    const id = `n_${Date.now().toString(36)}`;
+    if (kind === "root" || nodes.length === 0) {
+      snapshot();
+      setNodes((nds) => nds.concat({
+        id, type: "mind",
+        position: { x: 0, y: 0 },
+        data: { label: "Topic", color: 0, isRoot: nds.length === 0 },
+      }));
+      return;
+    }
     const parent = nodes.find((n) => n.selected) ?? nodes[0];
-    if (!parent) return;
     const px = parent.position.x;
     const py = parent.position.y;
     const angle = Math.random() * Math.PI * 2;
     const r = 200;
-    const id = `n_${Date.now().toString(36)}`;
     snapshot();
     setNodes((nds) => nds.concat({
       id, type: "mind",
@@ -143,11 +152,19 @@ const Inner = forwardRef<BaseCanvasHandle, Props>(function Inner({ value, onChan
     setEdges((eds) => eds.concat({ id: `e_${id}`, source: parent.id, target: id, type: "default", style: { stroke: "#52525b", strokeWidth: 2 } }));
   }, [nodes, snapshot, setNodes, setEdges]);
 
-  useMemo(() => {
-    const handler = () => onAddChild();
-    if (typeof window !== "undefined") window.addEventListener("mindmap-add-child", handler);
-    return () => { if (typeof window !== "undefined") window.removeEventListener("mindmap-add-child", handler); };
-  }, [onAddChild]);
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ kind?: "root" | "child" }>;
+      onAddNode(ce.detail?.kind === "root" ? "root" : "child");
+    };
+    // New event name from BuilderPalette + legacy alias for back-compat.
+    window.addEventListener("mindmap-add-node", handler as EventListener);
+    window.addEventListener("mindmap-add-child", handler as EventListener);
+    return () => {
+      window.removeEventListener("mindmap-add-node", handler as EventListener);
+      window.removeEventListener("mindmap-add-child", handler as EventListener);
+    };
+  }, [onAddNode]);
 
   return (
     <div className="h-full w-full bg-zinc-950">

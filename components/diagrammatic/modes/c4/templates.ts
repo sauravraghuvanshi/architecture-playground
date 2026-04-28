@@ -1,7 +1,13 @@
-import { C4_DEFAULT_PAYLOAD } from "../../shared/modeDefaults";
+import { C4_DEFAULT_PAYLOAD, C4_EMPTY_PAYLOAD } from "../../shared/modeDefaults";
 import type { ModeTemplate } from "../../shared/modeRegistry";
 
 export const C4_TEMPLATES: ModeTemplate[] = [
+  {
+    id: "blank",
+    name: "Blank canvas",
+    description: "Start fresh — add C4 elements from the builder palette",
+    payload: C4_EMPTY_PAYLOAD,
+  },
   {
     id: "bookstore",
     name: "Bookstore",

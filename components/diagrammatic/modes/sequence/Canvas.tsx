@@ -261,6 +261,26 @@ const Inner = forwardRef<BaseCanvasHandle, Props>(function Inner({ value, onChan
     },
   }), [nodes, edges, fitView, snapshot]);
 
+  // BuilderPalette: append a fresh participant to the right of the existing row.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ kind?: string }>;
+      const kind = ce.detail?.kind ?? "participant";
+      const LABEL: Record<string, string> = { participant: "Participant", system: "System", database: "Database" };
+      const id = `p_${Date.now().toString(36)}`;
+      const rightmost = nodes.reduce((m, n) => Math.max(m, n.position.x), -PARTICIPANT_GAP);
+      const x = nodes.length === 0 ? 0 : rightmost + PARTICIPANT_W + PARTICIPANT_GAP;
+      snapshot();
+      setNodes((nds) => nds.concat({
+        id, type: "participant", position: { x, y: 0 },
+        data: { label: LABEL[kind] ?? "Participant", rows: edges.length },
+        draggable: true,
+      }));
+    };
+    window.addEventListener("sequence-add-participant", handler as EventListener);
+    return () => window.removeEventListener("sequence-add-participant", handler as EventListener);
+  }, [nodes, edges, snapshot]);
+
   return (
     <div className="h-full w-full bg-zinc-950">
       <ReactFlow

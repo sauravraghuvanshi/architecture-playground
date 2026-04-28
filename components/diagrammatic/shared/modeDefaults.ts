@@ -144,3 +144,16 @@ export const KANBAN_DEFAULT_PAYLOAD = {
     c6: { id: "c6", title: "Dark theme toggle", label: "design" },
   },
 } as const;
+
+/* -----------------------------------------------------------------------
+ * Empty payloads — used by the "Blank canvas" template and the Builder
+ * Palette's Clear button. Each is a structurally-valid (but empty) payload
+ * for its mode so hydrate() doesn't have to special-case missing arrays.
+ * ----------------------------------------------------------------------- */
+
+export const FLOWCHART_EMPTY_PAYLOAD = { nodes: [], edges: [] } as const;
+export const SEQUENCE_EMPTY_PAYLOAD = { participants: [], messages: [] } as const;
+export const MINDMAP_EMPTY_PAYLOAD = { nodes: [], edges: [] } as const;
+export const ER_EMPTY_PAYLOAD = { entities: [], relationships: [] } as const;
+export const UML_EMPTY_PAYLOAD = { classes: [], relations: [] } as const;
+export const C4_EMPTY_PAYLOAD = { nodes: [], edges: [] } as const;

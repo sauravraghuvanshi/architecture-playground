@@ -1,7 +1,13 @@
-import { ER_DEFAULT_PAYLOAD } from "../../shared/modeDefaults";
+import { ER_DEFAULT_PAYLOAD, ER_EMPTY_PAYLOAD } from "../../shared/modeDefaults";
 import type { ModeTemplate } from "../../shared/modeRegistry";
 
 export const ER_TEMPLATES: ModeTemplate[] = [
+  {
+    id: "blank",
+    name: "Blank canvas",
+    description: "Start fresh — add entities from the builder palette",
+    payload: ER_EMPTY_PAYLOAD,
+  },
   {
     id: "ecommerce",
     name: "E-commerce",

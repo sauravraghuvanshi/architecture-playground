@@ -11,7 +11,7 @@
  */
 "use client";
 
-import { forwardRef, memo, useCallback, useImperativeHandle, useMemo, useRef } from "react";
+import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -198,13 +198,13 @@ interface Props { value: UMLPayload; onChange?: (p: UMLPayload) => void; }
 
 const Inner = forwardRef<BaseCanvasHandle, Props>(function Inner({ value, onChange }, ref) {
   const initial = useMemo(() => payloadToFlow(value), []); // eslint-disable-line react-hooks/exhaustive-deps
-  const { fitView } = useReactFlow();
+  const { fitView, screenToFlowPosition } = useReactFlow();
   const innerRef = useRef<BaseCanvasHandle | null>(null);
   const exportText = useCallback((nodes: Node[], edges: Edge[], format: string) => {
     if (format === "ts") return exportTypeScript(flowToPayload(nodes, edges));
     return null;
   }, []);
-  const { onNodesChange, onEdgesChange, setEdges, snapshot, nodes, edges } = useFlowCanvas<UMLPayload>({
+  const { onNodesChange, onEdgesChange, setNodes, setEdges, snapshot, nodes, edges } = useFlowCanvas<UMLPayload>({
     initial, toPayload: flowToPayload, fromPayload: payloadToFlow,
     onChange, fitView: () => fitView({ padding: 0.2, duration: 400 }),
     exportText, ref: innerRef,
@@ -220,6 +220,26 @@ const Inner = forwardRef<BaseCanvasHandle, Props>(function Inner({ value, onChan
       labelBgStyle: { fill: "#18181b", fillOpacity: 0.95 },
       data: { kind: "association" as UMLEdgeKind } }, eds));
   }, [snapshot, setEdges]);
+
+  // BuilderPalette: add a fresh class / interface / abstract at viewport center.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ kind?: string }>;
+      const kind = ce.detail?.kind ?? "class";
+      const center = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+      const id = `C_${Date.now().toString(36)}`;
+      const stereotype = kind === "interface" ? "interface" : kind === "abstract" ? "abstract" : undefined;
+      const name = kind === "interface" ? "INewInterface" : kind === "abstract" ? "AbstractBase" : "NewClass";
+      snapshot();
+      setNodes((nds) => nds.concat({
+        id, type: "uml",
+        position: { x: center.x - 120, y: center.y - 60 },
+        data: { name, stereotype, fields: [], methods: [] },
+      }));
+    };
+    window.addEventListener("uml-add-class", handler as EventListener);
+    return () => window.removeEventListener("uml-add-class", handler as EventListener);
+  }, [snapshot, setNodes, screenToFlowPosition]);
 
   return (
     <div className="h-full w-full bg-zinc-950">

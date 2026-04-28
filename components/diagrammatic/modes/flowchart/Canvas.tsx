@@ -13,7 +13,7 @@
  */
 "use client";
 
-import { forwardRef, memo, useCallback, useImperativeHandle, useMemo, useRef } from "react";
+import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -171,7 +171,8 @@ const Inner = forwardRef<BaseCanvasHandle, Props>(function Inner({ value, onChan
     }, eds));
   }, [snapshot, setEdges]);
 
-  // Listen for "flowchart-add-shape" events from a palette / toolbar.
+  // Listen for "flowchart-add-shape" events from the BuilderPalette.
+  // Detail is `{ kind }` where kind ∈ FlowShape; the label is derived.
   const onAddShape = useCallback((shape: FlowShape, label: string) => {
     const center = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
     snapshot();
@@ -184,17 +185,22 @@ const Inner = forwardRef<BaseCanvasHandle, Props>(function Inner({ value, onChan
 
   useImperativeHandle(ref, () => ({
     ...(internalRef.current as BaseCanvasHandle),
-    // Custom shape adder — invoked via window event from the toolbar.
   }), []);
 
-  // Wire window events (super-light "palette") for shape addition.
-  useMemo(() => {
-    const handler = (e: Event) => {
-      const ce = e as CustomEvent<{ shape: FlowShape; label: string }>;
-      onAddShape(ce.detail.shape, ce.detail.label);
+  // Wire window events from the BuilderPalette for shape addition.
+  useEffect(() => {
+    const DEFAULT_LABELS: Record<FlowShape, string> = {
+      startend: "Start", process: "Process", decision: "Decision?",
+      io: "I/O", subprocess: "Subprocess",
     };
-    if (typeof window !== "undefined") window.addEventListener("flowchart-add-shape", handler as EventListener);
-    return () => { if (typeof window !== "undefined") window.removeEventListener("flowchart-add-shape", handler as EventListener); };
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ kind?: FlowShape; shape?: FlowShape; label?: string }>;
+      const shape = (ce.detail.kind ?? ce.detail.shape ?? "process") as FlowShape;
+      const label = ce.detail.label ?? DEFAULT_LABELS[shape] ?? "Step";
+      onAddShape(shape, label);
+    };
+    window.addEventListener("flowchart-add-shape", handler as EventListener);
+    return () => window.removeEventListener("flowchart-add-shape", handler as EventListener);
   }, [onAddShape]);
 
   return (

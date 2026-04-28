@@ -1,7 +1,13 @@
-import { UML_DEFAULT_PAYLOAD } from "../../shared/modeDefaults";
+import { UML_DEFAULT_PAYLOAD, UML_EMPTY_PAYLOAD } from "../../shared/modeDefaults";
 import type { ModeTemplate } from "../../shared/modeRegistry";
 
 export const UML_TEMPLATES: ModeTemplate[] = [
+  {
+    id: "blank",
+    name: "Blank canvas",
+    description: "Start fresh — add classes from the builder palette",
+    payload: UML_EMPTY_PAYLOAD,
+  },
   {
     id: "animal-kingdom",
     name: "Animal kingdom",

@@ -3,10 +3,16 @@
  * that can be applied via the toolbar's Templates picker (which calls
  * BaseCanvasHandle.hydrate).
  */
-import { FLOWCHART_DEFAULT_PAYLOAD } from "../../shared/modeDefaults";
+import { FLOWCHART_DEFAULT_PAYLOAD, FLOWCHART_EMPTY_PAYLOAD } from "../../shared/modeDefaults";
 import type { ModeTemplate } from "../../shared/modeRegistry";
 
 export const FLOWCHART_TEMPLATES: ModeTemplate[] = [
+  {
+    id: "blank",
+    name: "Blank canvas",
+    description: "Start fresh — add shapes from the builder palette",
+    payload: FLOWCHART_EMPTY_PAYLOAD,
+  },
   {
     id: "auth-flow",
     name: "Authorization flow",
