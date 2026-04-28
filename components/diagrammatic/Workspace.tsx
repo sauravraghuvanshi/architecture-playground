@@ -381,7 +381,7 @@ export function Workspace({
             localStorage.setItem(`diagrammatic.draft.${mode}`, JSON.stringify({ payload: tpl.payload, savedAt: Date.now() }));
           } catch { /* ignore */ }
         } : undefined}
-        onAiAssist={mode !== "whiteboard" ? () => setAiOpen(true) : undefined}
+        onAiAssist={() => setAiOpen(true)}
         aiDisabledReason={aiConfigured === false ? "AI is not configured. Set Azure OpenAI env vars on the server." : undefined}
         onToggleComments={() => setCommentsOpen((v) => !v)}
         commentsOpen={commentsOpen}
@@ -518,6 +518,16 @@ export function Workspace({
             } catch { /* ignore */ }
           }
           setSaved(false);
+        }}
+        onImageResult={(b64, mime) => {
+          // Whiteboard-only: insert AI-generated image at viewport center.
+          // Feature-detect the optional handle method so we don't crash if
+          // the active mode's canvas doesn't implement it.
+          const handle = otherCanvasRef.current as (BaseCanvasHandle & { insertImage?: (b64: string, mime: string) => void }) | null;
+          if (handle?.insertImage) {
+            handle.insertImage(b64, mime);
+            setSaved(false);
+          }
         }}
       />
     </div>
