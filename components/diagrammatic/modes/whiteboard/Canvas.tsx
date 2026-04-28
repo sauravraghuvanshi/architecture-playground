@@ -115,6 +115,40 @@ function sanitizeAppState(raw: Record<string, unknown> | undefined | null): Reco
   return out;
 }
 
+/**
+ * localStorage-backed library persistence. Excalidraw's `useHandleLibrary`
+ * calls `load()` once on mount to seed the library, then `save()` after
+ * every `updateLibrary` (URL imports, in-app imports, drag-to-add, delete).
+ *
+ * Library items can include base64-encoded element previews so the payload
+ * grows unbounded across many imports — we let the browser surface a
+ * QuotaExceededError naturally rather than silently truncating, since
+ * blowing the quota is rare with diagram-shape libraries.
+ */
+const LIBRARY_STORAGE_KEY = "diagrammatic.whiteboard.library";
+const WHITEBOARD_LIBRARY_ADAPTER = {
+  load: async () => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = window.localStorage.getItem(LIBRARY_STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { libraryItems?: unknown };
+      if (!parsed?.libraryItems) return null;
+      return { libraryItems: parsed.libraryItems as never };
+    } catch {
+      return null;
+    }
+  },
+  save: async (data: { libraryItems: unknown }) => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(LIBRARY_STORAGE_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.warn("[whiteboard] could not persist library:", e);
+    }
+  },
+};
+
 export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function WhiteboardCanvas({ value, onChange }, ref) {
   // Must run synchronously before the Excalidraw instance reads location.hash.
   if (typeof window !== "undefined") scrubExcalidrawHash();
@@ -130,6 +164,11 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
     validateLibraryUrl: (url: string) => {
       try { return new URL(url).protocol === "https:"; } catch { return false; }
     },
+    // Without an adapter, library items are kept only in Excalidraw's
+    // in-memory jotai store: every reload (or remount on mode-switch)
+    // starts empty, so a freshly imported library replaces whatever was
+    // there before. Persist to localStorage so imports accumulate.
+    adapter: WHITEBOARD_LIBRARY_ADAPTER,
   });
   const [initialData] = useState(() => ({
     elements: (value.elements ?? []) as never[],
