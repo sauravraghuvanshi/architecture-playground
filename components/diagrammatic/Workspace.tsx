@@ -273,6 +273,45 @@ export function Workspace({
     }
   }, [searchParams]);
 
+  // `#addLibrary=…` (and the `?addLibrary=…` query variant) deep links from
+  // the public Excalidraw libraries directory must land on whiteboard mode —
+  // that's where `useHandleLibrary` is mounted. Without this, a user clicking
+  // "Add to Excalidraw" on libraries.excalidraw.com lands on the default
+  // mode (architecture) and the import is silently dropped because the
+  // whiteboard canvas never mounts to consume the hash.
+  //
+  // Note: libraries.excalidraw.com uses `useHash=true` + `window.open()`, so
+  // every "Add to Excalidraw" click spawns a fresh tab in our app. We accept
+  // that — handling the import locally in each new tab is simple and reliable.
+  // (An earlier BroadcastChannel forwarding scheme caused redirect loops
+  // when `window.close()` was browser-blocked; see PG-21.)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (modeFromUrlApplied.current && mode === "whiteboard") return;
+    const hash = window.location.hash.replace(/^#/, "");
+    const hasInHash = /(^|&)addLibrary=/.test(hash);
+    const queryAddLibrary = searchParams?.get("addLibrary");
+    if (!hasInHash && !queryAddLibrary) return;
+    // Promote query-form to hash-form so useHandleLibrary (which only
+    // watches location.hash) picks it up after the whiteboard mounts.
+    if (!hasInHash && queryAddLibrary) {
+      const token = searchParams?.get("token");
+      const merged = new URLSearchParams();
+      merged.set("addLibrary", queryAddLibrary);
+      if (token) merged.set("token", token);
+      const search = new URLSearchParams(searchParams?.toString() ?? "");
+      search.delete("addLibrary");
+      search.delete("token");
+      const qs = search.toString();
+      const next = `${window.location.pathname}${qs ? `?${qs}` : ""}#${merged.toString()}`;
+      window.history.replaceState(null, "", next);
+    }
+    modeFromUrlApplied.current = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMode("whiteboard");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   // Probe AI configuration once on mount so the toolbar can disable the AI
   // button (and surface a tooltip) when env vars are missing — avoids a
   // round-trip per click.

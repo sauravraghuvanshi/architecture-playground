@@ -68,9 +68,18 @@ export interface WhiteboardCanvasHandle extends BaseCanvasHandle {
 /**
  * Excalidraw consumes URL-hash deep links on mount. We allow `addLibrary`
  * (handled via useHandleLibrary so libraries directory imports work) but
- * scrub `json` / `room` / `token` which trigger the hosted excalidraw.com
- * scene-import / collab flows we don't surface in this embed and which have
- * crashed the renderer.
+ * scrub `json` / `room` which trigger the hosted excalidraw.com scene-import
+ * / collab flows we don't surface in this embed and which have crashed the
+ * renderer.
+ *
+ * IMPORTANT: when the hash carries `addLibrary=`, we leave it alone in full
+ * (including its companion `token=`, which authenticates the import on the
+ * Excalidraw side). After useHandleLibrary completes the import it strips
+ * `addLibrary` itself but leaves a residual `#token=…`. We deliberately do
+ * NOT strip that token here — Excalidraw ignores standalone `token` (collab
+ * also requires `room`), and calling `history.replaceState` during render
+ * causes a "Cannot update a component (Router) while rendering …" warning
+ * because Next.js App Router observes URL mutations.
  */
 const EXCALIDRAW_HASH_KEYS = ["json", "room"];
 function scrubExcalidrawHash() {
@@ -78,17 +87,18 @@ function scrubExcalidrawHash() {
   const hash = window.location.hash.replace(/^#/, "");
   if (!hash) return;
   const params = new URLSearchParams(hash);
+  // Library-import URLs are handled by useHandleLibrary — leave them alone.
+  if (params.has("addLibrary")) return;
   let dirty = false;
   for (const k of EXCALIDRAW_HASH_KEYS) {
     if (params.has(k)) { params.delete(k); dirty = true; }
   }
-  if (params.has("token")) { params.delete("token"); dirty = true; }
-  if (dirty) {
-    const remaining = params.toString();
-    const next = `${window.location.pathname}${window.location.search}${remaining ? `#${remaining}` : ""}`;
-    window.history.replaceState(null, "", next);
-  }
+  if (!dirty) return;
+  const remaining = params.toString();
+  const next = `${window.location.pathname}${window.location.search}${remaining ? `#${remaining}` : ""}`;
+  window.history.replaceState(null, "", next);
 }
+
 
 /**
  * Sanitize a persisted Excalidraw appState before re-feeding it to the
