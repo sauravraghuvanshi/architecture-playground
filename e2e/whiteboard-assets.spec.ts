@@ -47,4 +47,57 @@ test.describe("Curated Whiteboard assets", () => {
     await page.waitForTimeout(500);
     expect(pageErrors.filter((message) => message.includes("Maximum update depth"))).toEqual([]);
   });
+
+  test("sanitizes legacy persisted UI state without a render loop", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page.evaluate(() => {
+      localStorage.setItem(
+        "diagrammatic.draft.whiteboard",
+        JSON.stringify({
+          payload: {
+            elements: [],
+            files: {},
+            appState: {
+              viewBackgroundColor: "#f8fafc",
+              collaborators: {},
+              openMenu: "canvasBackground",
+              openSidebar: { name: "library" },
+              selectedElementIds: { stale: true },
+              activeTool: { type: "selection" },
+            },
+          },
+          savedAt: Date.now(),
+        })
+      );
+    });
+
+    const workspace = await page.context().newPage();
+    const errors: string[] = [];
+    workspace.on("pageerror", (error) => errors.push(error.message));
+    await workspace.goto("/diagrammatic?mode=whiteboard");
+    await expect(workspace.locator(".excalidraw").first()).toBeVisible({
+      timeout: 30_000,
+    });
+    await workspace.waitForTimeout(1000);
+    expect(errors.filter((message) => message.includes("Maximum update depth"))).toEqual([]);
+    await workspace.close();
+  });
+
+  test("drags a bundled symbol onto the Whiteboard", async ({ page }) => {
+    await page.goto("/diagrammatic?mode=whiteboard");
+    await expect(page.locator(".excalidraw").first()).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("searchbox", { name: "Search Whiteboard assets" }).fill("user");
+    const asset = page.getByRole("button", { name: "User", exact: true }).first();
+    await expect(asset).toHaveAttribute("draggable", "true");
+    await asset.dragTo(page.locator(".diagrammatic-whiteboard"));
+
+    await page.waitForFunction(() => {
+      const raw = localStorage.getItem("diagrammatic.draft.whiteboard");
+      if (!raw) return false;
+      const parsed = JSON.parse(raw) as { payload?: { elements?: Array<{ type?: string }> } };
+      return parsed.payload?.elements?.some((element) => element.type === "image") ?? false;
+    });
+  });
 });

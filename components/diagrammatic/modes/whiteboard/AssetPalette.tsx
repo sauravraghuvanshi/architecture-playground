@@ -129,9 +129,17 @@ export function WhiteboardAssetPalette({ onInsert, insertingId }: Props) {
               <button
                 key={asset.id}
                 type="button"
+                draggable
+                onDragStart={(event) => {
+                  event.dataTransfer.setData(
+                    "application/x-diagrammatic-whiteboard-asset",
+                    JSON.stringify({ svg: asset.svg, label: asset.label })
+                  );
+                  event.dataTransfer.effectAllowed = "copy";
+                }}
                 onClick={() => onInsert(asset)}
                 disabled={inserting}
-                title={`Insert ${asset.label}`}
+                title={`Click or drag to insert ${asset.label}`}
                 className="group flex min-h-[70px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-transparent bg-slate-900/60 p-1.5 transition hover:-translate-y-0.5 hover:border-cyan-500/50 hover:bg-slate-900 disabled:cursor-wait disabled:opacity-60"
               >
                 {inserting ? (

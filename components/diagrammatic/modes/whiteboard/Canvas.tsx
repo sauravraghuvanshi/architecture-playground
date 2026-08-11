@@ -127,6 +127,7 @@ function scrubExcalidrawHash() {
 function sanitizeAppState(raw: Record<string, unknown> | undefined | null): Record<string, unknown> {
   if (!raw || typeof raw !== "object") return {};
   const out: Record<string, unknown> = { ...raw };
+  for (const key of VOLATILE_APP_STATE_KEYS) delete out[key];
   // collaborators is a Map<SocketId, Collaborator> at runtime.
   const c = out.collaborators;
   if (!(c instanceof Map)) {
@@ -135,10 +136,42 @@ function sanitizeAppState(raw: Record<string, unknown> | undefined | null): Reco
   return out;
 }
 
+const VOLATILE_APP_STATE_KEYS = [
+  "activeTool",
+  "contextMenu",
+  "cursorButton",
+  "cursorX",
+  "cursorY",
+  "draggingElement",
+  "editingElement",
+  "editingGroupId",
+  "editingLinearElement",
+  "elementLocked",
+  "lastPointerDownWith",
+  "multiElement",
+  "openDialog",
+  "openMenu",
+  "openPopup",
+  "openSidebar",
+  "resizingElement",
+  "selectedElementIds",
+  "selectedGroupIds",
+  "selectionElement",
+  "showHyperlinkPopup",
+] as const;
+
+function appStateForPersistence(raw: object): Record<string, unknown> {
+  const out = { ...raw } as Record<string, unknown>;
+  for (const key of VOLATILE_APP_STATE_KEYS) delete out[key];
+  delete out.collaborators;
+  return out;
+}
+
 export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function WhiteboardCanvas({ value, onChange }, ref) {
   // Must run synchronously before the Excalidraw instance reads location.hash.
   if (typeof window !== "undefined") scrubExcalidrawHash();
   const apiRef = useRef<ExcalidrawAPI | null>(null);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
   // useHandleLibrary needs the API as React state (re-runs when it changes
   // from null → ready) so it can attach the `#addLibrary=` URL handler.
   const [excalidrawAPI, setExcalidrawAPI] = useState<unknown>(null);
@@ -158,6 +191,7 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
     scrollToContent: true,
   }));
   const notifyRef = useRef<number | null>(null);
+  const lastPersistedSnapshot = useRef("");
   const registerExcalidrawApi = useCallback((api: unknown) => {
     apiRef.current = api as ExcalidrawAPI;
     // useHandleLibrary only needs the first ready API instance. Re-setting this
@@ -166,15 +200,29 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
     setExcalidrawAPI((current: unknown) => current ?? api);
   }, []);
 
-  const onAnyChange = useCallback(() => {
+  const onAnyChange = useCallback((
+    elements?: readonly unknown[],
+    appState?: object,
+    files?: Record<string, unknown>
+  ) => {
     if (!onChange || !apiRef.current) return;
+    const api = apiRef.current;
+    const nextElements = [...(elements ?? api.getSceneElements())];
+    const nextAppState = appStateForPersistence(appState ?? api.getAppState());
+    const nextFiles = files ?? api.getFiles();
+    const signature = JSON.stringify({
+      elements: nextElements,
+      appState: nextAppState,
+      fileIds: Object.keys(nextFiles).sort(),
+    });
+    if (signature === lastPersistedSnapshot.current) return;
+    lastPersistedSnapshot.current = signature;
     if (notifyRef.current) cancelAnimationFrame(notifyRef.current);
     notifyRef.current = requestAnimationFrame(() => {
-      const api = apiRef.current!;
       onChange({
-        elements: [...api.getSceneElements()],
-        appState: api.getAppState(),
-        files: api.getFiles(),
+        elements: nextElements,
+        appState: nextAppState,
+        files: nextFiles,
       });
     });
   }, [onChange]);
@@ -183,7 +231,13 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
     (
       b64: string,
       mime: string,
-      opts?: { width?: number; height?: number; idPrefix?: string }
+      opts?: {
+        width?: number;
+        height?: number;
+        idPrefix?: string;
+        clientX?: number;
+        clientY?: number;
+      }
     ) => {
       const api = apiRef.current;
       if (!api) return;
@@ -206,8 +260,15 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
       const zoom = appState.zoom?.value ?? 1;
       const viewportWidth = (appState.width ?? 1024) / zoom;
       const viewportHeight = (appState.height ?? 768) / zoom;
-      const centerX = -(appState.scrollX ?? 0) + viewportWidth / 2;
-      const centerY = -(appState.scrollY ?? 0) + viewportHeight / 2;
+      const wrapperRect = wrapperRef.current?.getBoundingClientRect();
+      const centerX =
+        opts?.clientX !== undefined && wrapperRect
+          ? -(appState.scrollX ?? 0) + (opts.clientX - wrapperRect.left) / zoom
+          : -(appState.scrollX ?? 0) + viewportWidth / 2;
+      const centerY =
+        opts?.clientY !== undefined && wrapperRect
+          ? -(appState.scrollY ?? 0) + (opts.clientY - wrapperRect.top) / zoom
+          : -(appState.scrollY ?? 0) + viewportHeight / 2;
       const width = opts?.width ?? 480;
       const height = opts?.height ?? 480;
       const elements = convertToExcalidrawElements([
@@ -226,6 +287,42 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
     []
   );
 
+  const handleAssetDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    if (
+      Array.from(event.dataTransfer.types).includes(
+        "application/x-diagrammatic-whiteboard-asset"
+      )
+    ) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "copy";
+    }
+  }, []);
+
+  const handleAssetDrop = useCallback(
+    (event: React.DragEvent<HTMLDivElement>) => {
+      const raw = event.dataTransfer.getData(
+        "application/x-diagrammatic-whiteboard-asset"
+      );
+      if (!raw) return;
+      event.preventDefault();
+      event.stopPropagation();
+      try {
+        const asset = JSON.parse(raw) as { svg?: string; label?: string };
+        if (!asset.svg || !asset.label) return;
+        insertImageData(utf8ToBase64(asset.svg), "image/svg+xml", {
+          width: 180,
+          height: 180,
+          idPrefix: `symbol-${asset.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+          clientX: event.clientX,
+          clientY: event.clientY,
+        });
+      } catch {
+        // Ignore malformed external drag payloads.
+      }
+    },
+    [insertImageData]
+  );
+
   useEffect(() => () => { if (notifyRef.current) cancelAnimationFrame(notifyRef.current); }, []);
 
   useImperativeHandle(ref, () => ({
@@ -233,7 +330,7 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
       if (!apiRef.current) return value;
       return {
         elements: [...apiRef.current.getSceneElements()],
-        appState: apiRef.current.getAppState(),
+        appState: appStateForPersistence(apiRef.current.getAppState()),
         files: apiRef.current.getFiles(),
       };
     },
@@ -323,7 +420,12 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
   }, []);
 
   return (
-    <div className="diagrammatic-whiteboard h-full w-full bg-slate-50">
+    <div
+      ref={wrapperRef}
+      className="diagrammatic-whiteboard h-full w-full bg-slate-50"
+      onDragOver={handleAssetDragOver}
+      onDrop={handleAssetDrop}
+    >
       <Excalidraw
         excalidrawAPI={registerExcalidrawApi}
         initialData={initialData}
@@ -374,7 +476,6 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
             Browse public libraries
           </MainMenu.Item>
           <MainMenu.Separator />
-          <MainMenu.DefaultItems.ChangeCanvasBackground />
           <MainMenu.DefaultItems.Help />
         </MainMenu>
       </Excalidraw>
