@@ -11,7 +11,9 @@ test.describe("Workspace access gate", () => {
   }) => {
     await page.goto("/");
     await expect(page).toHaveURL(/\/login\?next=%2F$/);
-    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Welcome to Diagrammatic" })
+    ).toBeVisible();
 
     const unauthorized = await page.request.get("/api/ai/status");
     expect(unauthorized.status()).toBe(401);
@@ -19,11 +21,11 @@ test.describe("Workspace access gate", () => {
     await page.getByLabel("Username").fill(username!);
     const passwordInput = page.locator('input[autocomplete="current-password"]');
     await passwordInput.fill("incorrect-password");
-    await page.getByRole("button", { name: "Enter workspace" }).click();
+    await page.getByRole("button", { name: "Open Diagrammatic" }).click();
     await expect(page.getByText("Invalid username or password.")).toBeVisible();
 
     await passwordInput.fill(password!);
-    await page.getByRole("button", { name: "Enter workspace" }).click();
+    await page.getByRole("button", { name: "Open Diagrammatic" }).click();
     await expect(page).toHaveURL("/");
     await expect(page.getByText("What are you architecting today?")).toBeVisible();
 

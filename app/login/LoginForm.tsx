@@ -81,16 +81,17 @@ export function LoginForm() {
 
           <div className="max-w-2xl py-16 lg:py-8">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-400">
-              Controlled access
+              Enterprise diagramming
             </p>
             <h1 className="mt-5 text-balance text-4xl font-semibold leading-[1.05] tracking-[-0.04em] text-white sm:text-6xl">
-              Design the system.
+              Architect cloud systems.
               <br />
-              <span className="text-slate-500">Control the narrative.</span>
+              <span className="text-slate-500">Make every flow understandable.</span>
             </h1>
             <p className="mt-6 max-w-xl text-sm leading-7 text-slate-400 sm:text-base">
-              Build enterprise cloud architecture, explain request flows, and export
-              presentation-ready artifacts from one local-first studio.
+              Design Azure, AWS, GCP, and multi-cloud architecture. Whiteboard ideas,
+              animate request journeys, and export presentation-ready diagrams from
+              one local-first studio.
             </p>
 
             <div className="mt-10 grid gap-3 sm:grid-cols-3">
@@ -108,7 +109,7 @@ export function LoginForm() {
           </div>
 
           <p className="text-[10px] uppercase tracking-[0.15em] text-slate-600">
-            Authorized users only · Session expires after 8 hours
+            Architecture · Flowcharts · Whiteboard · C4 · Animated GIF
           </p>
         </section>
 
@@ -119,8 +120,8 @@ export function LoginForm() {
                 <LockKeyhole className="h-5 w-5" />
               </span>
               <div>
-                <h2 className="text-xl font-semibold text-white">Sign in</h2>
-                <p className="text-xs text-slate-500">Enter your workspace credentials.</p>
+                <h2 className="text-xl font-semibold text-white">Welcome to Diagrammatic</h2>
+                <p className="text-xs text-slate-500">Sign in to continue creating.</p>
               </div>
             </div>
 
@@ -186,13 +187,13 @@ export function LoginForm() {
                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-400 px-4 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-                {busy ? "Signing in…" : "Enter workspace"}
+                {busy ? "Signing in…" : "Open Diagrammatic"}
               </button>
             </form>
 
             <p className="mt-6 text-center text-[10px] leading-relaxed text-slate-600">
-              Credentials are validated on the server and never stored in browser
-              storage. This device receives a signed, HttpOnly session cookie.
+              Your diagrams and drafts remain local to this browser. Sign-in only
+              opens the workspace on this device.
             </p>
           </div>
         </section>
