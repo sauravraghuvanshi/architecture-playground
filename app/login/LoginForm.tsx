@@ -81,7 +81,7 @@ export function LoginForm() {
 
           <div className="max-w-2xl py-16 lg:py-8">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-400">
-              Enterprise diagramming
+              Visual architecture studio
             </p>
             <h1 className="mt-5 text-balance text-4xl font-semibold leading-[1.05] tracking-[-0.04em] text-white sm:text-6xl">
               Architect cloud systems.
