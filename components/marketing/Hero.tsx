@@ -38,7 +38,7 @@ export function Hero() {
   };
 
   return (
-    <section className="relative overflow-hidden bg-zinc-950 pt-32 pb-24 text-zinc-50">
+    <section className="relative overflow-hidden bg-[#07101e] pt-32 pb-24 text-slate-50">
       <div
         aria-hidden
         className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(190,242,100,0.08),transparent_55%)]"
@@ -55,7 +55,7 @@ export function Hero() {
           transition={{ duration: 0.5 }}
           className="inline-flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900/60 px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-zinc-400 backdrop-blur"
         >
-          <span className="h-1.5 w-1.5 rounded-full bg-lime-300" />
+          <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
           Open source · MIT · React Flow engine
         </motion.div>
 
@@ -68,7 +68,7 @@ export function Hero() {
           An open architect&apos;s canvas.
           <br />
           <span className="italic text-zinc-400">Type a system,</span>
-          <span className="text-lime-300"> watch it draw itself.</span>
+          <span className="text-cyan-300"> watch it draw itself.</span>
         </motion.h1>
 
         <motion.p
@@ -92,9 +92,9 @@ export function Hero() {
           transition={{ duration: 0.7, delay: 0.25 }}
           className="mx-auto mt-12 max-w-2xl"
         >
-          <div className="group relative rounded-2xl border border-zinc-800 bg-zinc-900/80 backdrop-blur transition focus-within:border-lime-300/60">
+          <div className="group relative rounded-2xl border border-slate-800 bg-[#0b1220]/90 backdrop-blur transition focus-within:border-cyan-400/60">
             <div className="flex items-center gap-3 p-2.5 pl-4">
-              <Sparkles className="h-4 w-4 shrink-0 text-lime-300" />
+              <Sparkles className="h-4 w-4 shrink-0 text-cyan-300" />
               <div className="relative h-9 flex-1 text-left">
                 <input
                   ref={inputRef}
@@ -121,7 +121,7 @@ export function Hero() {
               </div>
               <button
                 type="submit"
-                className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-lime-300 px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-lime-200"
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-cyan-400 px-4 py-2 text-sm font-bold text-slate-950 transition hover:bg-cyan-300"
               >
                 Generate
                 <ArrowRight className="h-4 w-4" />

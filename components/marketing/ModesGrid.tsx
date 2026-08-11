@@ -14,10 +14,10 @@ import { TOOLS } from "./copy";
 
 export function ModesGrid() {
   return (
-    <section id="modes" className="border-t border-zinc-900 bg-zinc-950 py-24 text-zinc-100">
+    <section id="modes" className="border-t border-slate-900 bg-[#07101e] py-24 text-slate-100">
       <div className="mx-auto max-w-6xl px-6">
         <div className="mb-12 max-w-2xl">
-          <p className="text-xs font-medium uppercase tracking-widest text-lime-300">
+          <p className="text-xs font-medium uppercase tracking-widest text-cyan-300">
             One canvas, nine modes
           </p>
           <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight md:text-5xl">
@@ -32,9 +32,9 @@ export function ModesGrid() {
             const Icon = t.icon;
             const card = (
               <div
-                className={`group/card relative h-full overflow-hidden rounded-xl border bg-zinc-900/40 p-6 transition ${
+                className={`group/card relative h-full overflow-hidden rounded-xl border bg-[#0b1220]/70 p-6 transition ${
                   t.ready
-                    ? "border-zinc-800 hover:border-lime-300/40 hover:bg-zinc-900/90 cursor-pointer"
+                    ? "border-slate-800 hover:border-cyan-400/40 hover:bg-slate-900/90 cursor-pointer"
                     : "border-zinc-900 cursor-not-allowed opacity-70"
                 }`}
               >
@@ -42,7 +42,7 @@ export function ModesGrid() {
                   <span
                     className={`grid h-10 w-10 place-items-center rounded-lg border ${
                       t.ready
-                        ? "border-lime-300/30 bg-lime-300/10 text-lime-300"
+                        ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-300"
                         : "border-zinc-800 bg-zinc-950 text-zinc-500"
                     }`}
                   >
@@ -51,7 +51,7 @@ export function ModesGrid() {
                   <span
                     className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
                       t.ready
-                        ? "border-lime-300/30 bg-lime-300/15 text-lime-300"
+                        ? "border-cyan-400/30 bg-cyan-400/15 text-cyan-300"
                         : "border-zinc-700 bg-zinc-900 text-zinc-500"
                     }`}
                   >
@@ -69,7 +69,7 @@ export function ModesGrid() {
                   ))}
                 </ul>
                 {t.ready ? (
-                  <span className="mt-5 inline-flex items-center gap-1 text-xs font-semibold text-lime-300 transition group-hover/card:gap-2">
+                  <span className="mt-5 inline-flex items-center gap-1 text-xs font-semibold text-cyan-300 transition group-hover/card:gap-2">
                     Open the canvas <ArrowRight className="h-3.5 w-3.5" />
                   </span>
                 ) : (

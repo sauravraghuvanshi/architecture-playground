@@ -58,15 +58,15 @@ export function ModeTiles() {
               className="group"
             >
               <Link href={`/diagrammatic?mode=${m.id}`} className="block cursor-pointer">
-                <div className="relative h-full p-4 rounded-xl border border-zinc-800 bg-zinc-900/60 transition-all overflow-hidden hover:border-lime-300/40 hover:bg-zinc-900 hover:shadow-[0_10px_30px_-15px_rgba(190,242,100,0.25)]">
+                <div className="relative h-full p-4 rounded-xl border border-slate-800 bg-[#0b1220]/80 transition-all overflow-hidden hover:border-cyan-400/40 hover:bg-slate-900 hover:shadow-[0_10px_30px_-15px_rgba(34,211,238,0.2)]">
                   <div className="relative flex items-start gap-3">
-                    <span className="grid place-items-center w-10 h-10 rounded-lg shrink-0 bg-lime-300 text-zinc-950">
+                    <span className="grid place-items-center w-10 h-10 rounded-lg shrink-0 bg-cyan-400 text-slate-950">
                       <I className="w-5 h-5" />
                     </span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <h3 className="text-sm font-semibold text-zinc-100 truncate">{m.label}</h3>
-                        <span className="rounded bg-lime-300/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-lime-300">Live</span>
+                        <span className="rounded bg-cyan-400/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-cyan-300">Live</span>
                       </div>
                       <p className="mt-0.5 text-xs text-zinc-500 truncate">{m.blurb}</p>
                     </div>

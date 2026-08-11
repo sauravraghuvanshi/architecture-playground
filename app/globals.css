@@ -33,13 +33,14 @@ body {
   font-feature-settings: "rlig" 1, "calt" 1;
 }
 
-/* React Flow surface should fill the viewport when the playground mounts */
-.react-flow__container {
+/* Style only the React Flow root. Nested SVG layers also use the generic
+   `react-flow__container` class and must remain transparent. */
+.react-flow {
   background: var(--color-brand-50);
 }
 
-.dark .react-flow__container {
-  background: var(--color-brand-950);
+.dark .react-flow {
+  background: #f8fafc;
 }
 
 /* ─── Diagrammatic: animated edge flow ─────────────────────────────────
@@ -59,6 +60,83 @@ body {
 /* Phase-3 React Flow LabeledEdge animation. */
 @keyframes diagrammaticDash {
   to { stroke-dashoffset: -24; }
+}
+
+/* Enterprise architecture studio uses a document-friendly blueprint surface
+   even while the surrounding application chrome stays dark. */
+.architecture-canvas .react-flow {
+  background: #f8fafc !important;
+}
+
+.dark .architecture-canvas .react-flow__viewport.react-flow__container {
+  background: transparent !important;
+}
+
+/* React Flow gives the temporary connection SVG the generic `container`
+   class. It must stay transparent or it covers every node while dragging. */
+.dark .architecture-canvas .react-flow__connectionline.react-flow__container {
+  background: transparent !important;
+}
+
+.architecture-canvas .react-flow__node {
+  font-family: var(--font-geist-sans), ui-sans-serif, sans-serif;
+}
+
+.architecture-canvas .react-flow__handle {
+  opacity: 0.28;
+}
+
+.architecture-canvas .react-flow__node:hover .react-flow__handle,
+.architecture-canvas .react-flow__node.selected .react-flow__handle,
+.architecture-canvas .react-flow__handle.connecting,
+.architecture-canvas .react-flow__handle.valid {
+  opacity: 1;
+}
+
+.architecture-canvas .react-flow__connection-path {
+  stroke: #0284c7;
+  stroke-width: 2.5;
+  stroke-dasharray: 7 5;
+}
+
+.architecture-canvas .react-flow__edgelabel-renderer {
+  z-index: 1000 !important;
+  pointer-events: none;
+}
+
+.architecture-canvas .react-flow__edgelabel-renderer [role="button"] {
+  pointer-events: all;
+}
+
+.architecture-canvas .react-flow__edges {
+  z-index: 1 !important;
+}
+
+.architecture-canvas .react-flow__nodes {
+  z-index: 2 !important;
+}
+
+.architecture-canvas .react-flow__selection,
+.architecture-canvas .react-flow__nodesselection-rect {
+  border: 1px solid #0284c7;
+  background: rgb(14 165 233 / 0.08);
+}
+
+/* Align Excalidraw's embedded controls with the Diagrammatic enterprise shell
+   while retaining Excalidraw's native interaction patterns. */
+.diagrammatic-whiteboard .excalidraw.theme--dark {
+  --color-primary: #22d3ee;
+  --color-primary-darker: #06b6d4;
+  --color-primary-darkest: #0891b2;
+  --color-primary-light: #164e63;
+  --color-primary-light-darker: #155e75;
+  --color-primary-hover: #67e8f9;
+  --color-selection: #0891b2;
+  --color-surface-primary-container: #164e63;
+  --color-on-primary-container: #ecfeff;
+  --island-bg-color: #0b1220;
+  --sidebar-bg-color: #0b1220;
+  --default-bg-color: #07101e;
 }
 
 @media (prefers-reduced-motion: reduce) {

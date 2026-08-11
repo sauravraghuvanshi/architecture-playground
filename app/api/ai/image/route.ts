@@ -39,6 +39,10 @@
  */
 import { NextResponse } from "next/server";
 import { aiRateLimit } from "@/lib/ai-rate-limit";
+import {
+  getImageAiConfig,
+  getImageAiProxyBaseUrl,
+} from "@/lib/ai-image-config";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -46,24 +50,6 @@ export const maxDuration = 300;
 
 const HEARTBEAT_MS = 15_000;
 const REQUEST_TIMEOUT_MS = 270_000; // 4m30s — generous upper bound for gpt-image-2
-
-function imageEndpoint(): string | null {
-  return (
-    process.env.AZURE_OPENAI_IMAGE_ENDPOINT ||
-    process.env.AZURE_OPENAI_ENDPOINT ||
-    null
-  );
-}
-function imageKey(): string | null {
-  return (
-    process.env.AZURE_OPENAI_IMAGE_API_KEY ||
-    process.env.AZURE_OPENAI_API_KEY ||
-    null
-  );
-}
-function imageConfigured(): boolean {
-  return !!(imageEndpoint() && imageKey() && process.env.AZURE_OPENAI_IMAGE_DEPLOYMENT);
-}
 
 function sseStream(producer: (
   send: (data: object) => void,
@@ -109,12 +95,6 @@ function sseStream(producer: (
 }
 
 export async function POST(req: Request) {
-  if (!imageConfigured()) {
-    return NextResponse.json(
-      { error: "Image generation not configured. Set AZURE_OPENAI_IMAGE_DEPLOYMENT (and optionally AZURE_OPENAI_IMAGE_ENDPOINT / AZURE_OPENAI_IMAGE_API_KEY)." },
-      { status: 503 }
-    );
-  }
   const rate = aiRateLimit(req);
   if (!rate.ok) {
     return NextResponse.json({ error: "Rate limit exceeded", retryAfter: rate.retryAfterSec }, {
@@ -133,10 +113,54 @@ export async function POST(req: Request) {
   if (!prompt) return NextResponse.json({ error: "Missing 'prompt'" }, { status: 400 });
   if (prompt.length > 1000) return NextResponse.json({ error: "Prompt too long" }, { status: 400 });
 
-  const endpoint = imageEndpoint()!.replace(/\/$/, "");
-  const deployment = process.env.AZURE_OPENAI_IMAGE_DEPLOYMENT!;
-  const key = imageKey()!;
-  const url = `${endpoint}/openai/v1/images/generations`;
+  const config = getImageAiConfig();
+  if (!config) {
+    const proxyBaseUrl = getImageAiProxyBaseUrl();
+    if (!proxyBaseUrl) {
+      return NextResponse.json(
+        {
+          error:
+            "Image generation not configured. Set AZURE_OPENAI_IMAGE_DEPLOYMENT (and optionally AZURE_OPENAI_IMAGE_ENDPOINT / AZURE_OPENAI_IMAGE_API_KEY).",
+        },
+        { status: 503 }
+      );
+    }
+    try {
+      const upstream = await fetch(`${proxyBaseUrl}/api/ai/image`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, size }),
+        signal: req.signal,
+      });
+      const headers = new Headers();
+      for (const name of [
+        "content-type",
+        "cache-control",
+        "connection",
+        "x-accel-buffering",
+        "retry-after",
+      ]) {
+        const value = upstream.headers.get(name);
+        if (value) headers.set(name, value);
+      }
+      return new Response(upstream.body, {
+        status: upstream.status,
+        headers,
+      });
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error:
+            error instanceof Error
+              ? `Development AI proxy failed: ${error.message}`
+              : "Development AI proxy failed",
+        },
+        { status: 502 }
+      );
+    }
+  }
+
+  const url = `${config.endpoint}/openai/v1/images/generations`;
 
   return sseStream(async (send, fail) => {
     const t0 = Date.now();
@@ -147,10 +171,10 @@ export async function POST(req: Request) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${key}`,
-          "api-key": key,
+          "Authorization": `Bearer ${config.apiKey}`,
+          "api-key": config.apiKey,
         },
-        body: JSON.stringify({ model: deployment, prompt, size, n: 1 }),
+        body: JSON.stringify({ model: config.deployment, prompt, size, n: 1 }),
         signal: controller.signal,
       });
       if (!res.ok) {

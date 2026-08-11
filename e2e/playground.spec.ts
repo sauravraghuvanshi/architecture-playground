@@ -5,15 +5,15 @@ test.describe("Architecture Playground", () => {
     test.skip(testInfo.project.name === "Mobile Safari" || testInfo.project.name === "Mobile Chrome",
       "Playground is desktop-first; mobile shows a simplified UI");
 
-    await page.goto("/");
+    await page.goto("/legacy-playground");
 
     // Toolbar visible
-    await expect(page.getByRole("button", { name: /Fit view/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Fit view (F)" })).toBeVisible();
 
     // Palette tabs visible
     await expect(page.getByRole("tab", { name: /Azure/i })).toBeVisible();
     await expect(page.getByRole("tab", { name: /AWS/i })).toBeVisible();
-    await expect(page.getByRole("tab", { name: /Google Cloud/i })).toBeVisible();
+    await expect(page.getByRole("tab", { name: /GCP/i })).toBeVisible();
 
     // Templates dropdown is populated
     const templates = page.getByLabel("Load template");

@@ -8,6 +8,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { CloudCog } from "lucide-react";
 import { TemplateGalleryClient } from "./GalleryClient";
 import type { ParameterizedTemplate } from "@/components/playground/lib/template-engine";
 
@@ -37,12 +38,12 @@ export default async function TemplatesPage() {
   const templates = await loadParameterizedTemplates();
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      <header className="border-b border-zinc-800 bg-zinc-950/85 backdrop-blur-md sticky top-0 z-30">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3.5">
+    <div className="min-h-screen bg-[#07101e] text-slate-100">
+      <header className="sticky top-0 z-30 border-b border-slate-800 bg-[#08111f]/90 backdrop-blur-xl">
+        <div className="mx-auto flex h-14 max-w-[1400px] items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-2 cursor-pointer">
-            <span className="grid h-7 w-7 place-items-center rounded-md border border-zinc-800 bg-zinc-900 text-xs font-black text-lime-300">
-              ◆
+            <span className="grid h-8 w-8 place-items-center rounded-xl bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-500/15">
+              <CloudCog className="h-4 w-4" />
             </span>
             <span className="text-[15px] font-semibold tracking-tight text-zinc-100">
               Diagrammatic
@@ -62,7 +63,7 @@ export default async function TemplatesPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-6 py-10">
+      <main className="mx-auto max-w-[1400px] px-6 py-10">
         <div className="mb-8">
           <h1 className="text-3xl font-semibold tracking-tight text-zinc-100">Template Gallery</h1>
           <p className="mt-2 text-sm text-zinc-500">

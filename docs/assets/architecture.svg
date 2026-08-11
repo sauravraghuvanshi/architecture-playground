@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680" role="img" aria-labelledby="title desc">
+  <title id="title">Diagrammatic application architecture</title>
+  <desc id="desc">Next.js application routes feed a client workspace that hosts React Flow, Excalidraw, and dnd-kit engines, with local persistence, Azure OpenAI, static assets, and export services.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07101e"/>
+      <stop offset="1" stop-color="#0f1d33"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#020617" flood-opacity=".45"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#22d3ee"/>
+    </marker>
+    <style>
+      .title { fill:#f8fafc; font:700 22px ui-sans-serif,system-ui,sans-serif }
+      .label { fill:#e2e8f0; font:650 15px ui-sans-serif,system-ui,sans-serif }
+      .small { fill:#94a3b8; font:500 12px ui-sans-serif,system-ui,sans-serif }
+      .eyebrow { fill:#22d3ee; font:700 11px ui-monospace,SFMono-Regular,monospace; letter-spacing:1.6px }
+      .box { fill:#0b1220; stroke:#334155; stroke-width:1.5 }
+      .engine { fill:#0f2033; stroke:#22d3ee; stroke-opacity:.42; stroke-width:1.5 }
+      .line { fill:none; stroke:#22d3ee; stroke-width:2; marker-end:url(#arrow) }
+    </style>
+  </defs>
+  <rect width="1200" height="680" rx="28" fill="url(#bg)"/>
+  <g opacity=".18">
+    <path d="M0 80H1200M0 160H1200M0 240H1200M0 320H1200M0 400H1200M0 480H1200M0 560H1200M0 640H1200" stroke="#64748b"/>
+    <path d="M80 0V680M160 0V680M240 0V680M320 0V680M400 0V680M480 0V680M560 0V680M640 0V680M720 0V680M800 0V680M880 0V680M960 0V680M1040 0V680M1120 0V680" stroke="#64748b"/>
+  </g>
+
+  <text x="52" y="54" class="eyebrow">DIAGRAMMATIC / SYSTEM VIEW</text>
+  <text x="52" y="86" class="title">Local-first multi-mode diagram workspace</text>
+
+  <g filter="url(#shadow)">
+    <rect x="52" y="128" width="220" height="172" rx="18" class="box"/>
+    <text x="76" y="158" class="eyebrow">NEXT.JS 16</text>
+    <text x="76" y="187" class="label">App Router surfaces</text>
+    <text x="76" y="217" class="small">Hub / Templates / About</text>
+    <text x="76" y="240" class="small">Diagrammatic workspace</text>
+    <text x="76" y="263" class="small">Presentation route</text>
+    <text x="76" y="286" class="small">AI route handlers + SSE</text>
+
+    <rect x="350" y="112" width="500" height="216" rx="22" class="engine"/>
+    <text x="378" y="146" class="eyebrow">CLIENT WORKSPACE</text>
+    <text x="378" y="178" class="title">Shared enterprise shell</text>
+    <text x="378" y="204" class="small">Toolbar / modes / asset palettes / inspector / comments / versions</text>
+
+    <rect x="378" y="232" width="132" height="72" rx="14" class="box"/>
+    <text x="394" y="258" class="label">React Flow</text>
+    <text x="394" y="281" class="small">7 structured modes</text>
+
+    <rect x="534" y="232" width="132" height="72" rx="14" class="box"/>
+    <text x="550" y="258" class="label">Excalidraw</text>
+    <text x="550" y="281" class="small">Whiteboard</text>
+
+    <rect x="690" y="232" width="132" height="72" rx="14" class="box"/>
+    <text x="706" y="258" class="label">dnd-kit</text>
+    <text x="706" y="281" class="small">Kanban</text>
+
+    <rect x="928" y="128" width="220" height="172" rx="18" class="box"/>
+    <text x="952" y="158" class="eyebrow">STATIC CATALOGS</text>
+    <text x="952" y="187" class="label">Reusable assets</text>
+    <text x="952" y="217" class="small">1,433 cloud service icons</text>
+    <text x="952" y="240" class="small">600 Whiteboard symbols</text>
+    <text x="952" y="263" class="small">16 architecture templates</text>
+    <text x="952" y="286" class="small">Per-mode starter templates</text>
+  </g>
+
+  <path d="M272 214H346" class="line"/>
+  <path d="M854 214H924" class="line"/>
+
+  <g filter="url(#shadow)">
+    <rect x="52" y="410" width="250" height="182" rx="18" class="box"/>
+    <text x="76" y="442" class="eyebrow">LOCAL-FIRST STATE</text>
+    <text x="76" y="472" class="label">Browser persistence</text>
+    <text x="76" y="503" class="small">Mode drafts + autosave</text>
+    <text x="76" y="526" class="small">Comments + version snapshots</text>
+    <text x="76" y="549" class="small">Whiteboard library + files</text>
+    <text x="76" y="572" class="small">No account or database required</text>
+
+    <rect x="360" y="410" width="250" height="182" rx="18" class="box"/>
+    <text x="384" y="442" class="eyebrow">AI ASSIST</text>
+    <text x="384" y="472" class="label">Azure OpenAI</text>
+    <text x="384" y="503" class="small">Per-mode JSON generation</text>
+    <text x="384" y="526" class="small">gpt-image-2 Whiteboard images</text>
+    <text x="384" y="549" class="small">SSE heartbeat streaming</text>
+    <text x="384" y="572" class="small">Development proxy without keys</text>
+
+    <rect x="668" y="410" width="250" height="182" rx="18" class="box"/>
+    <text x="692" y="442" class="eyebrow">EXPORT PIPELINE</text>
+    <text x="692" y="472" class="label">Presentation artifacts</text>
+    <text x="692" y="503" class="small">html-to-image: PNG / SVG</text>
+    <text x="692" y="526" class="small">jsPDF: fitted PDF</text>
+    <text x="692" y="549" class="small">gifenc: smooth staged GIF</text>
+    <text x="692" y="572" class="small">SQL / TypeScript / Markdown</text>
+
+    <rect x="976" y="410" width="172" height="182" rx="18" class="box"/>
+    <text x="1000" y="442" class="eyebrow">HOSTING</text>
+    <text x="1000" y="472" class="label">Azure</text>
+    <text x="1000" y="503" class="small">App Service</text>
+    <text x="1000" y="526" class="small">Standalone build</text>
+    <text x="1000" y="549" class="small">Kudu zipdeploy</text>
+    <text x="1000" y="572" class="small">GitHub Actions</text>
+  </g>
+
+  <path d="M490 330V368H177V406" class="line"/>
+  <path d="M565 330V406" class="line"/>
+  <path d="M640 330V368H793V406" class="line"/>
+  <path d="M850 501H972" class="line"/>
+
+  <text x="52" y="642" class="small">Security headers: CSP · HSTS · COOP · X-Frame-Options · Permissions-Policy</text>
+  <text x="1148" y="642" class="small" text-anchor="end">Next.js · React 19 · TypeScript · Tailwind CSS</text>
+</svg>

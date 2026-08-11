@@ -20,6 +20,9 @@ import type {
   ArchEdgeStyle,
   ArchNode,
   ArchEdge,
+  ArchShape,
+  ArchitectureSelection,
+  ArchitectureSelectionPatch,
 } from "./modes/architecture/ArchitectureCanvas";
 import { Palette } from "./shared/Palette";
 import { BuilderPalette } from "./shared/BuilderPalette";
@@ -38,11 +41,28 @@ import {
   ER_EMPTY_PAYLOAD,
   UML_EMPTY_PAYLOAD,
   C4_EMPTY_PAYLOAD,
+  WHITEBOARD_EMPTY_PAYLOAD,
+  KANBAN_EMPTY_PAYLOAD,
 } from "./shared/modeDefaults";
 import type { BaseCanvasHandle } from "./shared/modeRegistry";
 import { AiPromptModal } from "./shared/AiPromptModal";
 import { CommentsPanel } from "./shared/CommentsPanel";
 import { VersionsPanel } from "./shared/VersionsPanel";
+import {
+  WhiteboardAssetPalette,
+  type WhiteboardAsset,
+} from "./modes/whiteboard/AssetPalette";
+import {
+  Boxes,
+  BrainCircuit,
+  CloudCog,
+  Columns3,
+  Database,
+  GitBranch,
+  Network,
+  PencilRuler,
+  Workflow,
+} from "lucide-react";
 
 // Shared with /templates/GalleryClient.tsx
 const TEMPLATE_HANDOFF_KEY = "architecture-playground:template-handoff";
@@ -57,7 +77,17 @@ const EMPTY_PAYLOAD_FOR: Partial<Record<DiagrammaticMode, unknown>> = {
   er: ER_EMPTY_PAYLOAD,
   uml: UML_EMPTY_PAYLOAD,
   c4: C4_EMPTY_PAYLOAD,
+  whiteboard: WHITEBOARD_EMPTY_PAYLOAD,
+  kanban: KANBAN_EMPTY_PAYLOAD,
 };
+
+const ARCHITECTURE_EMPTY_PAYLOAD: ArchPayload = { nodes: [], edges: [] };
+
+interface AiStatus {
+  diagramConfigured: boolean;
+  imageConfigured: boolean;
+  imageSource?: "local" | "development-proxy" | null;
+}
 
 // Map hub TemplateBrowser ids → seed prompts. Keeps the cards working without
 // shipping a full graph registry per id.
@@ -70,6 +100,49 @@ const HUB_TEMPLATE_PROMPTS: Record<string, string> = {
   "azure-ai-rag": "AI RAG pipeline on Azure with Azure OpenAI, AI Search, Functions, and Cosmos DB",
   "gcp-streaming-iot": "Streaming IoT analytics on GCP with Pub/Sub, Dataflow, BigQuery, and Looker",
   "multi-region-active": "Multi-region active-active on Azure with Front Door, Azure SQL HA, and Cosmos multi-write",
+};
+
+const ARCHITECTURE_TEMPLATES = [
+  {
+    id: "azure-enterprise-web",
+    name: "Azure secure web platform",
+    description: "Front Door, WAF, API Management, App Service, messaging, data, and observability",
+    prompt:
+      "Enterprise Azure web platform with Front Door and WAF, API Management, App Service, Service Bus, Azure SQL, Key Vault, and Application Insights",
+  },
+  {
+    id: "aws-event-platform",
+    name: "AWS event-driven platform",
+    description: "CloudFront, API Gateway, Lambda, EventBridge, SQS, DynamoDB, and CloudWatch",
+    prompt:
+      "Enterprise event driven platform on AWS with CloudFront, API Gateway, Lambda, EventBridge, SQS, DynamoDB, S3, and CloudWatch",
+  },
+  {
+    id: "gcp-data-ai",
+    name: "GCP data & AI platform",
+    description: "Cloud Run, Pub/Sub, Dataflow, BigQuery, Vertex AI, and operations",
+    prompt:
+      "Enterprise data and AI platform on GCP with Cloud Run, Pub Sub, Dataflow, BigQuery, Cloud Storage, Vertex AI, and Cloud Monitoring",
+  },
+  {
+    id: "multi-cloud-integration",
+    name: "Multi-cloud integration",
+    description: "Cloud-neutral edge, identity, messaging, workloads, and centralized operations",
+    prompt:
+      "Enterprise multi cloud integration platform across Azure AWS and GCP with global edge, identity, API gateway, messaging, compute, data, security, and centralized observability",
+  },
+] as const;
+
+const MODE_ICONS: Record<DiagrammaticMode, React.ComponentType<{ className?: string }>> = {
+  architecture: CloudCog,
+  flowchart: GitBranch,
+  mindmap: BrainCircuit,
+  sequence: Workflow,
+  er: Database,
+  uml: Boxes,
+  whiteboard: PencilRuler,
+  kanban: Columns3,
+  c4: Network,
 };
 
 // maxGraph touches `window` and SVG namespaces — must load client-only.
@@ -107,8 +180,14 @@ export function Workspace({
   const [aiOpen, setAiOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
-  const [aiConfigured, setAiConfigured] = useState<boolean | null>(null);
+  const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
   const [edgeStyle, setEdgeStyle] = useState<ArchEdgeStyle>("flow");
+  const [selection, setSelection] = useState<ArchitectureSelection | null>(null);
+  const [exportNotice, setExportNotice] = useState<{
+    kind: "working" | "success" | "error";
+    message: string;
+  } | null>(null);
+  const [insertingWhiteboardAsset, setInsertingWhiteboardAsset] = useState<string | null>(null);
   const canvasRef = useRef<ArchitectureCanvasHandle | null>(null);
   const searchParams = useSearchParams();
 
@@ -137,11 +216,23 @@ export function Workspace({
         canvasRef.current.addIconAtCenter(icon);
       }
     };
+    const onDropShape = (e: Event) => {
+      const ce = e as CustomEvent<{ shape: ArchShape; clientX: number; clientY: number }>;
+      canvasRef.current?.dropShape(ce.detail.shape, ce.detail.clientX, ce.detail.clientY);
+    };
+    const onAddShape = (e: Event) => {
+      const ce = e as CustomEvent<{ shape: ArchShape }>;
+      canvasRef.current?.addShapeAtCenter(ce.detail.shape);
+    };
     window.addEventListener("diagrammatic-drop", onDrop as EventListener);
     window.addEventListener("diagrammatic-add-icon", onAdd as EventListener);
+    window.addEventListener("diagrammatic-drop-shape", onDropShape as EventListener);
+    window.addEventListener("diagrammatic-add-shape", onAddShape as EventListener);
     return () => {
       window.removeEventListener("diagrammatic-drop", onDrop as EventListener);
       window.removeEventListener("diagrammatic-add-icon", onAdd as EventListener);
+      window.removeEventListener("diagrammatic-drop-shape", onDropShape as EventListener);
+      window.removeEventListener("diagrammatic-add-shape", onAddShape as EventListener);
     };
   }, []);
 
@@ -159,9 +250,10 @@ export function Workspace({
     const generated = promptToArchitecture(seed, icons, { animateEdges: true });
     if (generated && generated.nodes.length) {
       promptApplied.current = true;
-      setArchPayload(generated);
-      // Re-apply the current edge style ONCE after a generated payload arrives.
-      requestAnimationFrame(() => canvasRef.current?.setAllEdgeStyle(edgeStyle));
+      requestAnimationFrame(() => {
+        setArchPayload(generated);
+        requestAnimationFrame(() => canvasRef.current?.setAllEdgeStyle(edgeStyle));
+      });
     }
   }, [searchParams, icons, edgeStyle]);
 
@@ -181,17 +273,19 @@ export function Workspace({
         sessionStorage.getItem(TEMPLATE_HANDOFF_KEY);
       if (!raw) return;
       const parsed = JSON.parse(raw) as { graph?: PlaygroundLikeGraph };
-      const arch = parsed?.graph ? playgroundGraphToArchPayload(parsed.graph) : null;
+      const arch = parsed?.graph ? playgroundGraphToArchPayload(parsed.graph, icons) : null;
       if (arch && arch.nodes.length) {
         handoffApplied.current = true;
         promptApplied.current = true; // suppress the prompt path on the same load
-        setArchPayload(arch);
+        requestAnimationFrame(() => {
+          setArchPayload(arch);
+          requestAnimationFrame(() => canvasRef.current?.setAllEdgeStyle(edgeStyle));
+        });
         if (storeKey) {
           localStorage.removeItem(storeKey);
           sessionStorage.removeItem(storeKey);
         }
         sessionStorage.removeItem(TEMPLATE_HANDOFF_KEY);
-        requestAnimationFrame(() => canvasRef.current?.setAllEdgeStyle(edgeStyle));
       }
     } catch {
       /* ignore handoff failures — falls back to empty canvas */
@@ -206,13 +300,17 @@ export function Workspace({
   }, []);
 
   const handleSave = useCallback(async () => {
+    const activePayload =
+      mode === "architecture"
+        ? archPayload
+        : otherCanvasRef.current?.serialize() ?? otherPayloads[mode];
     if (!initialDiagramId) {
       // R1: anonymous draft mode — just stash to localStorage so a refresh
       // doesn't lose work. Persisted save lands in R3 with the API wiring.
       try {
         localStorage.setItem(
           "diagrammatic.draft",
-          JSON.stringify({ mode, payload: archPayload, savedAt: Date.now() })
+          JSON.stringify({ mode, payload: activePayload, savedAt: Date.now() })
         );
         setSaved(true);
       } catch {
@@ -226,14 +324,14 @@ export function Workspace({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          graphJson: JSON.stringify({ mode, payload: archPayload, version: 1 }),
+          graphJson: JSON.stringify({ mode, payload: activePayload, version: 1 }),
         }),
       });
       if (res.ok) setSaved(true);
     } finally {
       setSaving(false);
     }
-  }, [initialDiagramId, mode, archPayload]);
+  }, [initialDiagramId, mode, archPayload, otherPayloads]);
 
   // Rehydrate from a localStorage draft on first mount when no initial payload.
   // CRITICAL: skip when the URL carries a prompt / template / handoff — in
@@ -253,13 +351,31 @@ export function Workspace({
       if (!raw) return;
       const parsed = JSON.parse(raw);
       if (parsed?.mode === "architecture" && parsed?.payload?.nodes) {
-        setArchPayload(parsed.payload as ArchPayload);
+        requestAnimationFrame(() => setArchPayload(parsed.payload as ArchPayload));
       }
     } catch {
       /* ignore */
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Architecture mode now autosaves like every other mode. The debounce keeps
+  // drag operations fluid while ensuring a refresh does not discard work.
+  useEffect(() => {
+    if (mode !== "architecture" || initialDiagramId) return;
+    const timer = window.setTimeout(() => {
+      try {
+        localStorage.setItem(
+          "diagrammatic.draft",
+          JSON.stringify({ mode: "architecture", payload: archPayload, savedAt: Date.now() })
+        );
+        setSaved(true);
+      } catch {
+        setSaved(false);
+      }
+    }, 650);
+    return () => window.clearTimeout(timer);
+  }, [archPayload, initialDiagramId, mode]);
 
   // ?mode=<id> on first load — set the mode if URL specifies one. One-shot;
   // subsequent tab clicks own the mode via setMode.
@@ -269,7 +385,7 @@ export function Workspace({
     const m = searchParams?.get("mode");
     if (m && ["architecture","flowchart","mindmap","sequence","er","uml","c4","kanban","whiteboard"].includes(m)) {
       modeFromUrlApplied.current = true;
-      setMode(m as DiagrammaticMode);
+      requestAnimationFrame(() => setMode(m as DiagrammaticMode));
     }
   }, [searchParams]);
 
@@ -319,12 +435,146 @@ export function Workspace({
     let cancelled = false;
     fetch("/api/ai/status")
       .then((r) => r.json())
-      .then((j: { configured?: boolean }) => { if (!cancelled) setAiConfigured(!!j.configured); })
-      .catch(() => { if (!cancelled) setAiConfigured(false); });
+      .then(
+        (result: {
+          configured?: boolean;
+          diagramConfigured?: boolean;
+          imageConfigured?: boolean;
+          imageSource?: AiStatus["imageSource"];
+        }) => {
+          if (!cancelled) {
+            setAiStatus({
+              diagramConfigured: result.diagramConfigured ?? !!result.configured,
+              imageConfigured: result.imageConfigured ?? !!result.configured,
+              imageSource: result.imageSource,
+            });
+          }
+        }
+      )
+      .catch(() => {
+        if (!cancelled) {
+          setAiStatus({ diagramConfigured: false, imageConfigured: false });
+        }
+      });
     return () => { cancelled = true; };
   }, []);
 
   const meta = MODE_META[mode];
+
+  const handleExport = useCallback(
+    async (format: ExportFormat) => {
+      const label = format.toUpperCase();
+      setExportNotice({ kind: "working", message: `Preparing ${label} export…` });
+      try {
+        if (mode === "architecture") {
+          await exportCanvas(format, canvasRef.current);
+        } else {
+          await exportOther(format, mode, otherCanvasRef.current, otherPayloads[mode]);
+        }
+        setExportNotice({ kind: "success", message: `${label} export downloaded` });
+      } catch (error) {
+        console.error("Export failed:", error);
+        setExportNotice({
+          kind: "error",
+          message: error instanceof Error ? error.message : `${label} export failed`,
+        });
+      }
+      window.setTimeout(() => setExportNotice(null), 3200);
+    },
+    [mode, otherPayloads]
+  );
+
+  const updateSelection = useCallback(
+    (id: string, patch: ArchitectureSelectionPatch) => {
+      canvasRef.current?.updateElement(id, patch);
+    },
+    []
+  );
+
+  const applyArchitectureTemplate = useCallback(
+    (templateId: string) => {
+      const template = ARCHITECTURE_TEMPLATES.find((candidate) => candidate.id === templateId);
+      if (!template) return;
+      const generated = promptToArchitecture(template.prompt, icons, { animateEdges: true });
+      if (!generated?.nodes.length) return;
+      setArchPayload(generated);
+      canvasRef.current?.hydrate(generated);
+      setSaved(false);
+      requestAnimationFrame(() => canvasRef.current?.setAllEdgeStyle(edgeStyle));
+    },
+    [edgeStyle, icons]
+  );
+
+  const handleBlankCanvas = useCallback(() => {
+    const empty =
+      mode === "architecture" ? ARCHITECTURE_EMPTY_PAYLOAD : EMPTY_PAYLOAD_FOR[mode];
+    if (!empty) return;
+    const current =
+      mode === "architecture"
+        ? archPayload
+        : otherCanvasRef.current?.serialize() ?? otherPayloads[mode];
+    const hasContent = JSON.stringify(current) !== JSON.stringify(empty);
+    if (
+      hasContent &&
+      !window.confirm(`Start a blank ${MODE_META[mode].label} canvas? Your current canvas will be replaced.`)
+    ) {
+      return;
+    }
+
+    const blank = structuredClone(empty);
+    if (mode === "architecture") {
+      setArchPayload(blank as ArchPayload);
+      canvasRef.current?.hydrate(blank as ArchPayload);
+      setSelection(null);
+    } else {
+      setOtherPayloads((previous) => ({ ...previous, [mode]: blank }));
+      otherCanvasRef.current?.hydrate(blank);
+      try {
+        localStorage.setItem(
+          `diagrammatic.draft.${mode}`,
+          JSON.stringify({ payload: blank, savedAt: Date.now() })
+        );
+      } catch {
+        /* localStorage may be unavailable */
+      }
+    }
+    setSaved(false);
+  }, [archPayload, mode, otherPayloads]);
+
+  const handleOtherChange = useCallback(
+    (payload: unknown) => {
+      setOtherPayloads((previous) => ({ ...previous, [mode]: payload }));
+      setSaved(false);
+      try {
+        localStorage.setItem(
+          `diagrammatic.draft.${mode}`,
+          JSON.stringify({ payload, savedAt: Date.now() })
+        );
+      } catch {
+        /* localStorage may be unavailable */
+      }
+    },
+    [mode]
+  );
+
+  const handleOtherMount = useCallback((handle: BaseCanvasHandle | null) => {
+    otherCanvasRef.current = handle;
+  }, []);
+
+  const insertWhiteboardAsset = useCallback((asset: WhiteboardAsset) => {
+    const handle = otherCanvasRef.current as
+      | (BaseCanvasHandle & { insertSvgAsset?: (svg: string, label: string) => void })
+      | null;
+    if (!handle?.insertSvgAsset) {
+      setExportNotice({ kind: "error", message: "Whiteboard is still loading" });
+      window.setTimeout(() => setExportNotice(null), 2400);
+      return;
+    }
+    setInsertingWhiteboardAsset(asset.id);
+    handle.insertSvgAsset(asset.svg, asset.label);
+    setSaved(false);
+    window.setTimeout(() => setInsertingWhiteboardAsset(null), 250);
+  }, []);
 
   const [playing, setPlaying] = useState(false);
   // Cycle global edge style: solid → dashed → flow → solid.
@@ -405,7 +655,7 @@ export function Workspace({
   }, [handleSave]);
 
   return (
-    <div className="flex h-screen flex-col bg-zinc-950 text-zinc-100">
+    <div className="flex h-dvh min-w-0 flex-col overflow-hidden bg-[#07101e] text-slate-100">
       <Toolbar
         title={meta.label}
         onFit={() => (mode === "architecture" ? canvasRef.current?.fit() : otherCanvasRef.current?.fit())}
@@ -419,30 +669,50 @@ export function Workspace({
         onPlay={mode === "architecture" ? () => canvasRef.current?.playSequence() : undefined}
         onStop={mode === "architecture" ? () => canvasRef.current?.stopSequence() : undefined}
         playing={playing}
-        onExport={(format) => {
-          if (mode === "architecture") return exportCanvas(format, canvasRef.current);
-          return exportOther(format, mode, otherCanvasRef.current, otherPayloads[mode]);
-        }}
+        onExport={handleExport}
         extraExports={mode !== "architecture" ? MODE_REGISTRY[mode]?.capabilities.textExports : undefined}
         hideRasterExports={mode === "kanban"}
-        templates={mode !== "architecture"
-          ? MODE_REGISTRY[mode]?.templates.map((t) => ({ id: t.id, name: t.name, description: t.description }))
-          : undefined}
-        onApplyTemplate={mode !== "architecture" ? (id) => {
+        hideGifExport={mode !== "architecture"}
+        templates={
+          mode === "architecture"
+            ? [...ARCHITECTURE_TEMPLATES]
+            : MODE_REGISTRY[mode]?.templates.map((t) => ({
+                id: t.id,
+                name: t.name,
+                description: t.description,
+              }))
+        }
+        onApplyTemplate={(id) => {
+          if (mode === "architecture") {
+            applyArchitectureTemplate(id);
+            return;
+          }
           const tpl = MODE_REGISTRY[mode]?.templates.find((t) => t.id === id);
           if (!tpl) return;
-          // Replace the in-memory payload AND hydrate the canvas. The
-          // useFlowCanvas hook's hydrate suppresses the next snapshot so
-          // undo doesn't roll back into mid-template state.
           setOtherPayloads((prev) => ({ ...prev, [mode]: tpl.payload }));
           otherCanvasRef.current?.hydrate(tpl.payload);
           setSaved(false);
           try {
-            localStorage.setItem(`diagrammatic.draft.${mode}`, JSON.stringify({ payload: tpl.payload, savedAt: Date.now() }));
-          } catch { /* ignore */ }
-        } : undefined}
+            localStorage.setItem(
+              `diagrammatic.draft.${mode}`,
+              JSON.stringify({ payload: tpl.payload, savedAt: Date.now() })
+            );
+          } catch {
+            /* localStorage may be unavailable */
+          }
+        }}
         onAiAssist={() => setAiOpen(true)}
-        aiDisabledReason={aiConfigured === false ? "AI is not configured. Set Azure OpenAI env vars on the server." : undefined}
+        onBlankCanvas={handleBlankCanvas}
+        aiDisabledReason={
+          aiStatus &&
+          !(mode === "whiteboard"
+            ? aiStatus.imageConfigured
+            : aiStatus.diagramConfigured)
+            ? mode === "whiteboard"
+              ? "AI image generation is not configured."
+              : "AI diagram generation is not configured. Set Azure OpenAI env vars on the server."
+            : undefined
+        }
         onToggleComments={() => setCommentsOpen((v) => !v)}
         commentsOpen={commentsOpen}
         onToggleVersions={() => setVersionsOpen((v) => !v)}
@@ -453,13 +723,14 @@ export function Workspace({
 
       {/* Mode tab strip */}
       <nav
-        className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-zinc-800 bg-zinc-950 px-3 py-1.5"
+        className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-slate-800 bg-[#0b1220] px-3 py-1.5 [scrollbar-width:none]"
         aria-label="Workspace modes"
         role="tablist"
       >
         {(Object.keys(MODE_META) as DiagrammaticMode[]).map((m) => {
           const meta = MODE_META[m];
           const active = m === mode;
+          const ModeIcon = MODE_ICONS[m];
           return (
             <button
               key={m}
@@ -469,41 +740,88 @@ export function Workspace({
               aria-label={meta.label}
               onClick={() => setMode(m)}
               title={meta.tagline}
-              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition cursor-pointer ${
+              className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition ${
                 active
-                  ? "bg-zinc-100 text-zinc-900"
-                  : "text-zinc-300 hover:bg-zinc-900 hover:text-white"
+                  ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-200"
+                  : "border-transparent text-slate-500 hover:bg-slate-900 hover:text-slate-200"
               }`}
             >
-              <span aria-hidden>{meta.icon}</span>
+              <ModeIcon className={`h-3.5 w-3.5 ${active ? "text-cyan-400" : ""}`} />
               <span>{meta.label}</span>
             </button>
           );
         })}
       </nav>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         {mode === "architecture" && <Palette icons={icons} />}
+        {mode === "whiteboard" && (
+          <WhiteboardAssetPalette
+            onInsert={insertWhiteboardAsset}
+            insertingId={insertingWhiteboardAsset}
+          />
+        )}
         <main className="relative flex-1">
           {mode === "architecture" ? (
-            <ArchitectureCanvas
-              ref={canvasRef}
-              value={archPayload}
-              onChange={handleArchChange}
-              onPlayingChange={setPlaying}
-            />
+            <>
+              <ArchitectureCanvas
+                ref={canvasRef}
+                value={archPayload}
+                onChange={handleArchChange}
+                onPlayingChange={setPlaying}
+                onSelectionChange={setSelection}
+              />
+              {archPayload.nodes.length === 0 && (
+                <div className="pointer-events-none absolute inset-0 grid place-items-center p-6">
+                  <div className="pointer-events-auto w-full max-w-xl rounded-3xl border border-slate-200 bg-white/95 p-7 shadow-[0_30px_80px_-34px_rgba(15,23,42,0.35)] backdrop-blur">
+                    <div className="flex items-start gap-4">
+                      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-sky-600 text-white shadow-lg shadow-sky-600/20">
+                        <CloudCog className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-sky-600">
+                          Architecture studio
+                        </p>
+                        <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-950">
+                          Design a review-ready cloud system
+                        </h2>
+                        <p className="mt-1.5 max-w-md text-xs leading-relaxed text-slate-500">
+                          Start from an enterprise blueprint, or drag services and primitives from the library.
+                          Every connection can be ordered for a precise animated walkthrough.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-6 grid gap-2 sm:grid-cols-2">
+                      {ARCHITECTURE_TEMPLATES.slice(0, 4).map((template) => (
+                        <button
+                          key={template.id}
+                          type="button"
+                          onClick={() => applyArchitectureTemplate(template.id)}
+                          className="group rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-left transition hover:-translate-y-0.5 hover:border-sky-300 hover:bg-sky-50"
+                        >
+                          <span className="text-xs font-semibold text-slate-800 group-hover:text-sky-800">
+                            {template.name}
+                          </span>
+                          <span className="mt-1 line-clamp-2 block text-[10px] leading-relaxed text-slate-500">
+                            {template.description}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-5 flex items-center gap-3 border-t border-slate-100 pt-4 text-[10px] text-slate-400">
+                      <span className="rounded-md bg-slate-100 px-2 py-1 font-mono text-slate-600">Drag → connect</span>
+                      <span>Select an arrow to set its GIF order</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
           ) : (
             <ModeCanvasFor
               mode={mode}
               value={otherPayloads[mode]}
-              onMount={(handle) => { otherCanvasRef.current = handle; }}
-              onChange={(p) => {
-                setOtherPayloads((prev) => ({ ...prev, [mode]: p }));
-                setSaved(false);
-                try {
-                  localStorage.setItem(`diagrammatic.draft.${mode}`, JSON.stringify({ payload: p, savedAt: Date.now() }));
-                } catch { /* ignore */ }
-              }}
+              onMount={handleOtherMount}
+              onChange={handleOtherChange}
             />
           )}
 
@@ -539,7 +857,15 @@ export function Workspace({
           </button>
         </main>
 
-        {mode === "architecture" && <Inspector issues={issues} />}
+        {mode === "architecture" && (
+          <Inspector
+            issues={issues}
+            selection={selection}
+            onUpdateSelection={updateSelection}
+            onDeleteSelection={() => canvasRef.current?.deleteSelection()}
+            onFocusNode={(nodeId) => canvasRef.current?.focusElement(nodeId)}
+          />
+        )}
         <CommentsPanel
           scopeId={`${mode}:${initialDiagramId ?? "draft"}`}
           open={commentsOpen}
@@ -564,13 +890,28 @@ export function Workspace({
       </div>
 
       <StatusBar
-        nodeCount={archPayload.nodes?.length ?? 0}
+        nodeCount={archPayload.nodes?.filter((node) => node.kind !== "group").length ?? 0}
         edgeCount={archPayload.edges?.length ?? 0}
         zoom={100}
         saved={saved}
         saving={saving}
         issuesCount={issues.length}
       />
+
+      {exportNotice && (
+        <div
+          role="status"
+          className={`fixed bottom-10 left-1/2 z-[100] -translate-x-1/2 rounded-xl border px-4 py-2.5 text-xs font-semibold shadow-2xl backdrop-blur ${
+            exportNotice.kind === "error"
+              ? "border-rose-400/30 bg-rose-950/95 text-rose-100"
+              : exportNotice.kind === "success"
+                ? "border-emerald-400/30 bg-emerald-950/95 text-emerald-100"
+                : "border-cyan-400/30 bg-slate-950/95 text-cyan-100"
+          }`}
+        >
+          {exportNotice.message}
+        </div>
+      )}
 
       <CommandPalette open={cmdOpen} onOpenChange={setCmdOpen} onAction={handleCommand} />
       <KeyboardHints open={hintsOpen} onClose={() => setHintsOpen(false)} />
@@ -582,7 +923,7 @@ export function Workspace({
           if (mode === "architecture") {
             // Architecture API returns a PlaygroundGraph shape; convert.
             try {
-              const arch = playgroundGraphToArchPayload(graph as PlaygroundLikeGraph);
+              const arch = playgroundGraphToArchPayload(graph as PlaygroundLikeGraph, icons);
               if (arch.nodes.length) {
                 setArchPayload(arch);
                 requestAnimationFrame(() => canvasRef.current?.setAllEdgeStyle(edgeStyle));
@@ -699,7 +1040,7 @@ interface PlaygroundLikeGraph {
     id: string;
     source: string;
     target: string;
-    data?: { label?: string; protocol?: string; animated?: boolean };
+    data?: { label?: string; protocol?: string; animated?: boolean; step?: number };
   }>;
 }
 
@@ -712,9 +1053,46 @@ const VARIANT_TO_TIER: Record<string, string> = {
   custom: "Custom",
 };
 
-function playgroundGraphToArchPayload(graph: PlaygroundLikeGraph): ArchPayload {
+function playgroundGraphToArchPayload(
+  graph: PlaygroundLikeGraph,
+  icons: IconLite[]
+): ArchPayload {
   const nodes: ArchNode[] = [];
-  for (const n of graph.nodes ?? []) {
+  const groups = new Map(
+    (graph.nodes ?? [])
+      .filter((node) => node.type === "group")
+      .map((node) => [
+        node.id,
+        {
+          x: node.position.x,
+          y: node.position.y,
+          width: node.width ?? 440,
+          height: node.height ?? 220,
+        },
+      ])
+  );
+  const absoluteChildParents = new Set<string>();
+  for (const [groupId, group] of groups) {
+    const children = (graph.nodes ?? []).filter((node) => node.parentId === groupId);
+    const fits = (x: number, y: number) =>
+      x >= 0 &&
+      y >= 0 &&
+      x + 132 <= group.width + 24 &&
+      y + 116 <= group.height + 24;
+    if (
+      children.some(
+        (child) =>
+          !fits(child.position.x, child.position.y) &&
+          fits(child.position.x - group.x, child.position.y - group.y)
+      )
+    ) {
+      absoluteChildParents.add(groupId);
+    }
+  }
+  const orderedNodes = [...(graph.nodes ?? [])].sort(
+    (a, b) => Number(b.type === "group") - Number(a.type === "group")
+  );
+  for (const n of orderedNodes) {
     if (n.type === "group") {
       const variant = (n.data?.variant as string) ?? "custom";
       nodes.push({
@@ -729,18 +1107,24 @@ function playgroundGraphToArchPayload(graph: PlaygroundLikeGraph): ArchPayload {
       });
     } else if (n.type === "service") {
       const iconId = (n.data?.iconId as string) ?? "";
+      const label = (n.data?.label as string) ?? iconId;
+      const parent = n.parentId ? groups.get(n.parentId) : undefined;
+      const usesAbsoluteCoordinates =
+        !!n.parentId && absoluteChildParents.has(n.parentId) && !!parent;
+      const resolvedIcon = resolveTemplateIcon(
+        iconId,
+        label,
+        (n.data?.cloud as string | undefined) ?? iconId.split("/")[0],
+        icons
+      );
       nodes.push({
         kind: "icon",
         id: n.id,
-        x: n.position.x,
-        y: n.position.y,
-        label: (n.data?.label as string) ?? iconId,
-        iconId,
-        // The canvas keeps iconPath in node data; resolve at hydrate time
-        // by deriving from iconId. The manifest path convention is
-        // /cloud-icons/<cloud>/<category>/<slug>.svg — but iconId already
-        // matches that exact slug-tail so we can construct it.
-        iconPath: iconIdToPath(iconId),
+        x: usesAbsoluteCoordinates && parent ? n.position.x - parent.x : n.position.x,
+        y: usesAbsoluteCoordinates && parent ? n.position.y - parent.y : n.position.y,
+        label,
+        iconId: resolvedIcon?.id ?? iconId,
+        iconPath: resolvedIcon?.path ?? "",
         ...(n.parentId ? { parentId: n.parentId } : {}),
       });
     }
@@ -752,17 +1136,89 @@ function playgroundGraphToArchPayload(graph: PlaygroundLikeGraph): ArchPayload {
     source: e.source,
     target: e.target,
     label: e.data?.label ?? e.data?.protocol,
-    archStyle: e.data?.animated ? "flow" : "solid",
+    style: e.data?.animated ? "flow" : "solid",
+    step: e.data?.step,
   }));
 
   return { nodes, edges };
 }
 
-function iconIdToPath(iconId: string): string {
-  // iconId in the playground manifest already encodes the path: e.g.
-  // "azure/compute/azure-app-service" → "/cloud-icons/azure/compute/azure-app-service.svg"
-  if (!iconId) return "";
-  return `/cloud-icons/${iconId}.svg`;
+const TEMPLATE_ICON_ALIASES: Record<string, string> = {
+  entraid: "azureactivedirectory",
+  appinsight: "applicationinsight",
+  blobstorage: "storageaccountblob",
+  iam: "identityandaccessmanagement",
+  s3: "simplestorageservice",
+  apigateway: "cloudcontrolapi",
+  pubsub: "integrationservice",
+  cloudloadbalancing: "networking",
+};
+
+function iconFingerprint(value: string): string {
+  const basename = value.split("/").at(-1) ?? value;
+  return basename
+    .toLowerCase()
+    .replace(/^\d+-icon-service-/, "")
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean)
+    .filter(
+      (token) =>
+        !["azure", "aws", "gcp", "google", "amazon", "microsoft", "icon"].includes(token)
+    )
+    .map((token) => {
+      if (token.endsWith("ies") && token.length > 4) return `${token.slice(0, -3)}y`;
+      if (token.endsWith("ses") && token.length > 4) return token.slice(0, -1);
+      if (token.endsWith("s") && token.length > 3) return token.slice(0, -1);
+      return token;
+    })
+    .join("");
+}
+
+function resolveTemplateIcon(
+  legacyId: string,
+  label: string,
+  provider: string | undefined,
+  icons: IconLite[]
+): IconLite | undefined {
+  const exact = icons.find((icon) => icon.id === legacyId);
+  if (exact) return exact;
+
+  const candidates = provider ? icons.filter((icon) => icon.cloud === provider) : icons;
+  const idTerm = iconFingerprint(legacyId);
+  const labelTerm = iconFingerprint(label);
+  const terms = new Set(
+    [idTerm, labelTerm, TEMPLATE_ICON_ALIASES[idTerm], TEMPLATE_ICON_ALIASES[labelTerm]].filter(
+      (term): term is string => !!term
+    )
+  );
+
+  let best: { icon: IconLite; score: number } | undefined;
+  for (const icon of candidates) {
+    const candidateId = iconFingerprint(icon.id);
+    const candidateLabel = iconFingerprint(icon.label);
+    let score = 0;
+    for (const term of terms) {
+      if (candidateId === term || candidateLabel === term) score = Math.max(score, 500);
+      else if (candidateId.endsWith(term) || candidateLabel.startsWith(term)) {
+        score = Math.max(score, 420);
+      } else if (
+        term.length >= 5 &&
+        (candidateId.includes(term) ||
+          candidateLabel.includes(term) ||
+          term.includes(candidateLabel))
+      ) {
+        score = Math.max(score, 300 - Math.abs(candidateLabel.length - term.length));
+      }
+    }
+    if (
+      !best ||
+      score > best.score ||
+      (score === best.score && icon.label.length < best.icon.label.length)
+    ) {
+      best = { icon, score };
+    }
+  }
+  return best && best.score >= 200 ? best.icon : undefined;
 }
 
 // ─── Export helpers ────────────────────────────────────────────────────────
@@ -771,109 +1227,148 @@ async function exportCanvas(
   format: ExportFormat,
   handle: ArchitectureCanvasHandle | null
 ) {
-  if (!handle) return;
+  if (!handle) throw new Error("Architecture canvas is not ready");
+  const filename = `cloud-architecture-${exportTimestamp()}`;
   if (format === "json") {
     const payload = handle.serialize();
     triggerDownload(
       new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }),
-      `architecture-${Date.now()}.json`
+      `${filename}.json`
     );
     return;
   }
-  // PNG / SVG / GIF operate on the rendered viewport.
+  // Export the complete diagram viewport, not only the currently visible crop.
   const viewport = document.querySelector(".react-flow__viewport") as HTMLElement | null;
-  const target =
-    (document.querySelector(".react-flow") as HTMLElement | null) ?? viewport;
-  if (!target) return;
-  try {
-    const { toPng, toSvg, toCanvas } = await import("html-to-image");
-    const filter = (node: HTMLElement) => {
-      // Skip the controls / minimap / panel chrome from the export.
-      const cls = (node as Element).className;
-      const s = typeof cls === "string" ? cls : (cls as { baseVal?: string })?.baseVal ?? "";
-      return !s.includes("react-flow__controls") &&
-             !s.includes("react-flow__minimap") &&
-             !s.includes("react-flow__panel");
-    };
-    if (format === "png") {
-      const dataUrl = await toPng(target, {
-        cacheBust: true,
-        backgroundColor: "#0a0a0b",
-        pixelRatio: 2,
-        filter,
-      });
-      const blob = await (await fetch(dataUrl)).blob();
-      triggerDownload(blob, `architecture-${Date.now()}.png`);
-    } else if (format === "svg") {
-      const dataUrl = await toSvg(target, {
-        cacheBust: true,
-        backgroundColor: "#0a0a0b",
-        filter,
-      });
-      const blob = await (await fetch(dataUrl)).blob();
-      triggerDownload(blob, `architecture-${Date.now()}.svg`);
-    } else if (format === "gif") {
-      const blob = await exportSequenceGif(handle, target, toCanvas, filter);
-      if (blob) triggerDownload(blob, `architecture-${Date.now()}.gif`);
-    }
-  } catch (err) {
-    console.error("Export failed:", err);
+  if (!viewport) throw new Error("Unable to locate the diagram export surface");
+
+  const { toPng, toSvg, toCanvas } = await import("html-to-image");
+  const bounds = handle.getExportBounds();
+  const layout = createExportLayout(bounds, format === "gif" ? 1280 : 2400, format === "gif" ? 900 : 1800);
+  const commonOptions = {
+    cacheBust: true,
+    backgroundColor: "#f8fafc",
+    width: layout.width,
+    height: layout.height,
+    style: {
+      width: `${layout.width}px`,
+      height: `${layout.height}px`,
+      transform: `translate(${layout.translateX}px, ${layout.translateY}px) scale(${layout.zoom})`,
+      transformOrigin: "0 0",
+    },
+  };
+
+  if (format === "png") {
+    const dataUrl = await toPng(viewport, {
+      ...commonOptions,
+      pixelRatio: 2,
+    });
+    triggerDataUrlDownload(dataUrl, `${filename}.png`);
+  } else if (format === "svg") {
+    const dataUrl = await toSvg(viewport, commonOptions);
+    triggerDataUrlDownload(dataUrl, `${filename}.svg`);
+  } else if (format === "pdf") {
+    const dataUrl = await toPng(viewport, {
+      ...commonOptions,
+      pixelRatio: 2,
+    });
+    const { jsPDF } = await import("jspdf");
+    const landscape = layout.width >= layout.height;
+    const pdf = new jsPDF({
+      orientation: landscape ? "landscape" : "portrait",
+      unit: "px",
+      format: [layout.width, layout.height],
+      compress: true,
+      hotfixes: ["px_scaling"],
+    });
+    pdf.setProperties({
+      title: "Cloud Architecture",
+      subject: "Enterprise cloud architecture exported from Diagrammatic",
+      creator: "Diagrammatic",
+    });
+    pdf.addImage(dataUrl, "PNG", 0, 0, layout.width, layout.height, undefined, "FAST");
+    triggerDownload(pdf.output("blob"), `${filename}.pdf`);
+  } else if (format === "gif") {
+    const blob = await exportSequenceGif(handle, viewport, toCanvas, commonOptions, layout);
+    triggerDownload(blob, `${filename}.gif`);
+  } else {
+    throw new Error(`Unsupported export format: ${format}`);
   }
+}
+
+interface ExportLayout {
+  width: number;
+  height: number;
+  zoom: number;
+  translateX: number;
+  translateY: number;
+}
+
+function createExportLayout(
+  bounds: { x: number; y: number; width: number; height: number },
+  maxWidth: number,
+  maxHeight: number
+): ExportLayout {
+  const padding = 96;
+  const usableWidth = Math.max(1, maxWidth - padding * 2);
+  const usableHeight = Math.max(1, maxHeight - padding * 2);
+  const zoom = Math.min(1.35, usableWidth / bounds.width, usableHeight / bounds.height);
+  const width = Math.max(640, Math.ceil(bounds.width * zoom + padding * 2));
+  const height = Math.max(420, Math.ceil(bounds.height * zoom + padding * 2));
+  return {
+    width,
+    height,
+    zoom,
+    translateX: padding - bounds.x * zoom,
+    translateY: padding - bounds.y * zoom,
+  };
 }
 
 // ─── GIF (animated) export ─────────────────────────────────────────────────
 //
-// Drives the canvas through `recordSequence`, captures one PNG frame per step
-// via html-to-image's toCanvas, then encodes the frames as an animated GIF
-// using gifenc (no worker required). Frame size is capped at 960px wide to
-// keep the resulting file under a reasonable size.
+// Drives the canvas through `recordSequence`, captures six deterministic dash
+// positions per numbered stage, and streams them directly into gifenc. This
+// produces smooth synchronized line motion without retaining every RGBA frame
+// in memory or moving the service cards.
 async function exportSequenceGif(
   handle: ArchitectureCanvasHandle,
   target: HTMLElement,
   toCanvas: (node: HTMLElement, opts?: Record<string, unknown>) => Promise<HTMLCanvasElement>,
-  filter: (node: HTMLElement) => boolean
-): Promise<Blob | null> {
+  commonOptions: Record<string, unknown>,
+  layout: ExportLayout
+): Promise<Blob> {
   const { GIFEncoder, quantize, applyPalette } = await import("gifenc");
-  // Compute output dimensions — cap longest side at 960 for size sanity.
-  const rect = target.getBoundingClientRect();
-  const maxWidth = 960;
-  const scale = Math.min(1, maxWidth / Math.max(1, rect.width));
-  const outW = Math.max(2, Math.round(rect.width * scale));
-  const outH = Math.max(2, Math.round(rect.height * scale));
+  const outW = layout.width;
+  const outH = layout.height;
   const gif = GIFEncoder();
-  const frames: Uint8ClampedArray[] = [];
+  let palette: ReturnType<typeof quantize> | null = null;
+  let frameCount = 0;
 
-  await handle.recordSequence(async () => {
+  await handle.recordSequence(async (label) => {
     const canvas = await toCanvas(target, {
-      cacheBust: true,
-      backgroundColor: "#0a0a0b",
-      pixelRatio: scale,
-      filter,
-      width: outW,
-      height: outH,
+      ...commonOptions,
+      pixelRatio: 1,
     });
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-    frames.push(new Uint8ClampedArray(data));
+    const data = ctx.getImageData(0, 0, outW, outH).data;
+    if (!palette) palette = quantize(data, 256);
+    const index = applyPalette(data, palette);
+    const overview = label === "start" || label === "end";
+    gif.writeFrame(index, outW, outH, {
+      palette: frameCount === 0 ? palette : undefined,
+      delay: overview ? 1200 : 120,
+    });
+    frameCount += 1;
   });
 
-  if (!frames.length) return null;
-  // Single 256-colour palette derived from the first frame keeps file size
-  // small and avoids per-frame palette flicker.
-  const palette = quantize(frames[0], 256);
-  for (let i = 0; i < frames.length; i += 1) {
-    const index = applyPalette(frames[i], palette);
-    // Hold start/end longer (1s) so viewers can see the steady states.
-    const isFirst = i === 0;
-    const isLast = i === frames.length - 1;
-    gif.writeFrame(index, outW, outH, {
-      palette: i === 0 ? palette : undefined,
-      delay: isFirst || isLast ? 1000 : 700,
-    });
-  }
+  if (!frameCount) throw new Error("GIF capture produced no frames");
   gif.finish();
   const bytes = gif.bytes();
+  window.dispatchEvent(
+    new CustomEvent("diagrammatic-gif-capture", {
+      detail: { frameCount, motionFramesPerStep: 6 },
+    })
+  );
   // Copy into a fresh ArrayBuffer-backed Uint8Array so the Blob constructor
   // accepts it under TS's strict ArrayBuffer/SharedArrayBuffer typing.
   const buf = new Uint8Array(bytes.byteLength);
@@ -881,7 +1376,30 @@ async function exportSequenceGif(
   return new Blob([buf], { type: "image/gif" });
 }
 
+async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
+  const separator = dataUrl.indexOf(",");
+  if (separator < 0) throw new Error("Export renderer returned an invalid data URL");
+  const header = dataUrl.slice(0, separator);
+  const encoded = dataUrl.slice(separator + 1);
+  const mime = header.match(/^data:([^;,]+)/)?.[1] ?? "application/octet-stream";
+  const binary = header.includes(";base64") ? atob(encoded) : decodeURIComponent(encoded);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return new Blob([bytes], { type: mime });
+}
+
+function exportTimestamp(): string {
+  return new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+}
+
 function triggerDownload(blob: Blob, filename: string) {
+  window.dispatchEvent(
+    new CustomEvent("diagrammatic-export-ready", {
+      detail: { filename, mime: blob.type, size: blob.size },
+    })
+  );
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -890,6 +1408,24 @@ function triggerDownload(blob: Blob, filename: string) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function triggerDataUrlDownload(dataUrl: string, filename: string) {
+  window.dispatchEvent(
+    new CustomEvent("diagrammatic-export-ready", {
+      detail: {
+        filename,
+        mime: dataUrl.match(/^data:([^;,]+)/)?.[1] ?? "application/octet-stream",
+        size: Math.floor((dataUrl.length * 3) / 4),
+      },
+    })
+  );
+  const a = document.createElement("a");
+  a.href = dataUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 // ─── Generic export for non-architecture modes ────────────────────────────
@@ -939,12 +1475,33 @@ async function exportOther(
     const { toPng, toSvg } = await import("html-to-image");
     if (format === "png" || format === "gif") {
       const dataUrl = await toPng(target, { cacheBust: true, backgroundColor: "#0a0a0b", pixelRatio: 2 });
-      const blob = await (await fetch(dataUrl)).blob();
+      const blob = await dataUrlToBlob(dataUrl);
       triggerDownload(blob, `${mode}-${stamp}.png`);
     } else if (format === "svg") {
       const dataUrl = await toSvg(target, { cacheBust: true, backgroundColor: "#0a0a0b" });
-      const blob = await (await fetch(dataUrl)).blob();
+      const blob = await dataUrlToBlob(dataUrl);
       triggerDownload(blob, `${mode}-${stamp}.svg`);
+    } else if (format === "pdf") {
+      const dataUrl = await toPng(target, {
+        cacheBust: true,
+        backgroundColor: "#0a0a0b",
+        pixelRatio: 2,
+      });
+      const rect = target.getBoundingClientRect();
+      const width = Math.max(640, Math.round(rect.width));
+      const height = Math.max(420, Math.round(rect.height));
+      const { jsPDF } = await import("jspdf");
+      const pdf = new jsPDF({
+        orientation: width >= height ? "landscape" : "portrait",
+        unit: "px",
+        format: [width, height],
+        compress: true,
+        hotfixes: ["px_scaling"],
+      });
+      pdf.addImage(dataUrl, "PNG", 0, 0, width, height, undefined, "FAST");
+      triggerDownload(pdf.output("blob"), `${mode}-${stamp}.pdf`);
+    } else {
+      throw new Error(`Unsupported ${mode} export format: ${format}`);
     }
   } catch (err) {
     console.error("Generic export failed:", err);

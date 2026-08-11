@@ -151,7 +151,7 @@ test.describe("Canvas connect-drag stability", () => {
         process.stdout.write(`browser ${msg.type()}: ${t}\n`);
       }
     });
-    await page.goto("/?debug=1");
+    await page.goto("/legacy-playground?debug=1");
     await loadTemplate(page, "3-Tier on Azure");
   });
 

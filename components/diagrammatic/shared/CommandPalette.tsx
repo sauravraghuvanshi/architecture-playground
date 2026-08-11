@@ -115,7 +115,9 @@ export function CommandPalette({ open, onOpenChange, onAction }: Props) {
 
   // Keep active in range
   useEffect(() => {
-    if (active >= filtered.length) setActive(0);
+    if (active < filtered.length) return;
+    const frame = requestAnimationFrame(() => setActive(0));
+    return () => cancelAnimationFrame(frame);
   }, [filtered.length, active]);
 
   // Global ⌘K / Esc
@@ -134,11 +136,13 @@ export function CommandPalette({ open, onOpenChange, onAction }: Props) {
 
   // Focus on open
   useEffect(() => {
-    if (open) {
+    if (!open) return;
+    const frame = requestAnimationFrame(() => {
       setQuery("");
       setActive(0);
-      requestAnimationFrame(() => inputRef.current?.focus());
-    }
+      inputRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
   }, [open]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {

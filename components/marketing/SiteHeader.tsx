@@ -3,12 +3,11 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Menu, X, Github } from "lucide-react";
+import { Menu, X, Github, CloudCog } from "lucide-react";
 import { BRAND, NAV } from "./copy";
 
 /**
- * Editorial-dark site header. No sign-in (app is fully open). No gradient
- * logo. Single lime CTA into the canvas.
+ * Shared enterprise site header. No sign-in (app is fully open).
  */
 export function SiteHeader() {
   const [scrolled, setScrolled] = useState(false);
@@ -26,16 +25,16 @@ export function SiteHeader() {
       initial={{ y: -16, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className={`fixed top-3 left-3 right-3 z-50 mx-auto max-w-7xl rounded-2xl border transition-all duration-300 ${
+      className={`fixed left-0 right-0 top-0 z-50 border-b transition-all duration-300 ${
         scrolled
-          ? "border-zinc-800 bg-zinc-950/85 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.4)]"
-          : "border-zinc-900 bg-zinc-950/60 backdrop-blur-md"
+          ? "border-slate-800 bg-[#08111f]/95 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.28)]"
+          : "border-slate-800 bg-[#08111f]/85 backdrop-blur-md"
       }`}
     >
-      <div className="flex items-center justify-between px-5 py-3">
+      <div className="mx-auto flex h-14 max-w-[1400px] items-center justify-between px-6">
         <Link href="/" className="group flex cursor-pointer items-center gap-2">
-          <span className="grid h-8 w-8 place-items-center rounded-lg border border-zinc-800 bg-zinc-900 text-sm font-black text-lime-300 transition-transform group-hover:rotate-6">
-            ◆
+          <span className="grid h-8 w-8 place-items-center rounded-xl bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-500/15 transition-transform group-hover:rotate-6">
+            <CloudCog className="h-4 w-4" />
           </span>
           <span className="font-semibold tracking-tight text-zinc-100">{BRAND.name}</span>
         </Link>
@@ -62,7 +61,7 @@ export function SiteHeader() {
           </Link>
           <Link
             href="/diagrammatic"
-            className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-lime-300 px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-lime-200"
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-cyan-400 px-4 py-2 text-sm font-bold text-slate-950 transition hover:bg-cyan-300"
           >
             Open canvas
           </Link>

@@ -1,5 +1,5 @@
 /**
- * Capabilities — what's real today, what's next, what's planned. No fiction.
+ * Capabilities — only behavior that is live and test-covered today.
  *
  * Replaces the old AIToolsGrid + Testimonials + SecuritySection (all of which
  * claimed features that don't exist).
@@ -7,20 +7,18 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { CAPABILITIES, ROADMAP } from "./copy";
+import { CAPABILITIES } from "./copy";
 
-const STATUS_TONE: Record<"live" | "next" | "planned", { label: string; cls: string }> = {
-  live: { label: "Live", cls: "bg-lime-300/15 text-lime-300 border-lime-300/30" },
-  next: { label: "Next", cls: "bg-amber-300/15 text-amber-300 border-amber-300/30" },
-  planned: { label: "Planned", cls: "bg-zinc-700/40 text-zinc-400 border-zinc-700" },
+const STATUS_TONE: Record<"live", { label: string; cls: string }> = {
+  live: { label: "Live", cls: "bg-cyan-400/15 text-cyan-300 border-cyan-400/30" },
 };
 
 export function Capabilities() {
   return (
-    <section id="capabilities" className="border-t border-zinc-900 bg-zinc-950 py-24 text-zinc-100">
+    <section id="capabilities" className="border-t border-slate-900 bg-[#07101e] py-24 text-slate-100">
       <div className="mx-auto max-w-6xl px-6">
         <div className="mb-12 max-w-2xl">
-          <p className="text-xs font-medium uppercase tracking-widest text-lime-300">
+          <p className="text-xs font-medium uppercase tracking-widest text-cyan-300">
             What it actually does
           </p>
           <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight md:text-5xl">
@@ -41,7 +39,7 @@ export function Capabilities() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-50px" }}
                 transition={{ duration: 0.4, delay: i * 0.04 }}
-                className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 transition hover:border-zinc-700 hover:bg-zinc-900/80"
+                className="rounded-xl border border-slate-800 bg-[#0b1220]/70 p-5 transition hover:border-slate-700 hover:bg-slate-900/80"
               >
                 <div className="flex items-start justify-between gap-3">
                   <span className="grid h-9 w-9 place-items-center rounded-lg border border-zinc-800 bg-zinc-950 text-zinc-300">
@@ -58,49 +56,6 @@ export function Capabilities() {
               </motion.div>
             );
           })}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-export function Roadmap() {
-  return (
-    <section id="roadmap" className="border-t border-zinc-900 bg-zinc-950 py-24 text-zinc-100">
-      <div className="mx-auto max-w-6xl px-6">
-        <div className="mb-12 max-w-2xl">
-          <p className="text-xs font-medium uppercase tracking-widest text-lime-300">
-            Roadmap
-          </p>
-          <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight md:text-5xl">
-            Honest about what&apos;s built.
-            <br />
-            <span className="italic text-zinc-400">Honest about what&apos;s not.</span>
-          </h2>
-        </div>
-        <div className="grid gap-4 md:grid-cols-4">
-          {ROADMAP.map((col, i) => (
-            <motion.div
-              key={col.phase}
-              initial={{ opacity: 0, y: 10 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-50px" }}
-              transition={{ duration: 0.4, delay: i * 0.06 }}
-              className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5"
-            >
-              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
-                {col.phase}
-              </p>
-              <ul className="mt-3 space-y-2">
-                {col.items.map((item) => (
-                  <li key={item} className="flex items-start gap-2 text-sm text-zinc-300">
-                    <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-zinc-600" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </motion.div>
-          ))}
         </div>
       </div>
     </section>

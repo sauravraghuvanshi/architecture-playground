@@ -70,10 +70,10 @@ export function QuickPrompt() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.05 }}
-          className="group relative rounded-2xl border border-zinc-800 bg-zinc-900/80 backdrop-blur transition-all focus-within:border-lime-300/60 focus-within:shadow-[0_20px_60px_-15px_rgba(190,242,100,0.25)]"
+          className="group relative rounded-2xl border border-slate-800 bg-[#0b1220]/90 backdrop-blur transition-all focus-within:border-cyan-400/60 focus-within:shadow-[0_20px_60px_-15px_rgba(34,211,238,0.2)]"
         >
           <div className="flex items-center gap-2 p-2 pl-4">
-            <Sparkles className="h-5 w-5 shrink-0 text-lime-300" />
+            <Sparkles className="h-5 w-5 shrink-0 text-cyan-300" />
             <div className="relative h-9 flex-1">
               <input
                 value={value}
@@ -100,7 +100,7 @@ export function QuickPrompt() {
             <button
               type="submit"
               disabled={busy || !value.trim()}
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-lime-300 px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-lime-200 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-cyan-400 px-4 py-2 text-sm font-bold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
               Generate

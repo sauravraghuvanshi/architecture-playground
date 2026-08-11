@@ -243,7 +243,6 @@ function CanvasInner({
     viewportLockRef.current = { ...vp };
     const nodeEls = document.querySelectorAll(".react-flow__node");
     // Always log start so we can confirm the handler fires (helps diagnose user-reported bug).
-    // eslint-disable-next-line no-console
     console.log("[AP] connect-start", {
       viewport: vp,
       nodeCount: nodeEls.length,
@@ -265,7 +264,6 @@ function CanvasInner({
       if (!lock) return;
       const cur = rfApi.getViewport();
       if (cur.x !== lock.x || cur.y !== lock.y || cur.zoom !== lock.zoom) {
-        // eslint-disable-next-line no-console
         console.warn("[AP] viewport drifted during connect — restoring", { from: cur, to: lock });
         rfApi.setViewport(lock);
       }
@@ -282,7 +280,6 @@ function CanvasInner({
     }
     viewportLockRef.current = null;
     const nodeEls = document.querySelectorAll(".react-flow__node");
-    // eslint-disable-next-line no-console
     console.log("[AP] connect-end", {
       viewport: rfApi.getViewport(),
       nodeCount: nodeEls.length,

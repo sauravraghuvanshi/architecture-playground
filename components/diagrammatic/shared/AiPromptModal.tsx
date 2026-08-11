@@ -225,16 +225,16 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult }: 
   const suggestions = SUGGESTED[mode] ?? [];
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-start justify-center bg-zinc-950/70 px-4 pt-24 backdrop-blur-sm" onClick={busy ? undefined : onClose}>
+    <div className="fixed inset-0 z-[100] flex items-start justify-center bg-slate-950/75 px-4 pt-24 backdrop-blur-sm" onClick={busy ? undefined : onClose}>
       <div
-        className="w-full max-w-xl rounded-xl border border-zinc-800 bg-zinc-900 shadow-2xl"
+        className="w-full max-w-xl rounded-2xl border border-slate-800 bg-[#0b1220] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-label="AI Assist"
       >
         <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
           <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-violet-300" />
+            <Sparkles className="h-4 w-4 text-cyan-300" />
             <span className="text-sm font-semibold text-zinc-100">
               AI {isImageMode ? "Image" : "Assist"} · {mode}
             </span>
@@ -244,10 +244,11 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult }: 
           </button>
         </div>
         <div className="px-4 py-4">
-          <label className="mb-1 block text-xs font-medium text-zinc-300">
+          <label htmlFor="diagrammatic-ai-prompt" className="mb-1 block text-xs font-medium text-zinc-300">
             {isImageMode ? "Describe the image to generate" : "Describe what to build"}
           </label>
           <textarea
+            id="diagrammatic-ai-prompt"
             ref={inputRef}
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
@@ -261,7 +262,7 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult }: 
             rows={4}
             maxLength={isImageMode ? 1000 : 2000}
             placeholder={isImageMode ? "e.g. hand-drawn diagram of a 3-tier web app, sketchy lines" : "e.g. user signup with email verification"}
-            className="w-full resize-y rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-violet-500 focus:outline-none disabled:opacity-50"
+            className="w-full resize-y rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/10 disabled:opacity-50"
           />
           {isImageMode && (
             <div className="mt-3 flex items-center gap-2">
@@ -274,8 +275,8 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult }: 
                   onClick={() => setSize(s)}
                   className={`cursor-pointer rounded-md border px-2 py-0.5 text-[10px] disabled:opacity-50 ${
                     size === s
-                      ? "border-violet-500 bg-violet-500/15 text-violet-100"
-                      : "border-zinc-700 bg-zinc-950 text-zinc-300 hover:border-violet-500/60"
+                      ? "border-cyan-500 bg-cyan-500/15 text-cyan-100"
+                      : "border-slate-700 bg-slate-950 text-slate-300 hover:border-cyan-500/60"
                   }`}
                 >
                   {s === "1024x1024" ? "Square" : s === "1536x1024" ? "Landscape" : "Portrait"}
@@ -293,7 +294,7 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult }: 
                     type="button"
                     disabled={busy}
                     onClick={() => setPrompt(s)}
-                    className="cursor-pointer rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1 text-[10px] text-zinc-300 hover:border-violet-500/60 hover:text-violet-100 disabled:opacity-50"
+                    className="cursor-pointer rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-[10px] text-slate-300 hover:border-cyan-500/60 hover:text-cyan-100 disabled:opacity-50"
                   >
                     {s}
                   </button>
@@ -302,11 +303,11 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult }: 
             </div>
           )}
           {busy && isImageMode && (
-            <div className="mt-3 flex items-center gap-2 rounded border border-violet-700/40 bg-violet-950/30 px-3 py-2 text-xs text-violet-100">
+            <div className="mt-3 flex items-center gap-2 rounded border border-cyan-700/40 bg-cyan-950/30 px-3 py-2 text-xs text-cyan-100">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
               <span>
                 Generating image — {fmtElapsed(elapsed)} elapsed.
-                <span className="ml-1 text-violet-300/70">gpt-image-2 typically takes 2–4 minutes.</span>
+                <span className="ml-1 text-cyan-300/70">gpt-image-2 typically takes 2–4 minutes.</span>
               </span>
             </div>
           )}
@@ -332,7 +333,7 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult }: 
               type="button"
               onClick={submit}
               disabled={busy || !prompt.trim()}
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-violet-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-violet-400 disabled:opacity-50"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-cyan-400 px-3 py-1.5 text-xs font-bold text-slate-950 transition hover:bg-cyan-300 disabled:opacity-50"
             >
               {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
               {busy ? (isImageMode ? "Generating…" : "Generating…") : (isImageMode ? "Generate image" : "Generate")}

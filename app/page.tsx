@@ -27,7 +27,7 @@ export const metadata: Metadata = {
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 antialiased">
+    <div className="min-h-screen bg-[#07101e] text-slate-100 antialiased">
       <HubHeader />
       <main className="mx-auto max-w-[1400px] px-6 pb-16">
         <QuickPrompt />

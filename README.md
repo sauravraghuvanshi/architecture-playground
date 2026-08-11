@@ -1,223 +1,343 @@
-# Architecture Playground
+<p align="center">
+  <img src="docs/images/architecture-studio.png" alt="Diagrammatic enterprise cloud architecture studio" width="100%" />
+</p>
 
-> A free, open-source, browser-based **multi-mode diagram workspace** — architect cloud systems, sketch flowcharts, mind-map ideas, plan sprints on a Kanban board, and free-draw on a whiteboard, all in one IDE-grade UI. No sign-in. No tracking. Local-first.
+<p align="center">
+  <strong>Design enterprise cloud systems, explain request flows, and export presentation-ready diagrams from one local-first workspace.</strong>
+</p>
 
-**Live:** [architecture-playground.azurewebsites.net](https://architecture-playground.azurewebsites.net)
+<p align="center">
+  <a href="https://architecture-playground.azurewebsites.net">Live demo</a>
+  ·
+  <a href="#demo-walkthrough">Watch demo</a>
+  ·
+  <a href="#application-screenshots">Screenshots</a>
+  ·
+  <a href="#architecture">Architecture</a>
+  ·
+  <a href="#run-locally">Run locally</a>
+  ·
+  <a href="#deploy-to-azure">Deploy to Azure</a>
+</p>
 
----
+<p align="center">
+  <img alt="Next.js" src="https://img.shields.io/badge/Next.js-16-0b1220?logo=nextdotjs" />
+  <img alt="React" src="https://img.shields.io/badge/React-19-0b1220?logo=react" />
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-0b1220?logo=typescript" />
+  <img alt="Playwright" src="https://img.shields.io/badge/E2E-Playwright-0b1220?logo=playwright" />
+  <img alt="License" src="https://img.shields.io/badge/license-MIT-22d3ee" />
+</p>
 
-## What it does
-
-Architecture Playground is a single workspace with **9 diagram modes** sharing one toolbar, command palette, and persistence layer:
-
-| Mode | Engine | What it's for |
-|---|---|---|
-| **Cloud Architecture** | maxGraph + 1,400 cloud icons (Azure / AWS / GCP) | Real architecture diagrams with snap-to-grid, groups, labelled edges, sequence playback |
-| **Flowchart** | React Flow | Decision flows, processes, BPMN-lite |
-| **Mind Map** | React Flow | Brainstorming, knowledge trees |
-| **Sequence Diagram** | React Flow | Request flows, lifelines |
-| **ER Diagram** | React Flow | Database schemas |
-| **UML** | React Flow | Class/component diagrams |
-| **C4 / System** | React Flow | Context / container / component models |
-| **Kanban Board** | dnd-kit | Sprint planning with cross-diagram link chips |
-| **Whiteboard** | Excalidraw (embedded) | Free-form sketching, AI image insertion, `libraries.excalidraw.com` library imports |
-
-Other surfaces:
-
-- **`/`** — project hub. Quick prompt → AI generate, mode tiles, recent diagrams (localStorage), template browser.
-- **`/templates`** — browseable starter gallery filterable by mode and cloud.
-- **`/about`** — marketing landing page (Hero, tools, security, testimonials).
-- **`/presentation`** — slide-deck view of selected diagrams.
-- **`/legacy-playground`** — the original React Flow single-canvas app (kept for back-compat).
-
----
-
-## Headline features
-
-### Build
-- **1,400+ cloud service icons** — Azure V21 (674), AWS (258), GCP (45), plus generic shapes. Searchable, categorised palette.
-- **Builder palette + blank canvas** in every structured mode — start fresh or hydrate from a template, click tiles to add shapes.
-- **Snap-to-grid, groups, labelled edges, sequence numbers, animated request playback** in architecture mode.
-- **Right-click context menu, command palette (⌘K), keyboard shortcuts overlay (?), copy/paste/duplicate** (⌘C / ⌘V / ⌘D), undo/redo (⌘Z / ⌘⇧Z).
-
-### AI (Azure OpenAI)
-- **Prompt → diagram** for every mode — `gpt-4o-mini` on `ap-foundry-eastus`, validated against per-mode JSON schemas.
-- **Prompt → image** in whiteboard — `gpt-image-2` on dedicated `ap-img-generator` resource (westus3), streamed over Server-Sent Events with 15s heartbeats to survive Azure App Service's 230s LB idle timeout.
-- **In-app token-bucket rate limiting** (20 req/min/IP), graceful 429 surfacing.
-
-### Whiteboard ecosystem (Excalidraw)
-- **Library imports from `libraries.excalidraw.com`** — "Add to Excalidraw" deep links auto-route to whiteboard mode and merge into your library.
-- **Persistent libraries** across reloads via a custom localStorage adapter (`diagrammatic.whiteboard.library`).
-- **Branding stripped** — custom `<MainMenu>` with curated items, no Excalidraw socials/links block.
-- **AI image generation** wired via SSE consumer with progress UI.
-
-### Collaboration (local-first)
-- **Comments + version snapshots** scoped per `${mode}:${diagramId}`, all in localStorage.
-- **Cross-diagram link chips** — Kanban cards can link to nodes in other diagrams.
-- Y.js / live presence intentionally parked — see `inbox_entries/phase-6-yjs-parked.md`.
-
-### Export
-- **PNG, SVG, JSON, animated GIF** (gifenc in a web worker).
-- Sequence playback exports as a multi-frame GIF showing the request flow step-by-step.
-
-### Hardening
-- **CSP / HSTS / X-Frame-Options / Permissions-Policy / COOP** via `middleware.ts`.
-- **MIT licensed**, Contributor Covenant 2.1 CoC, CONTRIBUTING.md.
-- A11y on mode tabs (`role="tablist"` / `aria-selected` / `aria-label`).
-- Lint clean, `tsc --noEmit` clean, 30 unit tests, Playwright e2e suite.
+> No sign-in, tracking profile, or cloud database is required. Diagrams, comments,
+> and version snapshots stay in the browser unless you explicitly export them.
 
 ---
 
-## Tech stack
+## What is Diagrammatic?
 
-| Layer | Detail |
-|---|---|
-| **Framework** | Next.js 16 (App Router, `output: "standalone"`) · TypeScript · React 19 |
-| **Styling** | Tailwind CSS v4 (CSS-first `@theme` tokens) · Lucide icons (no emoji in UI chrome) |
-| **Animation** | Framer Motion (all UI transitions) |
-| **Diagram engines** | `@maxgraph/core` (architecture, Apache-2.0) · `@xyflow/react` (flowchart / mindmap / sequence / ER / UML / C4) · `@excalidraw/excalidraw` (whiteboard, MIT) · `@dnd-kit/core` + `sortable` (Kanban, MIT) |
-| **Export** | `html-to-image` · `gifenc` (web worker) |
-| **AI** | Azure OpenAI — `gpt-4o-mini` (chat) on `ap-foundry-eastus`, `gpt-image-2` (image) on `ap-img-generator` (westus3, OpenAI-compatible v1 endpoint, SSE-wrapped) |
-| **Persistence** | `localStorage` (Zod-validated schema, version-bumped on changes); cloud save / DB intentionally removed |
-| **Deploy** | Azure App Service (Linux, F1 Free, Central India) via GitHub Actions → Kudu zipdeploy |
+Diagrammatic is an open-source, browser-based diagram workspace built for cloud
+architects, engineers, product teams, and technical storytellers. It combines
+nine diagram modes behind one enterprise shell:
 
----
+| Mode | Engine | Primary use |
+| --- | --- | --- |
+| Cloud Architecture | React Flow | Azure, AWS, GCP, and multi-cloud system design |
+| Flowchart | React Flow | Processes, decisions, and operational flows |
+| Mind Map | React Flow | Discovery, planning, and concept decomposition |
+| Sequence Diagram | React Flow | Participant lifelines and message order |
+| ER Diagram | React Flow | Entities, relationships, and SQL DDL |
+| UML | React Flow | Classes, interfaces, and TypeScript export |
+| C4 / System | React Flow | Person, system, container, and component views |
+| Kanban | dnd-kit | Sprint planning, WIP limits, and Markdown export |
+| Whiteboard | Excalidraw | Freehand ideation, 600 symbols, libraries, and AI images |
 
-## Quick start
+Cloud Architecture is the flagship experience. It includes **1,433 cloud service
+icons**, generic architecture primitives, boundaries, reliable four-way
+connections, explicit flow stages, validation, comments, versions, and smooth
+animated GIF export.
 
-```bash
+## Why use it?
+
+| Use case | What Diagrammatic provides |
+| --- | --- |
+| Architecture review | Clean boundaries, protocols, validation, and high-resolution PDF/PNG/SVG export |
+| Executive walkthrough | Numbered request stages and smooth synchronized GIF motion |
+| Multi-cloud design | Searchable Azure, AWS, and GCP service catalogs |
+| Design workshop | Whiteboard drawing, 600 bundled symbols, and optional community libraries |
+| Engineering handoff | JSON round-trip plus SQL, TypeScript, and Markdown exports |
+| Rapid scaffolding | Enterprise templates, deterministic prompt scaffolding, and optional Azure OpenAI |
+| Offline/private drafting | Browser-local autosave without accounts or a backend database |
+
+## Product experience
+
+1. Start blank or choose a tested enterprise template.
+2. Search the asset catalog and place cloud services or generic primitives.
+3. Connect services from any side and label the protocol or responsibility.
+4. Organize components inside tier, region, or workload boundaries.
+5. Select each connection and assign its GIF/playback step.
+6. Give related arrows the same step to animate them together.
+7. Review disconnected nodes and missing labels in the validation rail.
+8. Save locally, capture a version, or add scoped comments.
+9. Export PNG, SVG, PDF, JSON, or a smooth request-flow GIF.
+
+## Demo walkthrough
+
+The exported GIF below is produced by Diagrammatic itself. Service cards remain
+static while each numbered flow stage renders six deterministic motion frames.
+Arrows with the same step number move in sync.
+
+<p align="center">
+  <img src="docs/images/architecture-flow.gif" alt="Animated enterprise Azure request flow exported by Diagrammatic" width="100%" />
+</p>
+
+## Application screenshots
+
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/images/project-hub.png" alt="Diagrammatic project hub with prompt and diagram modes" />
+    </td>
+    <td width="50%">
+      <img src="docs/images/template-gallery.png" alt="Diagrammatic architecture template gallery" />
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Project hub</strong><br />Start from a prompt, blank mode, recent draft, or cloud pattern.</td>
+    <td align="center"><strong>Template gallery</strong><br />Filter tested architecture patterns by provider, category, and level.</td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/images/architecture-studio.png" alt="Enterprise cloud architecture canvas with boundaries and ordered flows" />
+    </td>
+    <td width="50%">
+      <img src="docs/images/whiteboard-assets.png" alt="Whiteboard with 600 bundled Lucide symbols" />
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Architecture Studio</strong><br />Build, validate, animate, and export enterprise cloud diagrams.</td>
+    <td align="center"><strong>Whiteboard assets</strong><br />Search 600 bundled symbols or opt into external Excalidraw libraries.</td>
+  </tr>
+</table>
+
+## Architecture
+
+<p align="center">
+  <img src="docs/assets/architecture.svg" alt="Diagrammatic application architecture" width="100%" />
+</p>
+
+Diagrammatic is a Next.js App Router application. Server components load static
+asset manifests; the client workspace dynamically mounts the engine for the
+active mode.
+
+- **Structured canvases:** React Flow powers Architecture, Flowchart, Mind Map,
+  Sequence, ER, UML, and C4.
+- **Specialized canvases:** Excalidraw powers Whiteboard; dnd-kit powers Kanban.
+- **Local-first state:** mode drafts, comments, versions, and Whiteboard files
+  are stored in `localStorage`.
+- **AI:** Next.js route handlers call Azure OpenAI. Image generation streams SSE
+  heartbeats so long-running `gpt-image-2` requests survive proxy idle timeouts.
+- **Exports:** `html-to-image`, jsPDF, and gifenc produce full-diagram artifacts.
+  GIF frames are encoded as they are captured to keep memory bounded.
+- **Deployment:** `output: "standalone"` produces a self-contained Azure App
+  Service package deployed through GitHub Actions and Kudu zipdeploy.
+
+### Technology
+
+| Layer | Main technologies |
+| --- | --- |
+| Application | Next.js 16 App Router, React 19, strict TypeScript |
+| Styling | Tailwind CSS 4, Lucide, Framer Motion |
+| Diagram engines | React Flow, Excalidraw, dnd-kit |
+| Export | html-to-image, jsPDF, gifenc |
+| Validation | Zod and mode-specific structural checks |
+| AI | Azure OpenAI chat completions and `gpt-image-2` |
+| Testing | Node test runner and Playwright |
+| Hosting | Azure App Service, GitHub Actions, Kudu zipdeploy |
+
+## Feature highlights
+
+### Enterprise architecture authoring
+
+- 1,433 Azure, AWS, and GCP service icons
+- Generic component, actor, database, decision, document, and internet shapes
+- Tier/region/workload boundaries with child containment
+- Four-way loose connection handles and selectable edge labels
+- Solid, dashed, and animated flow styles
+- Explicit synchronized playback stages
+- Architecture validation for disconnected or unlabeled components
+
+### Presentation-quality export
+
+- High-resolution full-diagram PNG
+- Editable SVG
+- Fitted landscape or portrait PDF
+- Re-importable JSON
+- Smooth animated GIF with six motion frames per stage
+- SQL DDL from ER, TypeScript from UML, and Markdown from Kanban
+
+### Local collaboration
+
+- Debounced browser autosave
+- Scoped comments
+- Restorable version snapshots
+- No account or remote database
+
+### Whiteboard
+
+- Native Excalidraw drawing tools
+- 600 bundled Lucide symbols generated at build time
+- Optional user-initiated Excalidraw community libraries
+- Azure OpenAI image generation and direct canvas insertion
+- PNG export
+
+## Run locally
+
+### Prerequisites
+
+- Git
+- Node.js 20 or newer
+- npm
+
+### Start the workspace
+
+```powershell
 git clone https://github.com/sauravraghuvanshi/architecture-playground.git
-cd architecture-playground
+Set-Location architecture-playground
 npm install
-npm run build:icon-manifest   # generates content/cloud-icons.json
-npm run dev                   # http://localhost:3000
+npm run build:icon-manifest
+npm run build:whiteboard-assets
+npm run dev
 ```
 
-Open [`http://localhost:3000`](http://localhost:3000) — the hub. Pick a mode tile to enter the workspace.
+Open <http://localhost:3000>.
 
-### Optional: enable AI locally
+The two asset commands generate:
 
-Copy `.env.example` → `.env.local` and fill in:
+- `content/cloud-icons.json` from the checked-in provider SVGs;
+- `public/whiteboard-assets.json` with exactly 600 curated Lucide symbols.
 
-```
-AZURE_OPENAI_ENDPOINT=
-AZURE_OPENAI_API_KEY=
+## Configure AI
+
+AI is optional. Copy `.env.example` to `.env.local` and configure only the
+features you need.
+
+```dotenv
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+
+# Prompt-to-diagram
+AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com
+AZURE_OPENAI_API_KEY=<key>
 AZURE_OPENAI_DEPLOYMENT=gpt-4o-mini
-AZURE_OPENAI_API_VERSION=2024-08-01-preview
+AZURE_OPENAI_API_VERSION=2024-10-21
 
-# Optional dedicated image resource (gpt-image-2 via /openai/v1)
-AZURE_OPENAI_IMAGE_ENDPOINT=
-AZURE_OPENAI_IMAGE_API_KEY=
+# Whiteboard image generation
+AZURE_OPENAI_IMAGE_ENDPOINT=https://<image-resource>.openai.azure.com
+AZURE_OPENAI_IMAGE_API_KEY=<key>
 AZURE_OPENAI_IMAGE_DEPLOYMENT=gpt-image-2
 ```
 
-The app gracefully runs without AI configured — the Sparkles button just disables.
+When local image credentials are absent, development proxies Whiteboard image
+requests through the configured public Diagrammatic demo without exposing Azure
+keys. Prompts are sent to that hosted endpoint. Set
+`DIAGRAMMATIC_AI_PROXY_URL=disabled` to opt out, or set it to another trusted
+Diagrammatic deployment.
 
----
+## Test
 
-## Build & deploy
-
-This app uses Next.js `output: "standalone"`. The pipeline:
-
+```powershell
+npm run lint
+npx tsc --noEmit
+npm run test:playground
+npm run test:e2e
+npm run build
 ```
-next build              → .next/standalone/server.js (self-contained)
-postbuild               → copies public/ + .next/static/ into standalone/
-zip standalone          → ~30 MB deploy.zip
-curl POST /api/zipdeploy → Azure Kudu, App Service auto-restarts
+
+The regression suites cover:
+
+- every diagram mode and blank-canvas action;
+- held connection drags and node visibility;
+- synchronized GIF stages and static service cards;
+- all 16 architecture template imports;
+- Whiteboard symbol insertion and persisted reload;
+- mode-specific AI status and mocked SSE image insertion;
+- public-page visual-system and capability-claim consistency.
+
+## Deploy to Azure
+
+The application uses Next.js standalone output:
+
+```text
+next build
+  -> .next/standalone/server.js
+  -> postbuild copies public/ and .next/static/
+  -> zip standalone output
+  -> Kudu zipdeploy
 ```
 
-CI lives in `.github/workflows/deploy.yml`. Two repo secrets required: `AZURE_DEPLOY_USER` and `AZURE_DEPLOY_PASSWORD` (Kudu zipdeploy creds — note the user starts with `$`, so they must be passed via an `env:` block, not inline).
+`.github/workflows/deploy.yml` deploys pushes to `master`. Configure these GitHub
+repository secrets:
 
----
+- `AZURE_DEPLOY_USER`
+- `AZURE_DEPLOY_PASSWORD`
+
+The workflow builds with Node.js 20, creates `deploy.zip`, submits it to the App
+Service SCM endpoint, and performs an HTTP health check after restart.
+
+## Security and privacy
+
+- No sign-in, user profile, telemetry identity, or cloud database
+- CSP, HSTS, X-Frame-Options, Permissions-Policy, and COOP headers
+- AI rate limiting with explicit 429 responses
+- Azure credentials remain server-side
+- Community Whiteboard libraries require explicit user action and a licensing notice
+- Whiteboard image prompts can be kept local by configuring your own image endpoint
+
+See [docs/security.md](docs/security.md) and
+[docs/asset-licensing.md](docs/asset-licensing.md).
 
 ## Project layout
 
-```
-architecture-playground/
-├── app/
-│   ├── page.tsx                      ← hub
-│   ├── diagrammatic/                 ← multi-mode workspace
-│   ├── templates/                    ← gallery
-│   ├── about/                        ← marketing landing
-│   ├── presentation/                 ← slide-deck view
-│   ├── legacy-playground/            ← original React Flow app
-│   └── api/
-│       ├── ai/
-│       │   ├── status/               ← { configured: bool }
-│       │   ├── generate/             ← prompt → diagram JSON
-│       │   ├── image/                ← prompt → png (SSE-wrapped)
-│       │   ├── describe/, review/    ← diagram → analysis
-│       └── ...
-├── components/
-│   ├── diagrammatic/
-│   │   ├── Workspace.tsx             ← top-level mode router
-│   │   ├── shared/                   ← Toolbar, Palette, Inspector, StatusBar,
-│   │   │                                CommandPalette, BuilderPalette,
-│   │   │                                CommentsPanel, VersionsPanel,
-│   │   │                                AiPromptModal, KeyboardHints
-│   │   └── modes/
-│   │       ├── architecture/         ← maxGraph + 1,400 icons
-│   │       ├── flowchart/, mindmap/, sequence/, er/, uml/, c4/
-│   │       ├── kanban/               ← dnd-kit
-│   │       └── whiteboard/           ← Excalidraw + library adapter
-│   ├── hub/                          ← HubHeader, QuickPrompt, ModeTiles,
-│   │                                    RecentDiagrams, TemplateBrowser
-│   ├── marketing/                    ← /about sections + copy
-│   └── playground/                   ← legacy React Flow components
-├── content/
-│   ├── cloud-icons.json              ← generated icon manifest
-│   └── playground-templates/         ← seed diagrams
-├── public/
-│   ├── cloud-icons/                  ← Azure / AWS / GCP / generic SVGs
-│   └── playground/                   ← gifenc.bundle.js worker
-├── scripts/
-│   ├── build-cloud-icon-manifest.mjs
-│   ├── bundle-gifenc-worker.mjs
-│   ├── postbuild.mjs
-│   └── test-playground.mjs
-├── e2e/                              ← Playwright specs
-├── middleware.ts                     ← CSP / security headers
-├── docs/
-│   └── security.md
-├── LICENSE                           ← MIT
-├── CONTRIBUTING.md
-├── CODE_OF_CONDUCT.md                ← Contributor Covenant 2.1
-└── .claude/                          ← agent workspace (project memory, lessons, patterns, architecture)
+```text
+app/
+  api/ai/                  Azure OpenAI routes
+  diagrammatic/            Multi-mode workspace route
+  templates/               Architecture template gallery
+components/
+  diagrammatic/
+    modes/                 Architecture, Flowchart, Mind Map, Sequence,
+                           ER, UML, C4, Kanban, Whiteboard
+    shared/                Toolbar, palettes, inspector, comments, versions
+  hub/                     Project hub
+  marketing/               About page
+content/
+  playground-templates/    Parameterized architecture templates
+public/
+  cloud-icons/             Azure, AWS, and GCP assets
+  whiteboard-assets.json   Generated 600-symbol manifest
+e2e/                       Playwright acceptance and regression suites
+scripts/                   Asset generation, smoke tests, and postbuild
 ```
 
----
+## Asset licensing
 
-## Status
+The application code is MIT licensed. Excalidraw is MIT licensed. The bundled
+Whiteboard symbols are Lucide assets under ISC/MIT terms.
 
-✅ **Live & in active use** at [architecture-playground.azurewebsites.net](https://architecture-playground.azurewebsites.net)
+Cloud provider icons remain owned by Microsoft, Amazon, and Google and are used
+for architecture-diagram purposes. Optional community libraries may contain
+separately governed logos or trademarks.
 
-**Phases shipped (`task/implementation.md`):**
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and
+[docs/asset-licensing.md](docs/asset-licensing.md) before redistributing assets.
 
-- ✅ **Phase 0** — semantic graph model, schema versioning, 30 unit tests
-- ✅ **Phase 1** — icon library expansion (977 → 1,400+), redesigned palette, keyboard shortcuts
-- ✅ **Phase 2** — multi-mode workspace + 8 canvas scaffolds (`phase-2-modes`)
-- ✅ **Phase 3** — per-mode templates + smoke tests (`phase-3-templates`)
-- ✅ **Phase 4** — engine pivot to maxGraph + Excalidraw + dnd-kit (architect-first hub)
-- ✅ **Phase 5** — per-mode AI generate + image stub + rate limit (`phase-5-ai`)
-- ✅ **Phase 6** — local-first comments + version snapshots (`phase-6-collab-ui`); Y.js parked
-- ✅ **Phase 7** — Kanban sprint metadata + cross-diagram links (`phase-7-planner`)
-- ✅ **Phase 8** — security headers middleware + docs (`phase-8-hardening`)
-- ✅ **Phase 9** — LICENSE, CoC, CONTRIBUTING, a11y polish (`phase-9-launch`)
-- ✅ **Whiteboard ecosystem** — AI image (SSE), library imports, library persistence, branding cleanup, deep-link auto-routing
-- ✅ **Builder UX** — blank canvas + builder palette across all React Flow modes
+## Contributing
 
-**Parked (see `inbox_entries/phase-*-parked.md`):** Y.js live collab · Postgres / SAML / SCIM / Stripe enterprise tier · marketing site · perf benchmarking.
-
----
-
-## Origin
-
-Started 2026-04-23, extracted from [`sauravraghuvanshi/portfolio`](https://github.com/sauravraghuvanshi/portfolio) (commit `f3274cb`) as a single-canvas React Flow toy. It has since become a complete multi-mode diagramming product — the React Flow extraction is preserved verbatim under `/legacy-playground`.
-
----
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) and
+[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), then open an issue or pull request.
 
 ## License
 
-[MIT](./LICENSE) — cloud service icons remain © Microsoft / Amazon / Google and are credited in the footer; everything else is freely usable.
-
-Built by [Saurav Raghuvanshi](https://github.com/sauravraghuvanshi). Contributions welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md).
+[MIT](LICENSE) © Saurav Raghuvanshi.

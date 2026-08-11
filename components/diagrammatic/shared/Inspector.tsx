@@ -10,8 +10,17 @@ import {
   XCircle,
   Lightbulb,
   Info,
+  Route,
+  Server,
+  Shapes,
+  Trash2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import type {
+  ArchitectureSelection,
+  ArchitectureSelectionPatch,
+  ArchEdgeStyle,
+} from "../modes/architecture/ArchitectureCanvas";
 
 type Severity = "error" | "warning" | "info" | "success";
 
@@ -32,6 +41,9 @@ const SEVERITY: Record<Severity, { icon: LucideIcon; color: string; bg: string; 
 
 interface Props {
   issues: ValidationIssue[];
+  selection?: ArchitectureSelection | null;
+  onUpdateSelection?: (id: string, patch: ArchitectureSelectionPatch) => void;
+  onDeleteSelection?: () => void;
   /** Called when the user clicks an issue with a nodeId so the canvas can focus/zoom to it. */
   onFocusNode?: (nodeId: string) => void;
 }
@@ -41,7 +53,13 @@ interface Props {
  * and Validation (linter results). For R1, properties is a placeholder until
  * the canvas surfaces selection events; validation is fully functional.
  */
-export function Inspector({ issues, onFocusNode }: Props) {
+export function Inspector({
+  issues,
+  selection,
+  onUpdateSelection,
+  onDeleteSelection,
+  onFocusNode,
+}: Props) {
   const [propsOpen, setPropsOpen] = useState(true);
   const [valOpen, setValOpen] = useState(true);
 
@@ -51,7 +69,7 @@ export function Inspector({ issues, onFocusNode }: Props) {
   );
 
   return (
-    <aside className="hidden lg:flex w-72 shrink-0 flex-col border-l border-zinc-800 bg-zinc-950 text-zinc-300">
+    <aside className="hidden w-[304px] shrink-0 flex-col border-l border-slate-800 bg-[#0b1220] text-slate-300 xl:flex">
       {/* Properties */}
       <Section
         open={propsOpen}
@@ -59,12 +77,24 @@ export function Inspector({ issues, onFocusNode }: Props) {
         title="Properties"
         badge={null}
       >
-        <div className="px-3 py-4 text-xs text-zinc-500">
-          <div className="grid place-items-center py-6 rounded-md border border-dashed border-zinc-800">
-            <Lightbulb className="w-5 h-5 text-zinc-600 mb-2" />
-            <p className="text-center">Select a node to inspect &amp; edit properties</p>
+        {selection ? (
+          <SelectionProperties
+            key={selection.id}
+            selection={selection}
+            onUpdate={onUpdateSelection}
+            onDelete={onDeleteSelection}
+          />
+        ) : (
+          <div className="px-3 py-4 text-xs text-slate-500">
+            <div className="grid place-items-center rounded-xl border border-dashed border-slate-700 px-4 py-8">
+              <Lightbulb className="mb-2 h-5 w-5 text-slate-600" />
+              <p className="text-center font-medium text-slate-400">Select a service or connection</p>
+              <p className="mt-1 text-center text-[10px] leading-relaxed text-slate-600">
+                Rename elements, document intent, and set animation order here.
+              </p>
+            </div>
           </div>
-        </div>
+        )}
       </Section>
 
       {/* Validation */}
@@ -100,7 +130,7 @@ export function Inspector({ issues, onFocusNode }: Props) {
       >
         <div className="max-h-[40vh] overflow-y-auto">
           {issues.length === 0 ? (
-            <div className="px-3 py-6 text-center text-xs text-zinc-500">
+            <div className="px-3 py-6 text-center text-xs text-slate-500">
               <CheckCircle2 className="w-5 h-5 text-emerald-400 mx-auto mb-2" />
               No issues detected.
             </div>
@@ -121,13 +151,13 @@ export function Inspector({ issues, onFocusNode }: Props) {
                       <button
                         type="button"
                         onClick={() => issue.nodeId && onFocusNode?.(issue.nodeId)}
-                        className="w-full text-left flex items-start gap-2 p-2 rounded-md hover:bg-zinc-900 transition-colors cursor-pointer"
+                        className="flex w-full cursor-pointer items-start gap-2 rounded-lg p-2 text-left transition-colors hover:bg-slate-900"
                       >
                         <Icon className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${meta.color}`} />
                         <div className="flex-1 min-w-0">
-                          <div className="text-xs font-semibold text-zinc-200 truncate">{issue.title}</div>
+                          <div className="truncate text-xs font-semibold text-slate-200">{issue.title}</div>
                           {issue.detail && (
-                            <div className="mt-0.5 text-[11px] text-zinc-500 line-clamp-2">{issue.detail}</div>
+                            <div className="mt-0.5 line-clamp-2 text-[11px] text-slate-500">{issue.detail}</div>
                           )}
                         </div>
                       </button>
@@ -140,6 +170,139 @@ export function Inspector({ issues, onFocusNode }: Props) {
         </div>
       </Section>
     </aside>
+  );
+}
+
+function SelectionProperties({
+  selection,
+  onUpdate,
+  onDelete,
+}: {
+  selection: ArchitectureSelection;
+  onUpdate?: (id: string, patch: ArchitectureSelectionPatch) => void;
+  onDelete?: () => void;
+}) {
+  const commitText = (field: "label" | "subtitle", value: string) => {
+    const normalized = value.trim();
+    if (normalized !== (selection[field] ?? "")) {
+      onUpdate?.(selection.id, { [field]: normalized });
+    }
+  };
+
+  return (
+    <div className="space-y-4 px-3 pb-4">
+      <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2.5">
+        {selection.kind === "edge" ? (
+          <Route className="h-4 w-4 text-cyan-400" />
+        ) : selection.nodeKind === "shape" ? (
+          <Shapes className="h-4 w-4 text-cyan-400" />
+        ) : (
+          <Server className="h-4 w-4 text-cyan-400" />
+        )}
+        <div className="min-w-0">
+          <p className="truncate text-xs font-semibold text-white">
+            {selection.kind === "edge" ? "Connection" : selection.nodeKind === "group" ? "Boundary" : "Component"}
+          </p>
+          <p className="truncate font-mono text-[9px] text-slate-600">{selection.id}</p>
+        </div>
+      </div>
+
+      <Field label={selection.kind === "edge" ? "Protocol / label" : "Display name"}>
+        <input
+          defaultValue={selection.label}
+          onBlur={(event) => commitText("label", event.currentTarget.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.currentTarget.blur();
+          }}
+          className="w-full rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-2 text-xs text-white outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/10"
+          placeholder={selection.kind === "edge" ? "HTTPS, gRPC, async…" : "Component name"}
+        />
+      </Field>
+
+      {selection.kind === "node" && selection.nodeKind !== "group" && (
+        <Field label="Context / responsibility">
+          <input
+            defaultValue={selection.subtitle ?? ""}
+            onBlur={(event) => commitText("subtitle", event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.currentTarget.blur();
+            }}
+            className="w-full rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-2 text-xs text-white outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/10"
+            placeholder="Public endpoint, private subnet…"
+          />
+        </Field>
+      )}
+
+      {selection.kind === "edge" && (
+        <>
+          <Field label="GIF / playback order" hint="1 animates first">
+            <input
+              type="number"
+              min={1}
+              step={1}
+              defaultValue={selection.step ?? 1}
+              onBlur={(event) => {
+                const step = Number(event.currentTarget.value);
+                if (Number.isFinite(step) && step > 0 && step !== selection.step) {
+                  onUpdate?.(selection.id, { step });
+                }
+              }}
+              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-2 font-mono text-xs text-white outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/10"
+            />
+          </Field>
+          <Field label="Line behavior">
+            <div className="grid grid-cols-3 gap-1">
+              {(["solid", "dashed", "flow"] as ArchEdgeStyle[]).map((style) => (
+                <button
+                  key={style}
+                  type="button"
+                  onClick={() => onUpdate?.(selection.id, { style })}
+                  className={`rounded-lg border px-2 py-2 text-[10px] font-semibold capitalize transition ${
+                    selection.style === style
+                      ? "border-cyan-400 bg-cyan-400 text-slate-950"
+                      : "border-slate-700 bg-slate-900 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  {style}
+                </button>
+              ))}
+            </div>
+          </Field>
+          <div className="rounded-lg border border-cyan-900/70 bg-cyan-950/30 px-3 py-2 text-[10px] leading-relaxed text-cyan-200/80">
+            Exported GIFs animate connections in ascending order. Arrows sharing the same step animate together in the same frame.
+          </div>
+        </>
+      )}
+
+      <button
+        type="button"
+        onClick={onDelete}
+        className="flex w-full items-center justify-center gap-2 rounded-lg border border-rose-900/70 bg-rose-950/20 px-3 py-2 text-[11px] font-semibold text-rose-300 transition hover:bg-rose-950/40"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+        Delete selection
+      </button>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+        {label}
+        {hint && <span className="font-normal normal-case tracking-normal text-slate-600">{hint}</span>}
+      </span>
+      {children}
+    </label>
   );
 }
 
@@ -157,11 +320,11 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className="border-b border-zinc-800">
+    <div className="border-b border-slate-800">
       <button
         type="button"
         onClick={onToggle}
-        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+        className="flex w-full cursor-pointer items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 transition-colors hover:text-slate-200"
       >
         {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
         <span className="flex-1 text-left">{title}</span>
@@ -185,9 +348,9 @@ function Section({
 }
 
 /** Pure derive validation issues from the architecture payload. */
-export function deriveArchIssues(payload: { nodes: Array<{ id: string; label?: string }>; edges: Array<{ source: string; target: string }> }): ValidationIssue[] {
+export function deriveArchIssues(payload: { nodes: Array<{ id: string; label?: string; kind?: string }>; edges: Array<{ source: string; target: string }> }): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  const nodes = payload.nodes ?? [];
+  const nodes = (payload.nodes ?? []).filter((node) => node.kind !== "group");
   const edges = payload.edges ?? [];
 
   if (nodes.length === 0) {

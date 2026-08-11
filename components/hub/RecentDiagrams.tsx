@@ -39,9 +39,9 @@ export function RecentDiagrams() {
         const arr = JSON.parse(recent) as Recent[];
         if (Array.isArray(arr)) list.push(...arr);
       }
-      setRecents(list);
+      requestAnimationFrame(() => setRecents(list));
     } catch {
-      setRecents([]);
+      requestAnimationFrame(() => setRecents([]));
     }
   }, []);
 
@@ -62,7 +62,7 @@ export function RecentDiagrams() {
           <p className="text-sm text-zinc-500">No diagrams yet</p>
           <Link
             href="/diagrammatic"
-            className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-lime-300 hover:text-lime-200 transition-colors cursor-pointer"
+            className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-cyan-300 hover:text-cyan-200 transition-colors cursor-pointer"
           >
             Create your first diagram →
           </Link>
@@ -81,7 +81,7 @@ export function RecentDiagrams() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: i * 0.04 }}
             whileHover={{ y: -2 }}
-            className="group relative rounded-xl border border-zinc-800 bg-zinc-900/60 hover:border-lime-300/40 transition-all overflow-hidden"
+            className="group relative rounded-xl border border-slate-800 bg-[#0b1220]/80 hover:border-cyan-400/40 transition-all overflow-hidden"
           >
             <Link href={r.id === "draft" ? "/diagrammatic" : `/diagrammatic/${r.id}`} className="block cursor-pointer">
               <div className="relative h-28 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 border-b border-zinc-800/60">
@@ -90,7 +90,7 @@ export function RecentDiagrams() {
                   <div className="flex gap-1.5">
                     <span className="w-8 h-6 rounded bg-zinc-800 shadow-sm" />
                     <span className="w-8 h-6 rounded bg-zinc-700 shadow-sm" />
-                    <span className="w-8 h-6 rounded bg-lime-300/70 shadow-sm" />
+                    <span className="w-8 h-6 rounded bg-cyan-400/70 shadow-sm" />
                   </div>
                 </div>
                 <span className="absolute top-2 left-2 px-1.5 py-0.5 text-[9px] uppercase tracking-wider font-bold text-zinc-300 bg-zinc-950/80 border border-zinc-800 rounded">

@@ -26,9 +26,9 @@ export function StatusBar({
   online = true,
 }: Props) {
   return (
-    <div className="flex shrink-0 items-center gap-4 border-t border-zinc-800 bg-zinc-950 px-3 py-1 text-[11px] text-zinc-400 font-mono">
+    <div className="flex h-7 shrink-0 items-center gap-3 border-t border-slate-800 bg-[#08111f] px-3 font-mono text-[10px] text-slate-500">
       <span className="flex items-center gap-1.5">
-        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+        <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
         {nodeCount} {nodeCount === 1 ? "node" : "nodes"}
       </span>
       <span className="text-zinc-600">·</span>
@@ -55,7 +55,7 @@ export function StatusBar({
           ) : (
             <WifiOff className="w-3 h-3 text-rose-500" />
           )}
-          {online ? "online" : "offline"}
+          {online ? "local-first" : "offline"}
         </span>
         <span className="text-zinc-600">·</span>
         <span className="flex items-center gap-1">

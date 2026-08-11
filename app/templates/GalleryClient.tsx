@@ -8,6 +8,17 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Boxes,
+  BrainCircuit,
+  CloudCog,
+  Columns3,
+  Database,
+  GitBranch,
+  Network,
+  PencilRuler,
+  Workflow,
+} from "lucide-react";
+import {
   resolveTemplate,
   type ParameterizedTemplate,
   type ParameterValue,
@@ -20,15 +31,15 @@ export const TEMPLATE_HANDOFF_KEY = "architecture-playground:template-handoff";
 // intentionally don't duplicate them here (they have heterogeneous payload
 // shapes that the architecture-shaped gallery cards can't render).
 const MODE_CHIPS = [
-  { id: "architecture", label: "Architecture", icon: "🏛" },
-  { id: "flowchart", label: "Flowchart", icon: "🔀" },
-  { id: "mindmap", label: "Mind Map", icon: "🌳" },
-  { id: "sequence", label: "Sequence", icon: "📨" },
-  { id: "er", label: "ER", icon: "🗄" },
-  { id: "uml", label: "UML", icon: "📐" },
-  { id: "c4", label: "C4", icon: "🧱" },
-  { id: "kanban", label: "Kanban", icon: "🗂" },
-  { id: "whiteboard", label: "Whiteboard", icon: "🖍" },
+  { id: "architecture", label: "Architecture", icon: CloudCog },
+  { id: "flowchart", label: "Flowchart", icon: GitBranch },
+  { id: "mindmap", label: "Mind Map", icon: BrainCircuit },
+  { id: "sequence", label: "Sequence", icon: Workflow },
+  { id: "er", label: "ER", icon: Database },
+  { id: "uml", label: "UML", icon: Boxes },
+  { id: "c4", label: "C4", icon: Network },
+  { id: "kanban", label: "Kanban", icon: Columns3 },
+  { id: "whiteboard", label: "Whiteboard", icon: PencilRuler },
 ] as const;
 
 interface Props {
@@ -98,6 +109,7 @@ export function TemplateGalleryClient({ templates }: Props) {
       <div className="mb-5 flex flex-wrap items-center gap-1.5">
         {MODE_CHIPS.map((m) => {
           const isActive = activeMode === m.id;
+          const ModeIcon = m.icon;
           return (
             <button
               key={m.id}
@@ -108,11 +120,11 @@ export function TemplateGalleryClient({ templates }: Props) {
               }}
               className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition ${
                 isActive
-                  ? "border-lime-300/50 bg-lime-300/15 text-lime-200"
-                  : "border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
+                  ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-200"
+                  : "border-slate-800 bg-[#0b1220] text-slate-400 hover:border-slate-700 hover:text-slate-200"
               }`}
             >
-              <span aria-hidden>{m.icon}</span>
+              <ModeIcon className="h-3.5 w-3.5" />
               {m.label}
               {m.id !== "architecture" && (
                 <span className="text-[9px] uppercase tracking-wide text-zinc-500">↗</span>
@@ -128,12 +140,12 @@ export function TemplateGalleryClient({ templates }: Props) {
           placeholder="Search templates…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="min-w-64 flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-indigo-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+          className="min-w-64 flex-1 rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/10"
         />
         <select
           value={provider}
           onChange={(e) => setProvider(e.target.value)}
-          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+          className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-200"
         >
           <option value="all">All providers</option>
           <option value="azure">Azure</option>
@@ -144,7 +156,7 @@ export function TemplateGalleryClient({ templates }: Props) {
         <select
           value={category}
           onChange={(e) => setCategory(e.target.value)}
-          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+          className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-200"
         >
           {categories.map((c) => (
             <option key={c} value={c}>
@@ -155,7 +167,7 @@ export function TemplateGalleryClient({ templates }: Props) {
         <select
           value={difficulty}
           onChange={(e) => setDifficulty(e.target.value)}
-          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+          className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-200"
         >
           <option value="all">All levels</option>
           <option value="beginner">Beginner</option>
@@ -174,10 +186,10 @@ export function TemplateGalleryClient({ templates }: Props) {
             <button
               key={t.id}
               onClick={() => openPreview(t)}
-              className="group flex flex-col items-start rounded-lg border border-zinc-200 bg-white p-4 text-left transition hover:border-indigo-400 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-indigo-500"
+              className="group flex flex-col items-start rounded-2xl border border-slate-800 bg-[#0b1220]/85 p-4 text-left transition hover:-translate-y-0.5 hover:border-cyan-400/40 hover:shadow-[0_18px_45px_-28px_rgba(34,211,238,0.5)]"
             >
               <div className="mb-2 flex w-full items-center justify-between gap-2">
-                <h3 className="truncate text-base font-semibold text-zinc-900 group-hover:text-indigo-600 dark:text-zinc-100 dark:group-hover:text-indigo-400">
+                <h3 className="truncate text-base font-semibold text-slate-100 group-hover:text-cyan-300">
                   {t.name}
                 </h3>
                 <span className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium uppercase text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
@@ -191,7 +203,7 @@ export function TemplateGalleryClient({ templates }: Props) {
                 {(t.tags ?? []).slice(0, 4).map((tag) => (
                   <span
                     key={tag}
-                    className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"
+                    className="rounded bg-cyan-400/10 px-1.5 py-0.5 text-[10px] font-medium text-cyan-300"
                   >
                     {tag}
                   </span>
@@ -215,12 +227,12 @@ export function TemplateGalleryClient({ templates }: Props) {
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm"
           onClick={() => setActive(null)}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-lg rounded-lg border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
+            className="w-full max-w-lg rounded-2xl border border-slate-800 bg-[#0b1220] p-6 shadow-2xl"
           >
             <div className="mb-2 flex items-start justify-between gap-3">
               <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{active.name}</h2>
@@ -291,7 +303,7 @@ export function TemplateGalleryClient({ templates }: Props) {
               </button>
               <button
                 onClick={() => handoffAndGo(active, paramValues)}
-                className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500"
+                className="rounded-xl bg-cyan-400 px-3 py-1.5 text-sm font-bold text-slate-950 hover:bg-cyan-300"
               >
                 Use this template
               </button>

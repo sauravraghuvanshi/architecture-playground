@@ -54,6 +54,8 @@ const KEYWORDS: { tier: Tier; needles: string[]; match: string }[] = [
   { tier: "compute", needles: ["app service", "web app"], match: "app service" },
   { tier: "compute", needles: ["vm", "virtual machine", "ec2", "compute engine"], match: "virtual machine" },
   { tier: "compute", needles: ["fargate", "ecs"], match: "container" },
+  { tier: "compute", needles: ["cloud run"], match: "cloud run" },
+  { tier: "compute", needles: ["vertex ai", "vertex"], match: "vertex" },
 
   // messaging
   { tier: "messaging", needles: ["kafka", "event hub", "eventhub", "event hubs"], match: "event hubs" },
@@ -68,6 +70,7 @@ const KEYWORDS: { tier: Tier; needles: string[]; match: string }[] = [
   { tier: "data", needles: ["s3", "blob", "object storage", "gcs"], match: "blob storage" },
   { tier: "data", needles: ["data lake", "lakehouse", "synapse", "databricks"], match: "synapse" },
   { tier: "data", needles: ["search", "cognitive search", "elasticsearch"], match: "search" },
+  { tier: "data", needles: ["bigquery", "big query"], match: "bigquery" },
 
   // ai
   { tier: "compute", needles: ["openai", "azure openai", "llm", "gpt", "ai foundry", "ai studio"], match: "openai" },
@@ -89,18 +92,48 @@ function lower(s: string): string {
   return s.toLowerCase();
 }
 
+function findBestIcon(icons: IconLite[], term: string): IconLite | undefined {
+  const normalizedTerm = lower(term).replaceAll("/", " ").replace(/\s+/g, " ").trim();
+  const tokenPattern = new RegExp(
+    `(^|[^a-z0-9])${normalizedTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replaceAll(" ", "[ -]?")}([^a-z0-9]|$)`,
+    "i"
+  );
+  return icons
+    .filter((icon) => tokenPattern.test(icon.label) || tokenPattern.test(icon.id.replaceAll("/", " ")))
+    .sort((a, b) => {
+      const aLabel = lower(a.label);
+      const bLabel = lower(b.label);
+      const score = (label: string) =>
+        label === normalizedTerm ? 0 : label.startsWith(normalizedTerm) ? 1 : label.includes(normalizedTerm) ? 2 : 3;
+      return score(aLabel) - score(bLabel) || a.label.length - b.label.length || a.label.localeCompare(b.label);
+    })[0];
+}
+
 function pickIcons(prompt: string, icons: IconLite[]): Picked[] {
   const p = lower(prompt);
   const picked: Picked[] = [];
   const seen = new Set<string>();
+  const mentionedProviders = [
+    /\bazure\b|\bmicrosoft\b/.test(p) ? "azure" : null,
+    /\baws\b|\bamazon\b/.test(p) ? "aws" : null,
+    /\bgcp\b|\bgoogle cloud\b|\bgoogle\b/.test(p) ? "gcp" : null,
+  ].filter((provider): provider is string => provider !== null);
+  const provider = mentionedProviders.length === 1 ? mentionedProviders[0] : null;
+  const candidates = provider ? icons.filter((icon) => icon.cloud === provider) : icons;
 
   for (const rule of KEYWORDS) {
-    if (!rule.needles.some((n) => p.includes(n))) continue;
-    // Find the first icon whose label/id contains the match fragment.
-    const needle = rule.match;
-    const icon = icons.find(
-      (i) => lower(i.label).includes(needle) || lower(i.id).includes(needle)
-    );
+    const matchedNeedles = rule.needles.filter((needle) => p.includes(needle));
+    if (!matchedNeedles.length) continue;
+    // Prefer the provider's product name from the prompt (for example Lambda
+    // or Cloud Run), then fall back to the cloud-neutral match fragment.
+    const matchedTerms = matchedNeedles.sort((a, b) => b.length - a.length);
+    const searchTerms =
+      rule.match === "sql database" && matchedTerms.some((term) => term === "sql" || term === "azure sql")
+        ? [rule.match, ...matchedTerms]
+        : [...matchedTerms, rule.match];
+    const icon = searchTerms
+      .map((term) => findBestIcon(candidates, term))
+      .find((candidate) => candidate !== undefined);
     if (!icon) continue;
     const key = `${rule.tier}:${icon.id}`;
     if (seen.has(key)) continue;
@@ -208,6 +241,8 @@ export function promptToArchitecture(
           source: a,
           target: b,
           style: edgeStyle,
+          label: usedTiers[i] === "messaging" ? "Async" : "HTTPS",
+          step: edges.length + 1,
         });
       }
     }

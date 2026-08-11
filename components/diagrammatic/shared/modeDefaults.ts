@@ -124,7 +124,7 @@ export const C4_DEFAULT_PAYLOAD = {
 
 export const WHITEBOARD_DEFAULT_PAYLOAD = {
   elements: [],
-  appState: { viewBackgroundColor: "#0a0a0b", currentItemStrokeColor: "#bef264" },
+  appState: { viewBackgroundColor: "#f8fafc", currentItemStrokeColor: "#0f172a" },
   files: {},
 } as const;
 
@@ -157,3 +157,16 @@ export const MINDMAP_EMPTY_PAYLOAD = { nodes: [], edges: [] } as const;
 export const ER_EMPTY_PAYLOAD = { entities: [], relationships: [] } as const;
 export const UML_EMPTY_PAYLOAD = { classes: [], relations: [] } as const;
 export const C4_EMPTY_PAYLOAD = { nodes: [], edges: [] } as const;
+export const WHITEBOARD_EMPTY_PAYLOAD = {
+  elements: [],
+  appState: { viewBackgroundColor: "#f8fafc", currentItemStrokeColor: "#0f172a" },
+  files: {},
+} as const;
+export const KANBAN_EMPTY_PAYLOAD = {
+  columns: [
+    { id: "backlog", title: "Backlog", cardIds: [] },
+    { id: "doing", title: "In progress", cardIds: [] },
+    { id: "done", title: "Done", cardIds: [] },
+  ],
+  cards: {},
+} as const;

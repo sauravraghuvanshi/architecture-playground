@@ -69,7 +69,7 @@ export function TemplateBrowser() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Filter…"
-              className="pl-8 pr-3 py-1.5 text-xs bg-zinc-900/80 border border-zinc-800 text-zinc-100 placeholder:text-zinc-500 rounded-md focus:outline-none focus:border-lime-300/60 transition-colors w-40"
+              className="pl-8 pr-3 py-1.5 text-xs bg-slate-950/60 border border-slate-800 text-slate-100 placeholder:text-slate-500 rounded-lg focus:outline-none focus:border-cyan-400/60 transition-colors w-40"
             />
           </div>
           <div className="flex items-center gap-0.5 p-0.5 bg-zinc-900 border border-zinc-800 rounded-md">
@@ -79,7 +79,7 @@ export function TemplateBrowser() {
                 type="button"
                 onClick={() => setCloud(c.id)}
                 className={`px-2.5 py-1 text-[11px] font-semibold rounded transition-colors cursor-pointer ${
-                  cloud === c.id ? "bg-lime-300 text-zinc-950" : "text-zinc-400 hover:text-zinc-100"
+                  cloud === c.id ? "bg-cyan-400 text-slate-950" : "text-slate-400 hover:text-slate-100"
                 }`}
               >
                 {c.label}
@@ -102,7 +102,7 @@ export function TemplateBrowser() {
               href={`/diagrammatic?prompt=${encodeURIComponent(`${t.title}. ${t.blurb}`)}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="group block rounded-xl border border-zinc-800 bg-zinc-900/60 hover:border-lime-300/40 hover:shadow-[0_10px_30px_-15px_rgba(190,242,100,0.25)] transition-all overflow-hidden cursor-pointer"
+              className="group block rounded-xl border border-slate-800 bg-[#0b1220]/80 hover:border-cyan-400/40 hover:shadow-[0_10px_30px_-15px_rgba(34,211,238,0.2)] transition-all overflow-hidden cursor-pointer"
             >
               <div className="relative h-24 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 overflow-hidden">
                 <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:14px_14px]" />
@@ -113,7 +113,7 @@ export function TemplateBrowser() {
                 </span>
               </div>
               <div className="p-3">
-                <div className="text-sm font-semibold text-zinc-100 group-hover:text-lime-300 transition-colors">
+                <div className="text-sm font-semibold text-slate-100 group-hover:text-cyan-300 transition-colors">
                   {t.title}
                 </div>
                 <p className="mt-1 text-xs text-zinc-500 line-clamp-2">{t.blurb}</p>

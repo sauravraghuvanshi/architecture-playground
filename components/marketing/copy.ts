@@ -30,7 +30,6 @@ export const BRAND = {
 export const NAV = [
   { label: "Modes", href: "#modes" },
   { label: "Capabilities", href: "#capabilities" },
-  { label: "Roadmap", href: "#roadmap" },
 ];
 
 export type Tool = {
@@ -44,16 +43,14 @@ export type Tool = {
 };
 
 /**
- * The 9 modes. `ready: true` is the truth — only Architecture is in users'
- * hands today. Soon-flagged modes link to `/diagrammatic` so the click still
- * goes somewhere useful, but the card explicitly labels them as not-yet-built.
+ * The 9 modes. Every ready flag is backed by an end-to-end workspace test.
  */
 export const TOOLS: Tool[] = [
   {
     id: "architecture",
     title: "Cloud Architecture",
-    blurb: "Drag 1,400+ AWS, Azure & GCP icons. Animated request-flow edges, numbered step badges, and GIF recording.",
-    bullets: ["1,400+ official cloud icons", "Solid / dashed / animated flow edges", "Animated GIF recorder"],
+    blurb: "Drag 1,433 AWS, Azure & GCP icons. Order request-flow edges and export synchronized animated GIFs.",
+    bullets: ["1,433 cloud icons", "Solid / dashed / animated flow edges", "PNG / SVG / PDF / GIF export"],
     icon: Boxes,
     ready: true,
     href: "/diagrammatic",
@@ -62,7 +59,7 @@ export const TOOLS: Tool[] = [
     id: "sequence",
     title: "Sequence Diagrams",
     blurb: "Lifelines + sync / async / return arrows snapped to message rows.",
-    bullets: ["Sync, async & return arrows", "Snap-to-row message lanes", "Editable participant labels"],
+    bullets: ["Sync, async & return arrows", "Snap-to-row message lanes", "Starter templates + participant builder"],
     icon: GitBranch,
     ready: true,
     href: "/diagrammatic?mode=sequence",
@@ -70,8 +67,8 @@ export const TOOLS: Tool[] = [
   {
     id: "flowchart",
     title: "Flowcharts",
-    blurb: "BPMN-friendly start/process/decision/IO shapes with labeled branches.",
-    bullets: ["Standard BPMN stencils", "Yes/No labelled edges", "Top-down structure"],
+    blurb: "Start, process, decision, IO, and subprocess shapes with labeled branches.",
+    bullets: ["Standard flowchart shapes", "Yes/No labelled edges", "Top-down structure"],
     icon: Workflow,
     ready: true,
     href: "/diagrammatic?mode=flowchart",
@@ -79,8 +76,8 @@ export const TOOLS: Tool[] = [
   {
     id: "mindmap",
     title: "Mind Maps",
-    blurb: "Radial brainstorm canvas with five color themes and add-child gestures.",
-    bullets: ["Radial node placement", "5 color themes", "Smooth bezier branches"],
+    blurb: "Radial brainstorm canvas with color themes, connected branches, and a node builder.",
+    bullets: ["Radial node placement", "Color-coded topics", "Smooth bezier branches"],
     icon: Brain,
     ready: true,
     href: "/diagrammatic?mode=mindmap",
@@ -97,7 +94,7 @@ export const TOOLS: Tool[] = [
   {
     id: "er",
     title: "ER Diagrams",
-    blurb: "Entity tables with PK / FK badges, crow's-foot relationships, Postgres DDL export.",
+    blurb: "Entity tables with PK / FK badges, cardinality-labelled relationships, and SQL DDL export.",
     bullets: ["PK / FK badges", "1:1, 1:N, N:M cardinalities", "Export → Postgres CREATE TABLE"],
     icon: Database,
     ready: true,
@@ -115,8 +112,8 @@ export const TOOLS: Tool[] = [
   {
     id: "kanban",
     title: "Kanban",
-    blurb: "Drag-and-drop sprint board with WIP limits; export to Markdown.",
-    bullets: ["Drag-and-drop columns", "WIP limit warnings", "Export → Markdown checklist"],
+    blurb: "Drag cards within and across sprint columns, enforce WIP limits, and export to Markdown.",
+    bullets: ["Cross-column card movement", "WIP limit warnings", "Export → Markdown checklist"],
     icon: ListChecks,
     ready: true,
     href: "/diagrammatic?mode=kanban",
@@ -149,50 +146,25 @@ export const HERO_CHIPS = [
 ];
 
 /**
- * Capabilities that are real today (or in active development this phase).
- * No SOC2 claims, no testimonials, no fake comparisons.
+ * Capabilities that are real and test-covered today.
  */
 export type Capability = {
   title: string;
   blurb: string;
   icon: LucideIcon;
-  status: "live" | "next" | "planned";
+  status: "live";
 };
 
 export const CAPABILITIES: Capability[] = [
-  { title: "Prompt → architecture", blurb: "Type a system in plain English; we scaffold the canvas with real cloud icons and connect tiers automatically.", icon: Sparkles, status: "live" },
-  { title: "Animated request flows", blurb: "Toggle every edge between solid, dashed, and a flowing animation that visualizes data movement.", icon: Activity, status: "live" },
-  { title: "1,400+ cloud icons", blurb: "Official AWS, Azure, and GCP icon sets, searchable. Click to add or drag onto canvas.", icon: Boxes, status: "live" },
+  { title: "Prompt → diagram", blurb: "Use deterministic architecture scaffolding or Azure OpenAI generation when the server is configured.", icon: Sparkles, status: "live" },
+  { title: "Ordered request flows", blurb: "Set solid, dashed, or animated edges and control GIF sequence steps; equal steps move together.", icon: Activity, status: "live" },
+  { title: "1,433 cloud icons", blurb: "AWS, Azure, and GCP icon assets are searchable and can be clicked or dragged onto the canvas.", icon: Boxes, status: "live" },
   { title: "Click-or-drag placement", blurb: "Click an icon to drop at the canvas center, or drag to a precise spot. No modal, no friction.", icon: MousePointerClick, status: "live" },
   { title: "Validation linter", blurb: "Inspector flags disconnected nodes and missing labels. The list updates as you draw.", icon: FileText, status: "live" },
-  { title: "Animated GIF recorder", blurb: "Record numbered request flows as a looping GIF — the differentiator behind the AI-Gateway demos.", icon: GitBranch, status: "live" },
-  { title: "Export (JSON / PNG / SVG / SQL / TS / MD)", blurb: "Per-mode exporters: cloud diagrams to PNG/SVG/JSON, ER to Postgres DDL, UML to TypeScript, Kanban to Markdown.", icon: Code2, status: "live" },
-  { title: "Real LLM generation (Azure OpenAI)", blurb: "Replace the keyword heuristic with a streaming generator wired to Azure OpenAI.", icon: Wand2, status: "next" },
-  { title: "Image / code → diagram", blurb: "Drop a whiteboard photo or paste Bicep/Terraform; we infer the topology.", icon: Brain, status: "planned" },
-];
-
-export const ROADMAP = [
-  { phase: "Now", items: [
-    "All 9 modes live (Architecture, Sequence, Flowchart, Mind Map, ER, UML, C4, Whiteboard, Kanban)",
-    "Animated request-flow edges + numbered step badges",
-    "Animated GIF recorder",
-    "Prompt → architecture (heuristic)",
-    "Click & drag placement, localStorage drafts",
-    "Exports: JSON / PNG / SVG / SQL / TS / Markdown / GIF",
-  ]},
-  { phase: "Next", items: [
-    "Real LLM generation (Azure OpenAI streaming)",
-    "Shared-cursor presence",
-    "Persisted save (server-side)",
-  ]},
-  { phase: "Then", items: [
-    "Code → diagram (Bicep / Terraform)",
-    "Image → diagram (whiteboard photo OCR)",
-  ]},
-  { phase: "Later", items: [
-    "Realtime multiplayer (Y.js)",
-    "Public template gallery uploads",
-  ]},
+  { title: "Synchronized GIF recorder", blurb: "Export numbered request flows while keeping service cards static and animating equal-numbered paths together.", icon: GitBranch, status: "live" },
+  { title: "Presentation-ready export", blurb: "Export PNG, SVG, PDF, JSON, and GIF; ER adds SQL, UML adds TypeScript, and Kanban adds Markdown.", icon: Code2, status: "live" },
+  { title: "Local-first review", blurb: "Autosave drafts in the browser, add scoped comments, and capture restorable version snapshots.", icon: FileText, status: "live" },
+  { title: "Reusable templates", blurb: "Start blank or apply tested starter patterns for every diagram mode, including grouped cloud architectures.", icon: Wand2, status: "live" },
 ];
 
 export const FOOTER_LINKS = {
@@ -202,7 +174,6 @@ export const FOOTER_LINKS = {
     { label: "Project hub", href: "/" },
   ],
   Resources: [
-    { label: "Roadmap", href: "#roadmap" },
     { label: "Capabilities", href: "#capabilities" },
     { label: "Modes", href: "#modes" },
   ],

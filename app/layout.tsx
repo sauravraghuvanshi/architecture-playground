@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { GeistSans } from "geist/font/sans";
+import "@xyflow/react/dist/style.css";
 import "./globals.css";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
@@ -12,7 +13,7 @@ export const metadata: Metadata = {
     template: "%s · Architecture Playground",
   },
   description:
-    "Drag-and-drop Azure, AWS, and GCP service icons onto a canvas, connect them, animate a request sequence, and export PNG, JSON, or GIF.",
+    "Design enterprise Azure, AWS, and GCP architectures, control ordered request flows, and export high-quality PNG, SVG, PDF, JSON, or GIF artifacts.",
   applicationName: "Architecture Playground",
   authors: [{ name: "Saurav Raghuvanshi" }],
   openGraph: {

@@ -177,7 +177,7 @@ function PlaygroundShell({ icons, templates }: Props) {
       if (saved && (saved.nodes.length > 0 || saved.edges.length > 0)) {
         const normalized = normalizeGraph(saved);
         const flow = graphToFlow(normalized, iconsById);
-        setFlow(flow); // eslint-disable-line react-hooks/set-state-in-effect -- Intentional: one-time hydration from localStorage on mount
+        setFlow(flow);
         setGraphExtras({ layers: normalized.layers, metadata: normalized.metadata });
         dispatchHistory({ type: "reset", snapshot: snapshotGraph(normalized) });
         ui.announce("Restored autosaved diagram.");

@@ -33,7 +33,7 @@ export interface WhiteboardPayload {
 
 export const WHITEBOARD_DEFAULT_PAYLOAD: WhiteboardPayload = {
   elements: [],
-  appState: { viewBackgroundColor: "#0a0a0b", currentItemStrokeColor: "#bef264" },
+  appState: { viewBackgroundColor: "#f8fafc", currentItemStrokeColor: "#0f172a" },
   files: {},
 };
 
@@ -63,6 +63,16 @@ interface ExcalidrawAPI {
  *  feature-detect via `"insertImage" in handle`. */
 export interface WhiteboardCanvasHandle extends BaseCanvasHandle {
   insertImage: (b64: string, mime: string, opts?: { width?: number; height?: number }) => void;
+  insertSvgAsset: (svg: string, label: string) => void;
+}
+
+function utf8ToBase64(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += 1) {
+    binary += String.fromCharCode(bytes[index]);
+  }
+  return btoa(binary);
 }
 
 /**
@@ -148,6 +158,13 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
     scrollToContent: true,
   }));
   const notifyRef = useRef<number | null>(null);
+  const registerExcalidrawApi = useCallback((api: unknown) => {
+    apiRef.current = api as ExcalidrawAPI;
+    // useHandleLibrary only needs the first ready API instance. Re-setting this
+    // state from Excalidraw's registration callback creates a render loop when
+    // parent persistence updates re-render the custom MainMenu.
+    setExcalidrawAPI((current: unknown) => current ?? api);
+  }, []);
 
   const onAnyChange = useCallback(() => {
     if (!onChange || !apiRef.current) return;
@@ -161,6 +178,53 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
       });
     });
   }, [onChange]);
+
+  const insertImageData = useCallback(
+    (
+      b64: string,
+      mime: string,
+      opts?: { width?: number; height?: number; idPrefix?: string }
+    ) => {
+      const api = apiRef.current;
+      if (!api) return;
+      const fileId = `${opts?.idPrefix ?? "image"}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      api.addFiles([
+        {
+          id: fileId,
+          mimeType: mime,
+          dataURL: `data:${mime};base64,${b64}`,
+          created: Date.now(),
+        },
+      ]);
+      const appState = api.getAppState() as {
+        scrollX?: number;
+        scrollY?: number;
+        zoom?: { value?: number };
+        width?: number;
+        height?: number;
+      };
+      const zoom = appState.zoom?.value ?? 1;
+      const viewportWidth = (appState.width ?? 1024) / zoom;
+      const viewportHeight = (appState.height ?? 768) / zoom;
+      const centerX = -(appState.scrollX ?? 0) + viewportWidth / 2;
+      const centerY = -(appState.scrollY ?? 0) + viewportHeight / 2;
+      const width = opts?.width ?? 480;
+      const height = opts?.height ?? 480;
+      const elements = convertToExcalidrawElements([
+        {
+          type: "image",
+          x: centerX - width / 2,
+          y: centerY - height / 2,
+          width,
+          height,
+          fileId: fileId as never,
+          status: "saved",
+        },
+      ] as never);
+      api.updateScene({ elements: [...api.getSceneElements(), ...elements] });
+    },
+    []
+  );
 
   useEffect(() => () => { if (notifyRef.current) cancelAnimationFrame(notifyRef.current); }, []);
 
@@ -209,42 +273,19 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
      * an image element via `convertToExcalidrawElements` so it's a real
      * Excalidraw element (selectable, exportable, undoable).
      */
-    insertImage: (b64: string, mime: string, opts?: { width?: number; height?: number }) => {
-      const api = apiRef.current;
-      if (!api) return;
-      const fileId = `ai-img-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-      api.addFiles([{
-        id: fileId,
-        mimeType: mime,
-        dataURL: `data:${mime};base64,${b64}`,
-        created: Date.now(),
-      }]);
-      // Place near the current scroll position so the user actually sees it.
-      const appState = api.getAppState() as { scrollX?: number; scrollY?: number; zoom?: { value?: number }; width?: number; height?: number };
-      const zoom = appState.zoom?.value ?? 1;
-      const vw = (appState.width ?? 1024) / zoom;
-      const vh = (appState.height ?? 768) / zoom;
-      const scrollX = appState.scrollX ?? 0;
-      const scrollY = appState.scrollY ?? 0;
-      const w = opts?.width ?? 480;
-      const h = opts?.height ?? 480;
-      // scrollX/scrollY are negative offsets of scene origin from viewport top-left.
-      const cx = -scrollX + vw / 2;
-      const cy = -scrollY + vh / 2;
-      const skeleton = [{
-        type: "image" as const,
-        x: cx - w / 2,
-        y: cy - h / 2,
-        width: w,
-        height: h,
-        fileId: fileId as never,
-        status: "saved" as const,
-      }];
-      const elements = convertToExcalidrawElements(skeleton as never);
-      const next = [...api.getSceneElements(), ...elements];
-      api.updateScene({ elements: next });
-    },
-  }), [value]);
+    insertImage: (
+      b64: string,
+      mime: string,
+      opts?: { width?: number; height?: number }
+    ) =>
+      insertImageData(b64, mime, { ...opts, idPrefix: "ai-img" }),
+    insertSvgAsset: (svg: string, label: string) =>
+      insertImageData(utf8ToBase64(svg), "image/svg+xml", {
+        width: 180,
+        height: 180,
+        idPrefix: `symbol-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+      }),
+  }), [insertImageData, value]);
 
   /**
    * Prompt the user for a `.excalidrawlib` URL (e.g. from
@@ -260,6 +301,13 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
       "",
     );
     if (!url) return;
+    if (
+      !window.confirm(
+        "Community libraries may contain third-party logos or trademarks with separate usage terms. Confirm that you have reviewed the library's rights for your intended use."
+      )
+    ) {
+      return;
+    }
     try {
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -275,12 +323,9 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
   }, []);
 
   return (
-    <div className="h-full w-full bg-zinc-950">
+    <div className="diagrammatic-whiteboard h-full w-full bg-slate-50">
       <Excalidraw
-        excalidrawAPI={(api) => {
-          apiRef.current = api as unknown as ExcalidrawAPI;
-          setExcalidrawAPI(api);
-        }}
+        excalidrawAPI={registerExcalidrawApi}
         initialData={initialData}
         onChange={onAnyChange}
         theme="dark"
@@ -306,8 +351,20 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
           >
             Import library from URL…
           </MainMenu.Item>
-          <MainMenu.ItemLink
-            href="https://libraries.excalidraw.com/"
+          <MainMenu.Item
+            onSelect={() => {
+              if (
+                window.confirm(
+                  "Excalidraw community libraries are optional third-party content. Review each library's licensing and trademark terms before commercial use. Open the public catalog?"
+                )
+              ) {
+                window.open(
+                  "https://libraries.excalidraw.com/",
+                  "_blank",
+                  "noopener,noreferrer"
+                );
+              }
+            }}
             icon={
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
                 <path d="M3 5h14v10H3z M3 9h14" />
@@ -315,7 +372,7 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
             }
           >
             Browse public libraries
-          </MainMenu.ItemLink>
+          </MainMenu.Item>
           <MainMenu.Separator />
           <MainMenu.DefaultItems.ChangeCanvasBackground />
           <MainMenu.DefaultItems.Help />

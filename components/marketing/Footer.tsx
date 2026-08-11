@@ -2,23 +2,23 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, Github } from "lucide-react";
+import { ArrowRight, Github, CloudCog } from "lucide-react";
 import { BRAND, FOOTER_LINKS } from "./copy";
 
 export function FinalCTA() {
   return (
-    <section className="bg-zinc-950 py-24">
+    <section className="bg-[#07101e] py-24">
       <div className="mx-auto max-w-5xl px-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
-          className="relative overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900 p-12 text-center md:p-16"
+          className="relative overflow-hidden rounded-3xl border border-slate-800 bg-[#0b1220] p-12 text-center md:p-16"
         >
           <div
             aria-hidden
-            className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(190,242,100,0.10),transparent_60%)]"
+            className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(34,211,238,0.12),transparent_60%)]"
           />
           <div
             aria-hidden
@@ -36,7 +36,7 @@ export function FinalCTA() {
           <div className="relative mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/diagrammatic"
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-lime-300 px-6 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-lime-200"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-cyan-400 px-6 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-300"
             >
               Open the canvas
               <ArrowRight className="h-4 w-4" />
@@ -57,13 +57,13 @@ export function FinalCTA() {
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-zinc-900 bg-zinc-950 py-16">
+    <footer className="border-t border-slate-900 bg-[#07101e] py-16">
       <div className="mx-auto max-w-6xl px-6">
         <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
           <div className="col-span-2 md:col-span-1">
             <Link href="/" className="flex cursor-pointer items-center gap-2">
-              <span className="grid h-8 w-8 place-items-center rounded-lg border border-zinc-800 bg-zinc-900 text-sm font-black text-lime-300">
-                ◆
+              <span className="grid h-8 w-8 place-items-center rounded-xl bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-500/15">
+                <CloudCog className="h-4 w-4" />
               </span>
               <span className="font-semibold tracking-tight text-zinc-100">{BRAND.name}</span>
             </Link>
@@ -80,7 +80,7 @@ export function SiteFooter() {
                   <li key={link.href}>
                     <Link
                       href={link.href}
-                      className="cursor-pointer text-sm text-zinc-400 transition-colors hover:text-lime-300"
+                      className="cursor-pointer text-sm text-zinc-400 transition-colors hover:text-cyan-300"
                     >
                       {link.label}
                     </Link>
