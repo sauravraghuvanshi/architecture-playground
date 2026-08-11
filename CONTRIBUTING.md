@@ -3,8 +3,8 @@
 Thanks for considering a contribution. The Diagrammatic workspace is a Next.js
 app with several modes (architecture, flowchart, mind map, sequence, ER, UML,
 C4, Kanban, whiteboard) layered on `@xyflow/react`, `dnd-kit`, and Excalidraw.
-This guide is the short version — see `task/implementation.md` for the long
-roadmap and `docs/security.md` for the security baseline.
+See `docs/security.md` for the security baseline and
+`docs/development-log-2026-08-11.md` for the latest implementation retrospective.
 
 ## Local setup
 
@@ -12,6 +12,8 @@ roadmap and `docs/security.md` for the security baseline.
 git clone https://github.com/sauravraghuvanshi/architecture-playground
 cd architecture-playground
 npm install
+npm run build:icon-manifest
+npm run build:whiteboard-assets
 npm run dev          # starts Next.js on :3000
 ```
 
@@ -21,11 +23,18 @@ Optional environment variables (place in `.env.local`):
 AZURE_OPENAI_ENDPOINT=https://<your-resource>.openai.azure.com
 AZURE_OPENAI_API_KEY=...
 AZURE_OPENAI_DEPLOYMENT=gpt-4o
-AZURE_OPENAI_IMAGE_DEPLOYMENT=dall-e-3   # optional, enables /api/ai/image
+AZURE_OPENAI_IMAGE_ENDPOINT=https://<your-image-resource>.openai.azure.com
+AZURE_OPENAI_IMAGE_API_KEY=...
+AZURE_OPENAI_IMAGE_DEPLOYMENT=gpt-image-2
 ```
 
-Without these, AI features remain visible but disabled (the Sparkles button
-shows a tooltip explaining the missing config).
+Without chat credentials, prompt-to-diagram AI is disabled. During development,
+Whiteboard image AI can use the public Diagrammatic proxy; set
+`DIAGRAMMATIC_AI_PROXY_URL=disabled` to opt out.
+
+The optional shared access gate uses `APP_AUTH_ENABLED`, `APP_AUTH_USERNAME`,
+`APP_AUTH_PASSWORD`, and a minimum 32-character `APP_AUTH_SECRET`. Never commit
+populated values.
 
 ## Project layout (high level)
 
@@ -39,9 +48,9 @@ shows a tooltip explaining the missing config).
 | `components/diagrammatic/shared/`            | Toolbar, Palette, Inspector, panels, modals  |
 | `lib/ai-mode-prompts.ts`                     | Per-mode AI system prompts                   |
 | `lib/ai-rate-limit.ts`                       | In-memory token bucket                       |
-| `middleware.ts`                              | Security headers                             |
+| `lib/auth.ts`                                | Credential and signed-session helpers        |
+| `middleware.ts`                              | Access gate + security headers               |
 | `e2e/`                                       | Playwright smoke tests                       |
-| `task/implementation.md`                     | Phased roadmap (source of truth for scope)   |
 | `inbox_entries/phase-*-parked.md`            | Notes on deliberately deferred work          |
 
 ## Adding a new diagram mode
@@ -57,15 +66,12 @@ shows a tooltip explaining the missing config).
 ## Verification before opening a PR
 
 ```bash
-npx tsc --noEmit                                # type check
-npm run lint                                    # baseline is 15 problems — keep it that way
-npm run build                                   # turbopack build
-npx playwright test --project=chromium          # smoke tests
+npm run lint                                    # clean ESLint baseline
+npx tsc --noEmit                                # strict type check
+npm run test:playground                         # pure unit tests
+npx playwright test --project=chromium          # browser regression suites
+npm run build                                   # production standalone build
 ```
-
-The lint baseline is a snapshot of pre-existing issues; do not introduce new
-ones. To verify, run `git stash && npm run lint && git stash pop` before and
-after your changes and compare counts.
 
 ## Commit messages
 

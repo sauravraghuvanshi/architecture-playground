@@ -305,7 +305,7 @@ Service SCM endpoint, and performs an HTTP health check after restart.
 
 ## Security and privacy
 
-- No sign-in, user profile, telemetry identity, or cloud database
+- Shared sign-in gate without individual user profiles or a cloud database
 - CSP, HSTS, X-Frame-Options, Permissions-Policy, and COOP headers
 - AI rate limiting with explicit 429 responses
 - Azure credentials remain server-side
@@ -354,6 +354,12 @@ See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and
 
 Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) and
 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), then open an issue or pull request.
+
+## Latest engineering log
+
+See [Development log — 2026-08-11/12](docs/development-log-2026-08-11.md)
+for the complete delivery summary, production blockers, root-cause resolutions,
+validation evidence, and key learnings from the architecture studio release.
 
 ## License
 
