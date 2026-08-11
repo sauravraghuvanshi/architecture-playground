@@ -15,6 +15,12 @@
  */
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import {
+  authEnabled,
+  SESSION_COOKIE,
+  verifySessionToken,
+} from "@/lib/auth";
+import { safeReturnPath } from "@/lib/auth-redirect";
 
 const CSP = [
   "default-src 'self'",
@@ -46,12 +52,46 @@ const SECURITY_HEADERS: Record<string, string> = {
   "Cross-Origin-Opener-Policy": "same-origin",
 };
 
-export function middleware(_req: NextRequest) { // eslint-disable-line @typescript-eslint/no-unused-vars
-  const res = NextResponse.next();
+function withSecurityHeaders(response: NextResponse): NextResponse {
   for (const [k, v] of Object.entries(SECURITY_HEADERS)) {
-    res.headers.set(k, v);
+    response.headers.set(k, v);
   }
-  return res;
+  return response;
+}
+
+export async function middleware(req: NextRequest) {
+  if (!authEnabled()) return withSecurityHeaders(NextResponse.next());
+
+  const pathname = req.nextUrl.pathname;
+  const authRoute =
+    pathname === "/api/auth/login" ||
+    pathname === "/api/auth/logout" ||
+    pathname === "/api/auth/status";
+  const token = req.cookies.get(SESSION_COOKIE)?.value;
+  const authenticated = await verifySessionToken(token);
+
+  if (pathname === "/login") {
+    if (!authenticated) return withSecurityHeaders(NextResponse.next());
+    const destination = safeReturnPath(req.nextUrl.searchParams.get("next"));
+    return withSecurityHeaders(
+      NextResponse.redirect(new URL(destination, req.url))
+    );
+  }
+
+  if (authRoute) return withSecurityHeaders(NextResponse.next());
+
+  if (!authenticated) {
+    if (pathname.startsWith("/api/")) {
+      return withSecurityHeaders(
+        NextResponse.json({ error: "Authentication required." }, { status: 401 })
+      );
+    }
+    const login = new URL("/login", req.url);
+    login.searchParams.set("next", `${pathname}${req.nextUrl.search}`);
+    return withSecurityHeaders(NextResponse.redirect(login));
+  }
+
+  return withSecurityHeaders(NextResponse.next());
 }
 
 export const config = {

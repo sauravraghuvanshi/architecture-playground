@@ -28,8 +28,9 @@
   <img alt="License" src="https://img.shields.io/badge/license-MIT-22d3ee" />
 </p>
 
-> No sign-in, tracking profile, or cloud database is required. Diagrams, comments,
-> and version snapshots stay in the browser unless you explicitly export them.
+> The hosted demo is protected by a shared workspace credential. Local
+> authentication is disabled by default. Diagrams, comments, and version
+> snapshots stay in the browser unless you explicitly export them.
 
 ---
 
@@ -218,6 +219,22 @@ The two asset commands generate:
 
 - `content/cloud-icons.json` from the checked-in provider SVGs;
 - `public/whiteboard-assets.json` with exactly 600 curated Lucide symbols.
+
+## Configure the access gate
+
+The production workspace can be protected with one environment-backed shared
+credential. Values are validated server-side and are never committed to source.
+
+```dotenv
+APP_AUTH_ENABLED=true
+APP_AUTH_USERNAME=<workspace-user>
+APP_AUTH_PASSWORD=<strong-password>
+APP_AUTH_SECRET=<random-secret-at-least-32-characters>
+```
+
+Successful sign-in issues an eight-hour, signed, HttpOnly, SameSite=Strict
+cookie. Login attempts are rate limited. Leave `APP_AUTH_ENABLED` unset for an
+open local development workspace.
 
 ## Configure AI
 

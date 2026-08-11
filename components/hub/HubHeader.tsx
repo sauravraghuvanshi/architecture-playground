@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Search, Plus, Github, CloudCog } from "lucide-react";
+import { SignOutButton } from "@/components/shared/SignOutButton";
 
 /**
  * Compact, IDE-grade top header for the project hub.
@@ -61,6 +62,7 @@ export function HubHeader() {
           >
             <Github className="h-4 w-4" />
           </Link>
+          <SignOutButton />
         </nav>
 
         <Link

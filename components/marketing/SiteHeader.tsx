@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Menu, X, Github, CloudCog } from "lucide-react";
 import { BRAND, NAV } from "./copy";
+import { SignOutButton } from "@/components/shared/SignOutButton";
 
 /**
  * Shared enterprise site header. No sign-in (app is fully open).
@@ -59,6 +60,7 @@ export function SiteHeader() {
           >
             <Github className="h-4 w-4" />
           </Link>
+          <SignOutButton />
           <Link
             href="/diagrammatic"
             className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-cyan-400 px-4 py-2 text-sm font-bold text-slate-950 transition hover:bg-cyan-300"
