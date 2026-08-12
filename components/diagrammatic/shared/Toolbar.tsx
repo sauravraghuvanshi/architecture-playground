@@ -7,7 +7,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Undo2, Redo2, Maximize2, Trash2, Activity, Save, Loader2, Check, LayoutGrid, Play, Square, ChevronDown, Download, FolderOpen, Sparkles, MessageSquare, History, CloudCog, Home, FilePlus2 } from "lucide-react";
+import { Undo2, Redo2, Maximize2, Trash2, Activity, Save, Loader2, Check, LayoutGrid, Play, Square, ChevronDown, Download, FolderOpen, Sparkles, MessageSquare, History, CloudCog, Home, FilePlus2, BookOpenCheck, Code2, CloudUpload } from "lucide-react";
 
 const TIERS = ["Edge", "Frontend", "Gateway", "Compute", "Messaging", "Data", "Ops", "Custom"] as const;
 const EXPORT_FORMATS = [
@@ -57,6 +57,15 @@ interface Props {
   onAiAssist?: () => void;
   /** Disables the AI button + shows a tooltip when AI env vars are absent. */
   aiDisabledReason?: string;
+  /** Toggle the Microsoft CSA guidance rail. */
+  onToggleCsaGuidance?: () => void;
+  csaGuidanceOpen?: boolean;
+  /** Open architecture-to-code generation. */
+  onGenerateCode?: () => void;
+  /** Open the cross-framework Azure architecture review. */
+  onReviewArchitecture?: () => void;
+  /** Prepare a short-lived Azure Portal deployment handoff. */
+  onDeployAzure?: () => void;
   /** Toggle the right-rail comments panel. */
   onToggleComments?: () => void;
   commentsOpen?: boolean;
@@ -89,6 +98,11 @@ export function Toolbar({
   onBlankCanvas,
   onAiAssist,
   aiDisabledReason,
+  onToggleCsaGuidance,
+  csaGuidanceOpen,
+  onGenerateCode,
+  onReviewArchitecture,
+  onDeployAzure,
   onToggleComments,
   commentsOpen,
   onToggleVersions,
@@ -198,6 +212,59 @@ export function Toolbar({
           >
             <Sparkles className="h-3.5 w-3.5" />
             AI
+          </button>
+        )}
+        {onToggleCsaGuidance && (
+          <button
+            type="button"
+            onClick={onToggleCsaGuidance}
+            title="Azure Architecture Center guidance"
+            aria-label="Toggle Microsoft CSA guidance"
+            aria-pressed={!!csaGuidanceOpen}
+            className={`flex cursor-pointer items-center gap-1 rounded-lg border px-2 py-1.5 text-[10px] font-semibold transition ${
+              csaGuidanceOpen
+                ? "border-cyan-300 bg-cyan-400 text-slate-950"
+                : "border-cyan-400/20 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20 hover:text-white"
+            }`}
+          >
+            <BookOpenCheck className="h-3.5 w-3.5" />
+            CSA
+          </button>
+        )}
+        {onGenerateCode && (
+          <button
+            type="button"
+            onClick={onGenerateCode}
+            title="Generate Bicep, Terraform, Azure CLI, or PowerShell"
+            aria-label="Generate architecture code"
+            className="flex cursor-pointer items-center gap-1 rounded-lg border border-violet-400/20 bg-violet-400/10 px-2 py-1.5 text-[10px] font-semibold text-violet-200 transition hover:bg-violet-400/20 hover:text-white"
+          >
+            <Code2 className="h-3.5 w-3.5" />
+            Code
+          </button>
+        )}
+        {onReviewArchitecture && (
+          <button
+            type="button"
+            onClick={onReviewArchitecture}
+            title="Review against Azure architecture guidance"
+            aria-label="Review Azure architecture"
+            className="flex cursor-pointer items-center gap-1 rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-2 py-1.5 text-[10px] font-semibold text-emerald-200 transition hover:bg-emerald-400/20 hover:text-white"
+          >
+            <Check className="h-3.5 w-3.5" />
+            Review
+          </button>
+        )}
+        {onDeployAzure && (
+          <button
+            type="button"
+            onClick={onDeployAzure}
+            title="Open Azure Portal Review + Create"
+            aria-label="Deploy architecture to Azure"
+            className="flex cursor-pointer items-center gap-1 rounded-lg bg-sky-400 px-2 py-1.5 text-[10px] font-bold text-slate-950 transition hover:bg-sky-300"
+          >
+            <CloudUpload className="h-3.5 w-3.5" />
+            Deploy
           </button>
         )}
         {onBlankCanvas && (

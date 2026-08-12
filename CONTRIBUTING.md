@@ -46,7 +46,9 @@ populated values.
 | `components/diagrammatic/Workspace.tsx`      | Top-level shell, mode tab strip, panels      |
 | `components/diagrammatic/modes/<m>/`         | One per mode (Canvas + templates.ts)         |
 | `components/diagrammatic/shared/`            | Toolbar, Palette, Inspector, panels, modals  |
+| `components/diagrammatic/csa/`               | CSA guidance, assessment, code, deployment  |
 | `lib/ai-mode-prompts.ts`                     | Per-mode AI system prompts                   |
+| `lib/architecture-review.ts`                 | Structured Azure review schema and prompt   |
 | `lib/ai-rate-limit.ts`                       | In-memory token bucket                       |
 | `lib/auth.ts`                                | Credential and signed-session helpers        |
 | `middleware.ts`                              | Access gate + security headers               |

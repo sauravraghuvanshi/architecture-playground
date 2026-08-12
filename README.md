@@ -160,6 +160,24 @@ active mode.
 
 ## Feature highlights
 
+### Microsoft CSA workspace
+
+- Searchable Azure Architecture Center patterns and design principles with
+  first-party Microsoft Learn links, tradeoffs, and applicable blueprints
+- Azure Landing Zones IaC Accelerator planning for Bicep or Terraform and
+  GitHub or Azure DevOps, including all eight platform design areas
+- Cloud Adoption Framework journey tracking across Strategy, Plan, Ready,
+  Adopt, Govern, Secure, and Manage
+- Evidence-based Azure Well-Architected assessment across all five pillars
+- Architecture-to-code generation for Bicep, Terraform, Azure CLI, and Azure
+  PowerShell, with unsupported-service and RBAC coverage warnings
+- LLM-assisted review of the active canvas, an imported Diagrammatic JSON file,
+  or a written architecture description across Architecture Center, Landing
+  Zones, CAF, and WAF
+- User-confirmed Azure Portal deployment handoff through a short-lived ARM
+  template URL; Diagrammatic never receives Azure credentials or silently
+  creates resources
+
 ### Enterprise architecture authoring
 
 - 1,433 Azure, AWS, and GCP service icons
@@ -261,6 +279,11 @@ requests through the configured public Diagrammatic demo without exposing Azure
 keys. Prompts are sent to that hosted endpoint. Set
 `DIAGRAMMATIC_AI_PROXY_URL=disabled` to opt out, or set it to another trusted
 Diagrammatic deployment.
+
+The Azure Portal deployment handoff also uses `NEXT_PUBLIC_SITE_URL`. It must be
+the public HTTPS URL of the Diagrammatic deployment so Azure Portal can retrieve
+the random, short-lived template. Localhost deployments can generate and
+download code but intentionally cannot open the portal handoff.
 
 ## Test
 

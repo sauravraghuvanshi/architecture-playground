@@ -63,6 +63,11 @@ export async function middleware(req: NextRequest) {
   if (!authEnabled()) return withSecurityHeaders(NextResponse.next());
 
   const pathname = req.nextUrl.pathname;
+  const publicDeploymentTemplate =
+    req.method === "GET" && pathname === "/api/deploy/template";
+  if (publicDeploymentTemplate) {
+    return withSecurityHeaders(NextResponse.next());
+  }
   const authRoute =
     pathname === "/api/auth/login" ||
     pathname === "/api/auth/logout" ||

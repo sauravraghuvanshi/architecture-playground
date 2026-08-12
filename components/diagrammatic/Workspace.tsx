@@ -48,6 +48,10 @@ import type { BaseCanvasHandle } from "./shared/modeRegistry";
 import { AiPromptModal } from "./shared/AiPromptModal";
 import { CommentsPanel } from "./shared/CommentsPanel";
 import { VersionsPanel } from "./shared/VersionsPanel";
+import { CsaGuidancePanel } from "./csa/CsaGuidancePanel";
+import { ArchitectureCodeModal } from "./csa/ArchitectureCodeModal";
+import { ArchitectureReviewModal } from "./csa/ArchitectureReviewModal";
+import { AzureDeployModal } from "./csa/AzureDeployModal";
 import {
   WhiteboardAssetPalette,
   type WhiteboardAsset,
@@ -180,6 +184,10 @@ export function Workspace({
   const [aiOpen, setAiOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
+  const [csaGuidanceOpen, setCsaGuidanceOpen] = useState(false);
+  const [codeModalOpen, setCodeModalOpen] = useState(false);
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [deployModalOpen, setDeployModalOpen] = useState(false);
   const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
   const [edgeStyle, setEdgeStyle] = useState<ArchEdgeStyle>("flow");
   const [selection, setSelection] = useState<ArchitectureSelection | null>(null);
@@ -505,6 +513,22 @@ export function Workspace({
     [edgeStyle, icons]
   );
 
+  const applyArchitectureCenterPattern = useCallback(
+    (prompt: string) => {
+      const generated = promptToArchitecture(prompt, icons, { animateEdges: true });
+      if (!generated?.nodes.length) return;
+      setArchPayload(generated);
+      canvasRef.current?.hydrate(generated);
+      setSelection(null);
+      setSaved(false);
+      requestAnimationFrame(() => {
+        canvasRef.current?.setAllEdgeStyle(edgeStyle);
+        canvasRef.current?.fit();
+      });
+    },
+    [edgeStyle, icons]
+  );
+
   const handleBlankCanvas = useCallback(() => {
     const empty =
       mode === "architecture" ? ARCHITECTURE_EMPTY_PAYLOAD : EMPTY_PAYLOAD_FOR[mode];
@@ -702,6 +726,21 @@ export function Workspace({
           }
         }}
         onAiAssist={() => setAiOpen(true)}
+        onToggleCsaGuidance={
+          mode === "architecture"
+            ? () => {
+                setCsaGuidanceOpen((value) => !value);
+                setCommentsOpen(false);
+                setVersionsOpen(false);
+              }
+            : undefined
+        }
+        csaGuidanceOpen={csaGuidanceOpen}
+        onGenerateCode={mode === "architecture" ? () => setCodeModalOpen(true) : undefined}
+        onReviewArchitecture={
+          mode === "architecture" ? () => setReviewModalOpen(true) : undefined
+        }
+        onDeployAzure={mode === "architecture" ? () => setDeployModalOpen(true) : undefined}
         onBlankCanvas={handleBlankCanvas}
         aiDisabledReason={
           aiStatus &&
@@ -713,9 +752,15 @@ export function Workspace({
               : "AI diagram generation is not configured. Set Azure OpenAI env vars on the server."
             : undefined
         }
-        onToggleComments={() => setCommentsOpen((v) => !v)}
+        onToggleComments={() => {
+          setCommentsOpen((v) => !v);
+          setCsaGuidanceOpen(false);
+        }}
         commentsOpen={commentsOpen}
-        onToggleVersions={() => setVersionsOpen((v) => !v)}
+        onToggleVersions={() => {
+          setVersionsOpen((v) => !v);
+          setCsaGuidanceOpen(false);
+        }}
         versionsOpen={versionsOpen}
         saving={saving}
         saved={saved}
@@ -887,6 +932,13 @@ export function Workspace({
             setSaved(false);
           }}
         />
+        {mode === "architecture" && (
+          <CsaGuidancePanel
+            open={csaGuidanceOpen}
+            onClose={() => setCsaGuidanceOpen(false)}
+            onApplyPattern={applyArchitectureCenterPattern}
+          />
+        )}
       </div>
 
       <StatusBar
@@ -950,6 +1002,22 @@ export function Workspace({
             setSaved(false);
           }
         }}
+      />
+      <ArchitectureCodeModal
+        open={codeModalOpen}
+        payload={archPayload}
+        onClose={() => setCodeModalOpen(false)}
+      />
+      <ArchitectureReviewModal
+        open={reviewModalOpen}
+        payload={archPayload}
+        aiConfigured={Boolean(aiStatus?.diagramConfigured)}
+        onClose={() => setReviewModalOpen(false)}
+      />
+      <AzureDeployModal
+        open={deployModalOpen}
+        payload={archPayload}
+        onClose={() => setDeployModalOpen(false)}
       />
     </div>
   );

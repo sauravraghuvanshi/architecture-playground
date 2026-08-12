@@ -9,6 +9,13 @@
  */
 import { NextResponse } from "next/server";
 import { chatComplete, aiConfigured } from "@/lib/ai";
+import { aiRateLimit } from "@/lib/ai-rate-limit";
+import {
+  ARCHITECTURE_REVIEW_SYSTEM_PROMPT,
+  architectureReviewRequestSchema,
+  buildArchitectureReviewPrompt,
+  parseArchitectureReview,
+} from "@/lib/architecture-review";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -31,26 +38,71 @@ export async function POST(req: Request) {
   if (!aiConfigured()) {
     return NextResponse.json({ error: "AI not configured" }, { status: 503 });
   }
-  let body: { graph?: unknown };
+  const rate = aiRateLimit(req);
+  if (!rate.ok) {
+    return NextResponse.json(
+      { error: "Rate limit exceeded", retryAfter: rate.retryAfterSec },
+      { status: 429, headers: { "Retry-After": String(rate.retryAfterSec) } }
+    );
+  }
+  let body: unknown;
   try {
-    body = (await req.json()) as { graph?: unknown };
+    body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
-  if (!body.graph) return NextResponse.json({ error: "Missing 'graph'" }, { status: 400 });
+
+  if (
+    typeof body === "object" &&
+    body !== null &&
+    "graph" in body &&
+    !("source" in body)
+  ) {
+    const graph = (body as { graph?: unknown }).graph;
+    if (!graph) return NextResponse.json({ error: "Missing 'graph'" }, { status: 400 });
+    try {
+      const markdown = await chatComplete(
+        [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: JSON.stringify(graph).slice(0, 30000) },
+        ],
+        { temperature: 0.3, maxTokens: 1500 }
+      );
+      return NextResponse.json({ markdown });
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : "AI request failed" },
+        { status: 502 }
+      );
+    }
+  }
+
+  const request = architectureReviewRequestSchema.safeParse(body);
+  if (!request.success) {
+    return NextResponse.json(
+      { error: request.error.issues[0]?.message ?? "Invalid review request" },
+      { status: 400 }
+    );
+  }
 
   try {
-    const markdown = await chatComplete(
+    const raw = await chatComplete(
       [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: JSON.stringify(body.graph).slice(0, 30000) },
+        { role: "system", content: ARCHITECTURE_REVIEW_SYSTEM_PROMPT },
+        { role: "user", content: buildArchitectureReviewPrompt(request.data) },
       ],
-      { temperature: 0.3, maxTokens: 1500 }
+      { temperature: 0.2, maxTokens: 4000, responseFormat: "json_object" }
     );
-    return NextResponse.json({ markdown });
+    const review = parseArchitectureReview(raw);
+    return NextResponse.json({ review });
   } catch (err) {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "AI request failed" },
+      {
+        error:
+          err instanceof Error
+            ? `Architecture review failed: ${err.message}`
+            : "Architecture review failed",
+      },
       { status: 502 }
     );
   }
