@@ -1,6 +1,6 @@
 # Azure Deployment Plan
 
-> **Status:** Validated
+> **Status:** Deployed
 
 Generated: 2026-08-12
 
@@ -244,9 +244,9 @@ For every milestone:
 - [x] Static identity and RBAC review is complete
 - [x] Production application build succeeds
 - [x] Resolve all validation findings
-- [ ] Obtain explicit deployment confirmation
-- [ ] Invoke `azure-deploy` only if deployment of this application is requested
-- [ ] Verify the production health and critical CSA journeys
+- [x] Obtain explicit deployment confirmation
+- [x] Invoke `azure-deploy` only if deployment of this application is requested
+- [x] Verify the production health and critical CSA journeys
 
 ---
 
@@ -351,3 +351,15 @@ Validated: 2026-08-12
 
 No Azure resources, roles, or infrastructure definitions changed. The existing
 static RBAC review and policy validation remain applicable.
+
+### Multimodal production proof
+
+- User explicitly requested the validated changes be pushed live.
+- Commit `12f6c55` delivered the feature and documentation.
+- Commits `417703d` and `8ed4a86` hardened release readiness and the vision
+  fixture after production smoke surfaced real issues.
+- Workflow `31584648843` completed successfully.
+- Authenticated API smoke called the live multimodal review endpoint and
+  received a structured rating with findings.
+- Authenticated Chromium smoke confirmed the Upload diagram entry in the live
+  review dialog.

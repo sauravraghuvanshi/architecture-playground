@@ -114,12 +114,16 @@ and exercised through authenticated production smoke tests.
 | `79b83b1` | Stable production pattern verification |
 | `320ae85` | Universal canvas themes, Whiteboard flow arrows, GIFs, and upstream UI removal |
 | `0fd2268` | Wait for the active App Service release before live assertions |
+| `12f6c55` | Multimodal customer architecture image review and day-close documentation |
+| `417703d` | Release-specific multimodal readiness capability |
+| `8ed4a86` | Valid rendered architecture image for production vision smoke |
 
 Successful production workflow examples:
 
 - `31569987573` — initial CSA workspace deployment
 - `31570872167` — authenticated live CSA verification
 - `31579252387` — live Whiteboard separation, themes, and GIF verification
+- `31584648843` — live multimodal review plus authenticated browser verification
 
 ## Key blockers and resolutions
 
@@ -132,6 +136,8 @@ Successful production workflow examples:
 | Parallel Whiteboard tests timed out | Multiple heavy canvas instances exhausted browser/dev-server resources | Run the focused Whiteboard acceptance suite serially |
 | Architecture images could not be reviewed | The review API accepted text and graph JSON only | Added bounded base64 image content and a vision-enabled Azure OpenAI message |
 | Uploaded diagrams alone lacked operational context | A visual rarely contains RTO, data sensitivity, ownership, or scale | Added an optional customer-context field and treat missing information as assumptions |
+| Multimodal smoke initially reached the prior review schema | The readiness endpoint existed in both old and new releases | Added an authenticated `architectureImageReview` capability and wait for that exact release marker |
+| Azure vision rejected the one-pixel smoke fixture | Its bytes passed base64 validation but Azure could not decode the image | Replaced it with a rendered architecture PNG and verified the exact REST payload directly against `gpt-4o-mini` |
 
 ## Lessons learned
 
@@ -157,6 +163,8 @@ Successful production workflow examples:
    warns instead of inventing RBAC.
 9. **Claims should remain executable.** Product documentation, regression tests,
    Azure validation, and production smoke now describe the same behavior.
+10. **Syntactic base64 is not proof of a valid image.** Multimodal smoke fixtures
+    must be decoded by the same Azure model path used in production.
 
 ## Follow-up opportunities
 
