@@ -30,6 +30,8 @@ export interface BaseCanvasHandle {
    * own native exporter.
    */
   exportBlob?: (format: string) => Promise<Blob | null>;
+  /** Optional: switch the canvas into a connected arrow-drawing tool. */
+  activateFlowArrow?: () => void;
 }
 
 /**

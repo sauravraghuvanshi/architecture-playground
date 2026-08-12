@@ -22,6 +22,8 @@ export type DiagrammaticMode =
   | "kanban"
   | "c4";
 
+export type CanvasTheme = "light" | "dark";
+
 export const MODE_META: Record<
   DiagrammaticMode,
   { label: string; icon: string; tagline: string; engine: "reactflow" | "excalidraw" | "dndkit" }

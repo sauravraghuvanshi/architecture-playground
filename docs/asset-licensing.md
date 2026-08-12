@@ -1,4 +1,4 @@
-# Asset licensing and Whiteboard libraries
+# Asset licensing
 
 This document describes the project's conservative asset policy. It is not legal advice.
 
@@ -6,19 +6,9 @@ This document describes the project's conservative asset policy. It is not legal
 
 Diagrammatic ships 600 general-purpose symbols generated from [Lucide](https://lucide.dev/). Lucide is distributed under the ISC license; a subset derived from Feather is MIT licensed. The required notices are retained in [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md).
 
-The bundled catalog intentionally avoids copying Excalidraw community libraries or preinstalling third-party logo collections.
-
-## Excalidraw community libraries
-
-[libraries.excalidraw.com](https://libraries.excalidraw.com/) states that submitted libraries are available under the repository's MIT license. Individual libraries can nevertheless contain company logos, trademarks, or other third-party artwork whose use may be governed by separate terms.
-
-Community libraries therefore remain:
-
-- optional and user initiated;
-- fetched directly from their source rather than redistributed in Diagrammatic;
-- preceded by an in-product notice asking users to review rights for their intended use.
-
-Users are responsible for confirming that imported library content is appropriate for commercial publication or redistribution.
+The bundled catalog intentionally avoids community libraries and third-party
+logo collections. Whiteboard does not expose external library catalogs, library
+URL imports, or upstream scene imports.
 
 ## Cloud provider architecture icons
 

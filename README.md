@@ -50,7 +50,7 @@ nine diagram modes behind one enterprise shell:
 | UML | React Flow | Classes, interfaces, and TypeScript export |
 | C4 / System | React Flow | Person, system, container, and component views |
 | Kanban | dnd-kit | Sprint planning, WIP limits, and Markdown export |
-| Whiteboard | Excalidraw | Freehand ideation, 600 symbols, libraries, and AI images |
+| Whiteboard | Embedded canvas | Freehand ideation, 600 bundled symbols, and AI images |
 
 Cloud Architecture is the flagship experience. It includes **1,433 cloud service
 icons**, generic architecture primitives, boundaries, reliable four-way
@@ -64,7 +64,7 @@ animated GIF export.
 | Architecture review | Clean boundaries, protocols, validation, and high-resolution PDF/PNG/SVG export |
 | Executive walkthrough | Numbered request stages and smooth synchronized GIF motion |
 | Multi-cloud design | Searchable Azure, AWS, and GCP service catalogs |
-| Design workshop | Whiteboard drawing, 600 bundled symbols, and optional community libraries |
+| Design workshop | Whiteboard drawing, 600 bundled symbols, and AI-assisted images |
 | Engineering handoff | JSON round-trip plus SQL, TypeScript, and Markdown exports |
 | Rapid scaffolding | Enterprise templates, deterministic prompt scaffolding, and optional Azure OpenAI |
 | Offline/private drafting | Browser-local autosave without accounts or a backend database |
@@ -119,7 +119,7 @@ Arrows with the same step number move in sync.
   </tr>
   <tr>
     <td align="center"><strong>Architecture Studio</strong><br />Build, validate, animate, and export enterprise cloud diagrams.</td>
-    <td align="center"><strong>Whiteboard assets</strong><br />Search 600 bundled symbols or opt into external Excalidraw libraries.</td>
+    <td align="center"><strong>Whiteboard assets</strong><br />Search 600 bundled Diagrammatic symbols without external catalogs.</td>
   </tr>
 </table>
 
@@ -195,6 +195,7 @@ active mode.
 - Fitted landscape or portrait PDF
 - Re-importable JSON
 - Smooth animated GIF with six motion frames per stage
+- Whiteboard flow GIFs that pulse connected arrows between bundled symbols
 - SQL DDL from ER, TypeScript from UML, and Markdown from Kanban
 
 ### Local collaboration
@@ -206,11 +207,17 @@ active mode.
 
 ### Whiteboard
 
-- Native Excalidraw drawing tools
+- Native freehand drawing, shapes, text, and image tools
 - 600 bundled Lucide symbols generated at build time
-- Optional user-initiated Excalidraw community libraries
+- Diagrammatic-only menus and bundled assets with external scene/library imports disabled
+- Connected Flow arrow tool for drawing bound symbol-to-symbol paths
+- Animated GIF export that walks connected arrows in scene order
 - Azure OpenAI image generation and direct canvas insertion
 - PNG export
+
+Every diagram mode includes an independently persisted White/Black canvas
+toggle. Structured diagrams default to a white document surface; Whiteboard and
+Kanban preserve their existing black default until changed.
 
 ## Run locally
 
@@ -367,8 +374,7 @@ The application code is MIT licensed. Excalidraw is MIT licensed. The bundled
 Whiteboard symbols are Lucide assets under ISC/MIT terms.
 
 Cloud provider icons remain owned by Microsoft, Amazon, and Google and are used
-for architecture-diagram purposes. Optional community libraries may contain
-separately governed logos or trademarks.
+for architecture-diagram purposes.
 
 See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and
 [docs/asset-licensing.md](docs/asset-licensing.md) before redistributing assets.

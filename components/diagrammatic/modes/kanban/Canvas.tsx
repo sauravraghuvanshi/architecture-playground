@@ -279,7 +279,7 @@ export const KanbanCanvas = forwardRef<BaseCanvasHandle, Props>(function KanbanC
   const activeCard = activeId ? state.cards[activeId] : null;
 
   return (
-    <div className="flex h-full w-full flex-col bg-zinc-950">
+    <div className="diagrammatic-kanban flex h-full w-full flex-col bg-zinc-950">
       {state.sprint && (
         <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-zinc-800 bg-zinc-950/80 px-4 py-2 text-[11px] text-zinc-300">
           <span className="font-semibold uppercase tracking-wide text-lime-300">Sprint</span>

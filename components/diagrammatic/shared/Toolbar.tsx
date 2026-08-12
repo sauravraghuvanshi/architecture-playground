@@ -7,7 +7,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Undo2, Redo2, Maximize2, Trash2, Activity, Save, Loader2, Check, LayoutGrid, Play, Square, ChevronDown, Download, FolderOpen, Sparkles, MessageSquare, History, CloudCog, Home, FilePlus2, BookOpenCheck, Code2, CloudUpload } from "lucide-react";
+import { Undo2, Redo2, Maximize2, Trash2, Activity, Save, Loader2, Check, LayoutGrid, Play, Square, ChevronDown, Download, FolderOpen, Sparkles, MessageSquare, History, CloudCog, Home, FilePlus2, BookOpenCheck, Code2, CloudUpload, Moon, MoveRight, Sun } from "lucide-react";
+import type { CanvasTheme } from "./types";
 
 const TIERS = ["Edge", "Frontend", "Gateway", "Compute", "Messaging", "Data", "Ops", "Custom"] as const;
 const EXPORT_FORMATS = [
@@ -66,6 +67,11 @@ interface Props {
   onReviewArchitecture?: () => void;
   /** Prepare a short-lived Azure Portal deployment handoff. */
   onDeployAzure?: () => void;
+  /** Active canvas surface theme for the current diagram mode. */
+  canvasTheme?: CanvasTheme;
+  onToggleCanvasTheme?: () => void;
+  /** Whiteboard-only connected arrow drawing tool. */
+  onFlowArrow?: () => void;
   /** Toggle the right-rail comments panel. */
   onToggleComments?: () => void;
   commentsOpen?: boolean;
@@ -103,6 +109,9 @@ export function Toolbar({
   onGenerateCode,
   onReviewArchitecture,
   onDeployAzure,
+  canvasTheme,
+  onToggleCanvasTheme,
+  onFlowArrow,
   onToggleComments,
   commentsOpen,
   onToggleVersions,
@@ -265,6 +274,34 @@ export function Toolbar({
           >
             <CloudUpload className="h-3.5 w-3.5" />
             Deploy
+          </button>
+        )}
+        {onFlowArrow && (
+          <button
+            type="button"
+            onClick={onFlowArrow}
+            title="Draw a connected flow arrow between Whiteboard symbols"
+            aria-label="Activate Whiteboard flow arrow"
+            className="flex cursor-pointer items-center gap-1 rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-2 py-1.5 text-[10px] font-semibold text-cyan-200 transition hover:bg-cyan-400/20 hover:text-white"
+          >
+            <MoveRight className="h-3.5 w-3.5" />
+            Flow arrow
+          </button>
+        )}
+        {canvasTheme && onToggleCanvasTheme && (
+          <button
+            type="button"
+            onClick={onToggleCanvasTheme}
+            title={`Switch to ${canvasTheme === "light" ? "black" : "white"} canvas`}
+            aria-label={`Switch to ${canvasTheme === "light" ? "black" : "white"} canvas`}
+            className="flex cursor-pointer items-center gap-1 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-[10px] font-semibold text-slate-200 transition hover:border-cyan-400/40 hover:text-white"
+          >
+            {canvasTheme === "light" ? (
+              <Sun className="h-3.5 w-3.5 text-amber-300" />
+            ) : (
+              <Moon className="h-3.5 w-3.5 text-cyan-300" />
+            )}
+            {canvasTheme === "light" ? "White" : "Black"}
           </button>
         )}
         {onBlankCanvas && (

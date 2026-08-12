@@ -54,7 +54,7 @@ covered by a focused Playwright regression, and validated again after deployment
 - Unified Excalidraw controls with the Diagrammatic product theme.
 - Added 600 searchable Lucide symbols generated at build time.
 - Added click insertion and positioned drag-and-drop insertion.
-- Kept external Excalidraw libraries optional and user initiated.
+- Kept Whiteboard assets limited to the bundled Diagrammatic symbol catalog.
 - Added licensing notices and an asset-use policy.
 - Added Azure OpenAI image generation locally through a server-side development
   proxy when image credentials are absent.

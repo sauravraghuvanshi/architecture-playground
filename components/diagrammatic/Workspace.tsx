@@ -27,7 +27,12 @@ import type {
 import { Palette } from "./shared/Palette";
 import { BuilderPalette } from "./shared/BuilderPalette";
 import { Toolbar, type ExportFormat } from "./shared/Toolbar";
-import { MODE_META, type DiagrammaticMode, type IconLite } from "./shared/types";
+import {
+  MODE_META,
+  type CanvasTheme,
+  type DiagrammaticMode,
+  type IconLite,
+} from "./shared/types";
 import { CommandPalette } from "./shared/CommandPalette";
 import { Inspector, deriveArchIssues } from "./shared/Inspector";
 import { StatusBar } from "./shared/StatusBar";
@@ -70,6 +75,11 @@ import {
 
 // Shared with /templates/GalleryClient.tsx
 const TEMPLATE_HANDOFF_KEY = "architecture-playground:template-handoff";
+const CANVAS_THEME_KEY = "diagrammatic.canvas-themes";
+
+function defaultCanvasTheme(mode: DiagrammaticMode): CanvasTheme {
+  return mode === "whiteboard" || mode === "kanban" ? "dark" : "light";
+}
 
 // Empty payloads keyed by mode — used by the BuilderPalette's Clear button
 // and accessible without dragging mode-specific Canvas modules into the
@@ -188,6 +198,9 @@ export function Workspace({
   const [codeModalOpen, setCodeModalOpen] = useState(false);
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [deployModalOpen, setDeployModalOpen] = useState(false);
+  const [canvasThemes, setCanvasThemes] = useState<
+    Partial<Record<DiagrammaticMode, CanvasTheme>>
+  >({});
   const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
   const [edgeStyle, setEdgeStyle] = useState<ArchEdgeStyle>("flow");
   const [selection, setSelection] = useState<ArchitectureSelection | null>(null);
@@ -200,6 +213,41 @@ export function Workspace({
   const searchParams = useSearchParams();
 
   const issues = useMemo(() => deriveArchIssues(archPayload), [archPayload]);
+  const canvasTheme = canvasThemes[mode] ?? defaultCanvasTheme(mode);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(CANVAS_THEME_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Partial<Record<DiagrammaticMode, CanvasTheme>>;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCanvasThemes((current) => ({ ...parsed, ...current }));
+    } catch {
+      /* Ignore malformed or unavailable local theme preferences. */
+    }
+  }, []);
+
+  const toggleCanvasTheme = useCallback(() => {
+    let stored: Partial<Record<DiagrammaticMode, CanvasTheme>> = {};
+    try {
+      const raw = localStorage.getItem(CANVAS_THEME_KEY);
+      stored = raw ? JSON.parse(raw) : {};
+    } catch {
+      /* Continue with in-memory preferences. */
+    }
+    const merged = { ...stored, ...canvasThemes };
+    const active = merged[mode] ?? defaultCanvasTheme(mode);
+    const next = {
+      ...merged,
+      [mode]: active === "light" ? "dark" : "light",
+    } satisfies Partial<Record<DiagrammaticMode, CanvasTheme>>;
+    setCanvasThemes(next);
+    try {
+      localStorage.setItem(CANVAS_THEME_KEY, JSON.stringify(next));
+    } catch {
+      /* Theme still applies for the current session. */
+    }
+  }, [canvasThemes, mode]);
 
   // Index icons by id once for O(1) drop resolution.
   const iconById = useRef(new Map(icons.map((i) => [i.id, i])));
@@ -397,44 +445,27 @@ export function Workspace({
     }
   }, [searchParams]);
 
-  // `#addLibrary=…` (and the `?addLibrary=…` query variant) deep links from
-  // the public Excalidraw libraries directory must land on whiteboard mode —
-  // that's where `useHandleLibrary` is mounted. Without this, a user clicking
-  // "Add to Excalidraw" on libraries.excalidraw.com lands on the default
-  // mode (architecture) and the import is silently dropped because the
-  // whiteboard canvas never mounts to consume the hash.
-  //
-  // Note: libraries.excalidraw.com uses `useHash=true` + `window.open()`, so
-  // every "Add to Excalidraw" click spawns a fresh tab in our app. We accept
-  // that — handling the import locally in each new tab is simple and reliable.
-  // (An earlier BroadcastChannel forwarding scheme caused redirect loops
-  // when `window.close()` was browser-blocked; see PG-21.)
+  // Diagrammatic does not accept upstream scene or library deep links.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (modeFromUrlApplied.current && mode === "whiteboard") return;
-    const hash = window.location.hash.replace(/^#/, "");
-    const hasInHash = /(^|&)addLibrary=/.test(hash);
-    const queryAddLibrary = searchParams?.get("addLibrary");
-    if (!hasInHash && !queryAddLibrary) return;
-    // Promote query-form to hash-form so useHandleLibrary (which only
-    // watches location.hash) picks it up after the whiteboard mounts.
-    if (!hasInHash && queryAddLibrary) {
-      const token = searchParams?.get("token");
-      const merged = new URLSearchParams();
-      merged.set("addLibrary", queryAddLibrary);
-      if (token) merged.set("token", token);
-      const search = new URLSearchParams(searchParams?.toString() ?? "");
-      search.delete("addLibrary");
-      search.delete("token");
-      const qs = search.toString();
-      const next = `${window.location.pathname}${qs ? `?${qs}` : ""}#${merged.toString()}`;
-      window.history.replaceState(null, "", next);
+    const url = new URL(window.location.href);
+    const hash = new URLSearchParams(url.hash.replace(/^#/, ""));
+    let dirty = false;
+    for (const key of ["addLibrary", "json", "room", "token"]) {
+      if (url.searchParams.has(key)) {
+        url.searchParams.delete(key);
+        dirty = true;
+      }
+      if (hash.has(key)) {
+        hash.delete(key);
+        dirty = true;
+      }
     }
-    modeFromUrlApplied.current = true;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setMode("whiteboard");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+    if (!dirty) return;
+    const hashValue = hash.toString();
+    url.hash = hashValue ? `#${hashValue}` : "";
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  }, []);
 
   // Probe AI configuration once on mount so the toolbar can disable the AI
   // button (and surface a tooltip) when env vars are missing — avoids a
@@ -696,7 +727,7 @@ export function Workspace({
         onExport={handleExport}
         extraExports={mode !== "architecture" ? MODE_REGISTRY[mode]?.capabilities.textExports : undefined}
         hideRasterExports={mode === "kanban"}
-        hideGifExport={mode !== "architecture"}
+        hideGifExport={mode !== "architecture" && mode !== "whiteboard"}
         templates={
           mode === "architecture"
             ? [...ARCHITECTURE_TEMPLATES]
@@ -741,6 +772,20 @@ export function Workspace({
           mode === "architecture" ? () => setReviewModalOpen(true) : undefined
         }
         onDeployAzure={mode === "architecture" ? () => setDeployModalOpen(true) : undefined}
+        canvasTheme={canvasTheme}
+        onToggleCanvasTheme={toggleCanvasTheme}
+        onFlowArrow={
+          mode === "whiteboard"
+            ? () => {
+                otherCanvasRef.current?.activateFlowArrow?.();
+                setExportNotice({
+                  kind: "success",
+                  message: "Flow arrow active — drag from one symbol to another",
+                });
+                window.setTimeout(() => setExportNotice(null), 3200);
+              }
+            : undefined
+        }
         onBlankCanvas={handleBlankCanvas}
         aiDisabledReason={
           aiStatus &&
@@ -806,7 +851,10 @@ export function Workspace({
             insertingId={insertingWhiteboardAsset}
           />
         )}
-        <main className="relative flex-1">
+        <main
+          className="diagrammatic-canvas-surface relative flex-1"
+          data-canvas-theme={canvasTheme}
+        >
           {mode === "architecture" ? (
             <>
               <ArchitectureCanvas
@@ -815,6 +863,7 @@ export function Workspace({
                 onChange={handleArchChange}
                 onPlayingChange={setPlaying}
                 onSelectionChange={setSelection}
+                canvasTheme={canvasTheme}
               />
               {archPayload.nodes.length === 0 && (
                 <div className="pointer-events-none absolute inset-0 grid place-items-center p-6">
@@ -867,6 +916,7 @@ export function Workspace({
               value={otherPayloads[mode]}
               onMount={handleOtherMount}
               onChange={handleOtherChange}
+              canvasTheme={canvasTheme}
             />
           )}
 
@@ -1058,11 +1108,13 @@ function ModeCanvasFor({
   value,
   onChange,
   onMount,
+  canvasTheme,
 }: {
   mode: DiagrammaticMode;
   value: unknown;
   onChange: (p: unknown) => void;
   onMount: (handle: BaseCanvasHandle | null) => void;
+  canvasTheme: CanvasTheme;
 }) {
   const entry = MODE_REGISTRY[mode];
   const initial = useMemo(() => {
@@ -1082,7 +1134,14 @@ function ModeCanvasFor({
   const refCallback = useCallback((h: BaseCanvasHandle | null) => onMount(h), [onMount]);
   if (!entry) return <ComingSoon mode={mode} />;
   const Canvas = entry.Canvas;
-  return <Canvas value={initial as never} onChange={onChange} ref={refCallback} />;
+  return (
+    <Canvas
+      value={initial as never}
+      onChange={onChange}
+      canvasTheme={canvasTheme}
+      ref={refCallback}
+    />
+  );
 }
 
 // ─── Playground graph → ArchPayload adapter ────────────────────────────────

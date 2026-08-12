@@ -63,7 +63,7 @@ import {
   UserRound,
 } from "lucide-react";
 
-import type { IconLite } from "../../shared/types";
+import type { CanvasTheme, IconLite } from "../../shared/types";
 
 // ─── Public types (preserved + extended for Phase 3) ──────────────────────
 
@@ -187,6 +187,7 @@ interface Props {
   onChange?: (next: ArchPayload) => void;
   onPlayingChange?: (playing: boolean) => void;
   onSelectionChange?: (selection: ArchitectureSelection | null) => void;
+  canvasTheme?: CanvasTheme;
 }
 
 // ─── Sequence playback context ────────────────────────────────────────────
@@ -743,7 +744,7 @@ function computeEdgePlaybackFrames(nodes: Node[], edges: Edge[]): EdgePlaybackFr
 const STEP_MS = 700;
 
 const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasInner(
-  { value, onChange, onPlayingChange, onSelectionChange },
+  { value, onChange, onPlayingChange, onSelectionChange, canvasTheme = "light" },
   ref
 ) {
   const [nodes, setNodes] = useState<Node[]>(() => archToFlow(value).nodes);
@@ -1309,12 +1310,14 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
     <SequenceCtx.Provider value={seq}>
       <div
         ref={wrapperRef}
-        className="architecture-canvas h-full w-full bg-slate-50"
+        className={`architecture-canvas h-full w-full ${
+          canvasTheme === "light" ? "bg-slate-50" : "bg-[#05080d]"
+        }`}
         onDragOver={onDragOver}
         onDrop={onDrop}
       >
         <ReactFlow
-          style={{ backgroundColor: "#f8fafc" }}
+          style={{ backgroundColor: canvasTheme === "light" ? "#f8fafc" : "#05080d" }}
           nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}
@@ -1339,7 +1342,12 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
           deleteKeyCode={["Backspace", "Delete"]}
           multiSelectionKeyCode={["Meta", "Control", "Shift"]}
         >
-          <Background variant={BackgroundVariant.Dots} gap={24} size={1.2} color="#cbd5e1" />
+          <Background
+            variant={BackgroundVariant.Dots}
+            gap={24}
+            size={1.2}
+            color={canvasTheme === "light" ? "#cbd5e1" : "#334155"}
+          />
           <Controls
             showInteractive={false}
             className="!overflow-hidden !rounded-xl !border !border-slate-200 !bg-white !shadow-lg [&>button]:!border-slate-200 [&>button]:!bg-white [&>button]:!text-slate-600 [&>button:hover]:!bg-slate-50"

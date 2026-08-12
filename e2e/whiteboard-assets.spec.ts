@@ -20,15 +20,13 @@ test.describe("Curated Whiteboard assets", () => {
     expect(manifest.assets.every((asset) => asset.svg.startsWith("<svg"))).toBe(true);
   });
 
-  test("searches and inserts a bundled symbol into Excalidraw", async ({ page }) => {
+  test("searches and inserts a bundled symbol into Whiteboard", async ({ page }) => {
+    test.setTimeout(60_000);
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
     await page.goto("/diagrammatic?mode=whiteboard");
     await expect(page.locator(".excalidraw").first()).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText("600 bundled Lucide symbols")).toBeVisible();
-    await expect(
-      page.getByText("Community libraries remain optional", { exact: false })
-    ).toBeVisible();
 
     const search = page.getByRole("searchbox", { name: "Search Whiteboard assets" });
     await search.fill("user");
@@ -99,5 +97,50 @@ test.describe("Curated Whiteboard assets", () => {
       const parsed = JSON.parse(raw) as { payload?: { elements?: Array<{ type?: string }> } };
       return parsed.payload?.elements?.some((element) => element.type === "image") ?? false;
     });
+  });
+
+  test("removes upstream help, library, and scene import surfaces", async ({ page }) => {
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.goto(
+      "/diagrammatic?mode=whiteboard#addLibrary=https%3A%2F%2Fexample.com%2Fsample.excalidrawlib&token=external"
+    );
+    const whiteboard = page.locator(".diagrammatic-whiteboard");
+    await expect(whiteboard.locator(".excalidraw").first()).toBeVisible({ timeout: 30_000 });
+
+    await expect(page).not.toHaveURL(/addLibrary|token=external/);
+    await expect(whiteboard).not.toContainText("Excalidraw");
+    await expect(whiteboard.getByRole("checkbox", { name: "Library" })).toBeHidden();
+    await expect(whiteboard.getByRole("button", { name: "Help" })).toBeHidden();
+    await expect(
+      whiteboard.locator('input[type="file"][accept*=".excalidraw"]')
+    ).toHaveCount(0);
+
+    await whiteboard.locator('[data-testid="main-menu-trigger"]').click();
+    await expect(page.getByText("Import library from URL", { exact: false })).toHaveCount(0);
+    await expect(page.getByText("Browse public libraries", { exact: false })).toHaveCount(0);
+    await expect(page.getByText("Help", { exact: true })).toHaveCount(0);
+    await expect(
+      whiteboard.locator(
+        'a[href*="excalidraw"], a[href*="github.com/excalidraw"], a[href*="youtube"]'
+      )
+    ).toHaveCount(0);
+
+    await whiteboard.click({ position: { x: 600, y: 400 } });
+    const fileChooserOpened = page
+      .waitForEvent("filechooser", { timeout: 750 })
+      .then(() => true)
+      .catch(() => false);
+    await page.keyboard.press("Control+O");
+    expect(await fileChooserOpened).toBe(false);
+
+    await page.keyboard.press("0");
+    await expect(whiteboard.getByText("Library", { exact: true })).toBeHidden();
+
+    const hiddenLibraryControl = whiteboard.getByRole("checkbox", { name: "Library" });
+    if ((await hiddenLibraryControl.count()) > 0) {
+      await hiddenLibraryControl.evaluate((element) => (element as HTMLInputElement).click());
+    }
+    await expect(whiteboard.locator(".default-sidebar")).toBeHidden();
+    await expect(page.getByText("Browse libraries", { exact: false })).toBeHidden();
   });
 });

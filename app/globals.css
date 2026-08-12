@@ -122,8 +122,7 @@ body {
   background: rgb(14 165 233 / 0.08);
 }
 
-/* Align Excalidraw's embedded controls with the Diagrammatic enterprise shell
-   while retaining Excalidraw's native interaction patterns. */
+/* Align the embedded Whiteboard controls with the Diagrammatic enterprise shell. */
 .diagrammatic-whiteboard .excalidraw.theme--dark {
   --color-primary: #22d3ee;
   --color-primary-darker: #06b6d4;
@@ -137,6 +136,47 @@ body {
   --island-bg-color: #0b1220;
   --sidebar-bg-color: #0b1220;
   --default-bg-color: #07101e;
+}
+
+.diagrammatic-whiteboard .help-icon,
+.diagrammatic-whiteboard .sidebar-trigger__label-element[title="Library"] {
+  display: none !important;
+}
+
+.diagrammatic-whiteboard .default-sidebar {
+  display: none !important;
+}
+
+.diagrammatic-canvas-surface[data-canvas-theme="light"] {
+  background: #f8fafc;
+}
+
+.diagrammatic-canvas-surface[data-canvas-theme="dark"] {
+  background: #05080d;
+}
+
+.diagrammatic-canvas-surface[data-canvas-theme="light"] .react-flow {
+  background-color: #f8fafc !important;
+}
+
+.diagrammatic-canvas-surface[data-canvas-theme="dark"] .react-flow {
+  background-color: #05080d !important;
+}
+
+.diagrammatic-canvas-surface[data-canvas-theme="light"] .react-flow__background pattern circle {
+  fill: #cbd5e1 !important;
+}
+
+.diagrammatic-canvas-surface[data-canvas-theme="dark"] .react-flow__background pattern circle {
+  fill: #334155 !important;
+}
+
+.diagrammatic-canvas-surface[data-canvas-theme="light"] .diagrammatic-kanban {
+  background: #f8fafc !important;
+}
+
+.diagrammatic-canvas-surface[data-canvas-theme="dark"] .diagrammatic-kanban {
+  background: #05080d !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -55,6 +55,28 @@ test.describe("Live Microsoft CSA workspace", () => {
       deployModal.getByRole("button", { name: "Open Azure Review + Create" })
     ).toBeDisabled();
 
+    await deployModal.getByRole("button", { name: "Close Azure deployment" }).click();
+    await page.getByRole("tab", { name: "Whiteboard" }).click();
+    const whiteboard = page.locator(".diagrammatic-whiteboard");
+    await expect(whiteboard.locator(".excalidraw").first()).toBeVisible({ timeout: 30_000 });
+    await expect(
+      page.getByRole("button", { name: "Activate Whiteboard flow arrow" })
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Switch to white canvas" }).click();
+    await expect(page.locator(".diagrammatic-canvas-surface")).toHaveAttribute(
+      "data-canvas-theme",
+      "light"
+    );
+    await whiteboard.locator('[data-testid="main-menu-trigger"]').click();
+    await expect(page.getByText("Import library from URL", { exact: false })).toHaveCount(0);
+    await expect(page.getByText("Browse public libraries", { exact: false })).toHaveCount(0);
+    await expect(page.getByText("Help", { exact: true })).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Export" }).click();
+    await expect(
+      page.getByRole("button", { name: "GIF · ordered request flow" })
+    ).toBeVisible();
+
     const logout = await page.request.post("/api/auth/logout");
     expect(logout.ok()).toBeTruthy();
     await page.goto("/diagrammatic");

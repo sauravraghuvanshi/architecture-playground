@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BadgeCheck, Loader2, Search, Shapes } from "lucide-react";
+import { BadgeCheck, Loader2, Search } from "lucide-react";
 
 export interface WhiteboardAsset {
   id: string;
@@ -165,10 +165,6 @@ export function WhiteboardAssetPalette({ onInsert, insertingId }: Props) {
         <p className="flex items-center gap-1.5 text-[9px] leading-relaxed text-slate-500">
           <BadgeCheck className="h-3 w-3 shrink-0 text-cyan-400" />
           600 bundled Lucide symbols · ISC licensed
-        </p>
-        <p className="mt-1 flex items-center gap-1.5 text-[9px] leading-relaxed text-slate-600">
-          <Shapes className="h-3 w-3 shrink-0" />
-          Community libraries remain optional and may have separate trademark terms.
         </p>
       </div>
     </aside>

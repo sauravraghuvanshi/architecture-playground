@@ -20,10 +20,11 @@ import {
   MainMenu,
   exportToBlob,
   convertToExcalidrawElements,
-  useHandleLibrary,
 } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import type { BaseCanvasHandle } from "../../shared/modeRegistry";
+import type { CanvasTheme } from "../../shared/types";
+import { exportWhiteboardFlowGif } from "./export-gif";
 
 export interface WhiteboardPayload {
   elements: unknown[];
@@ -40,6 +41,7 @@ export const WHITEBOARD_DEFAULT_PAYLOAD: WhiteboardPayload = {
 interface Props {
   value: WhiteboardPayload;
   onChange?: (next: WhiteboardPayload) => void;
+  canvasTheme?: CanvasTheme;
 }
 
 interface ExcalidrawAPI {
@@ -49,12 +51,7 @@ interface ExcalidrawAPI {
   updateScene: (s: { elements?: unknown[]; appState?: Record<string, unknown> }) => void;
   scrollToContent: (els?: readonly unknown[], opts?: { fitToContent?: boolean }) => void;
   addFiles: (files: Array<{ id: string; mimeType: string; dataURL: string; created: number }>) => void;
-  updateLibrary: (opts: {
-    libraryItems: unknown;
-    merge?: boolean;
-    prompt?: boolean;
-    openLibraryMenu?: boolean;
-  }) => Promise<unknown>;
+  setActiveTool: (tool: { type: "arrow" }) => void;
   history: { clear: () => void };
 }
 
@@ -64,6 +61,7 @@ interface ExcalidrawAPI {
 export interface WhiteboardCanvasHandle extends BaseCanvasHandle {
   insertImage: (b64: string, mime: string, opts?: { width?: number; height?: number }) => void;
   insertSvgAsset: (svg: string, label: string) => void;
+  activateFlowArrow: () => void;
 }
 
 function utf8ToBase64(value: string): string {
@@ -76,31 +74,18 @@ function utf8ToBase64(value: string): string {
 }
 
 /**
- * Excalidraw consumes URL-hash deep links on mount. We allow `addLibrary`
- * (handled via useHandleLibrary so libraries directory imports work) but
- * scrub `json` / `room` which trigger the hosted excalidraw.com scene-import
- * / collab flows we don't surface in this embed and which have crashed the
- * renderer.
- *
- * IMPORTANT: when the hash carries `addLibrary=`, we leave it alone in full
- * (including its companion `token=`, which authenticates the import on the
- * Excalidraw side). After useHandleLibrary completes the import it strips
- * `addLibrary` itself but leaves a residual `#token=…`. We deliberately do
- * NOT strip that token here — Excalidraw ignores standalone `token` (collab
- * also requires `room`), and calling `history.replaceState` during render
- * causes a "Cannot update a component (Router) while rendering …" warning
- * because Next.js App Router observes URL mutations.
+ * The embedded drawing engine understands upstream scene, collaboration, and
+ * library deep links. Diagrammatic owns Whiteboard persistence and assets, so
+ * remove those hashes before the engine can consume them.
  */
-const EXCALIDRAW_HASH_KEYS = ["json", "room"];
-function scrubExcalidrawHash() {
+const EXTERNAL_WHITEBOARD_HASH_KEYS = ["addLibrary", "json", "room", "token"];
+function scrubExternalWhiteboardHash() {
   if (typeof window === "undefined") return;
   const hash = window.location.hash.replace(/^#/, "");
   if (!hash) return;
   const params = new URLSearchParams(hash);
-  // Library-import URLs are handled by useHandleLibrary — leave them alone.
-  if (params.has("addLibrary")) return;
   let dirty = false;
-  for (const k of EXCALIDRAW_HASH_KEYS) {
+  for (const k of EXTERNAL_WHITEBOARD_HASH_KEYS) {
     if (params.has(k)) { params.delete(k); dirty = true; }
   }
   if (!dirty) return;
@@ -109,6 +94,11 @@ function scrubExcalidrawHash() {
   window.history.replaceState(null, "", next);
 }
 
+function isExternalWhiteboardFileDrop(dataTransfer: DataTransfer): boolean {
+  return Array.from(dataTransfer.files).some((file) =>
+    /\.(?:excalidraw|excalidrawlib)$/i.test(file.name)
+  );
+}
 
 /**
  * Sanitize a persisted Excalidraw appState before re-feeding it to the
@@ -167,38 +157,53 @@ function appStateForPersistence(raw: object): Record<string, unknown> {
   return out;
 }
 
-export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function WhiteboardCanvas({ value, onChange }, ref) {
-  // Must run synchronously before the Excalidraw instance reads location.hash.
-  if (typeof window !== "undefined") scrubExcalidrawHash();
+export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function WhiteboardCanvas({
+  value,
+  onChange,
+  canvasTheme = "dark",
+}, ref) {
+  // Must run synchronously before the drawing engine reads location.hash.
+  if (typeof window !== "undefined") scrubExternalWhiteboardHash();
   const apiRef = useRef<ExcalidrawAPI | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
-  // useHandleLibrary needs the API as React state (re-runs when it changes
-  // from null → ready) so it can attach the `#addLibrary=` URL handler.
-  const [excalidrawAPI, setExcalidrawAPI] = useState<unknown>(null);
-  useHandleLibrary({
-    excalidrawAPI: excalidrawAPI as never,
-    // Accept any HTTPS .excalidrawlib URL — the directory at
-    // libraries.excalidraw.com serves them from libraries.excalidraw.com
-    // (not excalidraw.com), so the default validator rejects them.
-    validateLibraryUrl: (url: string) => {
-      try { return new URL(url).protocol === "https:"; } catch { return false; }
-    },
-  });
+  const canvasBackground = canvasTheme === "light" ? "#f8fafc" : "#05080d";
+  const canvasStroke = canvasTheme === "light" ? "#0f172a" : "#f8fafc";
   const [initialData] = useState(() => ({
     elements: (value.elements ?? []) as never[],
-    appState: sanitizeAppState(value.appState) as never,
+    appState: {
+      ...sanitizeAppState(value.appState),
+      viewBackgroundColor: canvasBackground,
+      currentItemStrokeColor: canvasStroke,
+    } as never,
     files: (value.files ?? {}) as never,
     scrollToContent: true,
   }));
   const notifyRef = useRef<number | null>(null);
   const lastPersistedSnapshot = useRef("");
   const registerExcalidrawApi = useCallback((api: unknown) => {
-    apiRef.current = api as ExcalidrawAPI;
-    // useHandleLibrary only needs the first ready API instance. Re-setting this
-    // state from Excalidraw's registration callback creates a render loop when
-    // parent persistence updates re-render the custom MainMenu.
-    setExcalidrawAPI((current: unknown) => current ?? api);
-  }, []);
+    const registeredApi = api as ExcalidrawAPI;
+    apiRef.current = registeredApi;
+    requestAnimationFrame(() => {
+      if (apiRef.current !== registeredApi) return;
+      registeredApi.updateScene({
+        appState: {
+          viewBackgroundColor: canvasBackground,
+          currentItemStrokeColor: canvasStroke,
+          openSidebar: null,
+        },
+      });
+    });
+  }, [canvasBackground, canvasStroke]);
+
+  useEffect(() => {
+    apiRef.current?.updateScene({
+      appState: {
+        viewBackgroundColor: canvasBackground,
+        currentItemStrokeColor: canvasStroke,
+        openSidebar: null,
+      },
+    });
+  }, [canvasBackground, canvasStroke]);
 
   const onAnyChange = useCallback((
     elements?: readonly unknown[],
@@ -288,6 +293,11 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
   );
 
   const handleAssetDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    if (isExternalWhiteboardFileDrop(event.dataTransfer)) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "none";
+      return;
+    }
     if (
       Array.from(event.dataTransfer.types).includes(
         "application/x-diagrammatic-whiteboard-asset"
@@ -300,6 +310,11 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
 
   const handleAssetDrop = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
+      if (isExternalWhiteboardFileDrop(event.dataTransfer)) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
       const raw = event.dataTransfer.getData(
         "application/x-diagrammatic-whiteboard-asset"
       );
@@ -351,6 +366,14 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
     exportBlob: async (format) => {
       const api = apiRef.current;
       if (!api) return null;
+      if (format === "gif") {
+        return exportWhiteboardFlowGif({
+          elements: api.getSceneElements(),
+          appState: api.getAppState(),
+          files: api.getFiles(),
+          backgroundColor: canvasBackground,
+        });
+      }
       if (format !== "png") return null;
       try {
         const blob = await exportToBlob({
@@ -382,49 +405,33 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
         height: 180,
         idPrefix: `symbol-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
       }),
-  }), [insertImageData, value]);
+    activateFlowArrow: () => apiRef.current?.setActiveTool({ type: "arrow" }),
+  }), [canvasBackground, insertImageData, value]);
 
-  /**
-   * Prompt the user for a `.excalidrawlib` URL (e.g. from
-   * libraries.excalidraw.com) and merge it into the local library. We have
-   * to fetch + import client-side because the directory's "Add to Excalidraw"
-   * button hard-codes a redirect to the public excalidraw.com app.
-   */
-  const importLibraryFromUrl = useCallback(async () => {
-    const api = apiRef.current;
-    if (!api) return;
-    const url = window.prompt(
-      "Paste a .excalidrawlib URL (e.g. from libraries.excalidraw.com):",
-      "",
-    );
-    if (!url) return;
-    if (
-      !window.confirm(
-        "Community libraries may contain third-party logos or trademarks with separate usage terms. Confirm that you have reviewed the library's rights for your intended use."
-      )
-    ) {
-      return;
-    }
-    try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      await api.updateLibrary({
-        libraryItems: data,
-        merge: true,
-        openLibraryMenu: true,
-      });
-    } catch (e) {
-      window.alert(`Couldn't import library: ${(e as Error).message}`);
-    }
-  }, []);
+  const blockExternalWhiteboardShortcuts = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      const target = event.target as HTMLElement;
+      if (target.matches("input, textarea, [contenteditable='true']")) return;
+      const opensExternalData = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "o";
+      const opensLibrary = !event.ctrlKey && !event.metaKey && !event.altKey && event.key === "0";
+      const opensHelp = event.key === "?";
+      if (opensExternalData || opensLibrary || opensHelp) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    },
+    []
+  );
 
   return (
     <div
       ref={wrapperRef}
-      className="diagrammatic-whiteboard h-full w-full bg-slate-50"
-      onDragOver={handleAssetDragOver}
-      onDrop={handleAssetDrop}
+      className={`diagrammatic-whiteboard h-full w-full ${
+        canvasTheme === "light" ? "bg-slate-50" : "bg-[#05080d]"
+      }`}
+      onDragOverCapture={handleAssetDragOver}
+      onDropCapture={handleAssetDrop}
+      onKeyDownCapture={blockExternalWhiteboardShortcuts}
     >
       <Excalidraw
         excalidrawAPI={registerExcalidrawApi}
@@ -433,50 +440,9 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
         theme="dark"
         UIOptions={{ canvasActions: { saveToActiveFile: false, loadScene: false, export: false, saveAsImage: true, toggleTheme: false, changeViewBackgroundColor: true, clearCanvas: true } }}
       >
-        {/*
-          Custom MainMenu — by passing children we override the default menu
-          contents and drop the `Socials` block (which renders an
-          "Excalidraw links" group with GitHub / Twitter / Discord). Each
-          item below is a re-export of an Excalidraw default; we just curate.
-        */}
         <MainMenu>
           <MainMenu.DefaultItems.SaveAsImage />
           <MainMenu.DefaultItems.ClearCanvas />
-          <MainMenu.Separator />
-          <MainMenu.Item
-            icon={
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
-                <path d="M4 4h6l2 2h4v10H4z" />
-              </svg>
-            }
-            onSelect={() => { void importLibraryFromUrl(); }}
-          >
-            Import library from URL…
-          </MainMenu.Item>
-          <MainMenu.Item
-            onSelect={() => {
-              if (
-                window.confirm(
-                  "Excalidraw community libraries are optional third-party content. Review each library's licensing and trademark terms before commercial use. Open the public catalog?"
-                )
-              ) {
-                window.open(
-                  "https://libraries.excalidraw.com/",
-                  "_blank",
-                  "noopener,noreferrer"
-                );
-              }
-            }}
-            icon={
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
-                <path d="M3 5h14v10H3z M3 9h14" />
-              </svg>
-            }
-          >
-            Browse public libraries
-          </MainMenu.Item>
-          <MainMenu.Separator />
-          <MainMenu.DefaultItems.Help />
         </MainMenu>
       </Excalidraw>
     </div>

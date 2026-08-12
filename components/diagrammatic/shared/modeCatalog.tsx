@@ -12,7 +12,7 @@
 import dynamic from "next/dynamic";
 import type { ComponentType, ForwardRefExoticComponent, RefAttributes } from "react";
 import type { BaseCanvasHandle, ModeCapabilities, ModeTemplate } from "./modeRegistry";
-import type { DiagrammaticMode } from "./types";
+import type { CanvasTheme, DiagrammaticMode } from "./types";
 
 import { SEQUENCE_DEFAULT_PAYLOAD, FLOWCHART_DEFAULT_PAYLOAD, MINDMAP_DEFAULT_PAYLOAD, ER_DEFAULT_PAYLOAD, UML_DEFAULT_PAYLOAD, C4_DEFAULT_PAYLOAD, WHITEBOARD_DEFAULT_PAYLOAD, KANBAN_DEFAULT_PAYLOAD } from "./modeDefaults";
 import { FLOWCHART_TEMPLATES } from "../modes/flowchart/templates";
@@ -27,6 +27,7 @@ import { KANBAN_TEMPLATES } from "../modes/kanban/templates";
 export interface ModeCanvasProps<P = unknown> {
   value: P;
   onChange?: (next: P) => void;
+  canvasTheme?: CanvasTheme;
 }
 
 export type ModeCanvasComponent = ForwardRefExoticComponent<
