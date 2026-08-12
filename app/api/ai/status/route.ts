@@ -17,5 +17,6 @@ export async function GET() {
     diagramConfigured,
     imageConfigured,
     imageSource: imageLocal ? "local" : imageProxy ? "development-proxy" : null,
+    architectureImageReview: true,
   });
 }

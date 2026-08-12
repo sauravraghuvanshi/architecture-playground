@@ -6,15 +6,18 @@ if (!baseUrl || !username || !password) {
   throw new Error("LIVE_BASE_URL, APP_AUTH_USERNAME, and APP_AUTH_PASSWORD are required.");
 }
 
-async function waitForCurrentRelease() {
+async function waitForCurrentRelease(cookie) {
   for (let attempt = 1; attempt <= 18; attempt += 1) {
-    const response = await fetch(`${baseUrl}/api/deploy/template?token=invalid`, {
-      redirect: "manual",
+    const response = await fetch(`${baseUrl}/api/ai/status`, {
+      headers: { Cookie: cookie },
     });
-    if (response.status === 400) return;
+    if (response.ok) {
+      const status = await response.json();
+      if (status.architectureImageReview === true) return;
+    }
     if (attempt === 18) {
       throw new Error(
-        `Current release did not become active; deployment template probe returned ${response.status}.`
+        `Current multimodal release did not become active; status returned ${response.status}.`
       );
     }
     await new Promise((resolve) => setTimeout(resolve, 10000));
@@ -35,8 +38,6 @@ async function expectStatus(response, expected, label) {
   }
 }
 
-await waitForCurrentRelease();
-
 const anonymousWorkspace = await fetch(`${baseUrl}/diagrammatic`, { redirect: "manual" });
 await expectStatus(anonymousWorkspace, 307, "Anonymous workspace");
 const anonymousLocation = anonymousWorkspace.headers.get("location") ?? "";
@@ -52,6 +53,7 @@ const login = await fetch(`${baseUrl}/api/auth/login`, {
 await expectStatus(login, 200, "Login");
 const cookie = sessionCookie(login);
 const authenticatedHeaders = { Cookie: cookie };
+await waitForCurrentRelease(cookie);
 
 const workspace = await fetch(`${baseUrl}/diagrammatic`, {
   headers: authenticatedHeaders,
