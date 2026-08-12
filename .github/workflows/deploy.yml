@@ -55,8 +55,28 @@ jobs:
           echo "Waiting 30s for app restart..."
           sleep 30
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 https://architecture-playground.azurewebsites.net/ || echo "000")
-          echo "HTTP status: $STATUS"
-          if [ "$STATUS" -ne 200 ]; then
-            echo "::warning::Deployment may not be healthy (HTTP $STATUS)"
+          LOGIN_STATUS=$(curl -L -s -o /dev/null -w "%{http_code}" --max-time 30 https://architecture-playground.azurewebsites.net/ || echo "000")
+          echo "Protected root HTTP status: $STATUS; followed redirect: $LOGIN_STATUS"
+          if [ "$STATUS" -ne 307 ] || [ "$LOGIN_STATUS" -ne 200 ]; then
+            echo "::error::Protected deployment is not healthy"
+            exit 1
           fi
-        continue-on-error: true
+
+      - name: Run authenticated live CSA API smoke
+        env:
+          LIVE_BASE_URL: https://architecture-playground.azurewebsites.net
+          APP_AUTH_USERNAME: ${{ secrets.APP_AUTH_USERNAME }}
+          APP_AUTH_PASSWORD: ${{ secrets.APP_AUTH_PASSWORD }}
+        run: node scripts/smoke-live-csa.mjs
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run authenticated live CSA browser smoke
+        env:
+          LIVE_E2E: "true"
+          PLAYWRIGHT_BASE_URL: https://architecture-playground.azurewebsites.net
+          PLAYWRIGHT_SKIP_WEBSERVER: "true"
+          E2E_AUTH_USERNAME: ${{ secrets.APP_AUTH_USERNAME }}
+          E2E_AUTH_PASSWORD: ${{ secrets.APP_AUTH_PASSWORD }}
+        run: npx playwright test e2e/live-csa.spec.ts --project=chromium --reporter=line

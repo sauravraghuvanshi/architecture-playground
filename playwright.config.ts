@@ -21,12 +21,15 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
   ],
-  webServer: {
-    // Run on a dedicated port so we never collide with another Next.js dev
-    // server the developer may have running on the default 3000.
-    command: `npx next dev -p ${TEST_PORT}`,
-    url: TEST_BASE_URL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  webServer:
+    process.env.PLAYWRIGHT_SKIP_WEBSERVER === "true"
+      ? undefined
+      : {
+          // Run on a dedicated port so we never collide with another Next.js dev
+          // server the developer may have running on the default 3000.
+          command: `npx next dev -p ${TEST_PORT}`,
+          url: TEST_BASE_URL,
+          reuseExistingServer: !process.env.CI,
+          timeout: 120_000,
+        },
 });
