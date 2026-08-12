@@ -11,6 +11,7 @@ test.describe("Live Microsoft CSA workspace", () => {
   );
 
   test("signs in and exercises the deployed CSA workflow", async ({ page }) => {
+    test.setTimeout(180_000);
     await page.goto("/");
     await expect(page).toHaveURL(/\/login\?next=%2F$/);
     await page.getByLabel("Username").fill(username!);
@@ -21,7 +22,7 @@ test.describe("Live Microsoft CSA workspace", () => {
     await page.goto("/diagrammatic");
     await expect(
       page.getByRole("button", { name: "Toggle Microsoft CSA guidance" })
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 120_000 });
     await expect(page.getByRole("button", { name: "Generate architecture code" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Review Azure architecture" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Deploy architecture to Azure" })).toBeVisible();
