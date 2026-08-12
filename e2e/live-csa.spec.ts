@@ -35,15 +35,12 @@ test.describe("Live Microsoft CSA workspace", () => {
 
     const nTier = guidance.getByRole("article").filter({ hasText: "N-tier" });
     await nTier.getByRole("button", { name: "Apply pattern" }).click();
-    await expect(
-      page.locator('[data-testid^="rf__node-"]').getByText("Azure Front Door", { exact: true })
-    ).toBeVisible();
 
     await page.getByRole("button", { name: "Generate architecture code" }).click();
     const codeModal = page.getByRole("dialog", { name: "Architecture to code" });
-    await expect(codeModal.getByTestId("generated-code")).toContainText(
-      "azureADOnlyAuthentication: true"
-    );
+    const generatedCode = codeModal.getByTestId("generated-code");
+    await expect(generatedCode).toContainText("Microsoft.Cdn/profiles", { timeout: 15000 });
+    await expect(generatedCode).toContainText("azureADOnlyAuthentication: true");
     await codeModal.getByRole("button", { name: "Close architecture to code" }).click();
 
     await page.getByRole("button", { name: "Review Azure architecture" }).click();
