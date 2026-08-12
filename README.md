@@ -172,11 +172,27 @@ active mode.
 - Architecture-to-code generation for Bicep, Terraform, Azure CLI, and Azure
   PowerShell, with unsupported-service and RBAC coverage warnings
 - LLM-assisted review of the active canvas, an imported Diagrammatic JSON file,
-  or a written architecture description across Architecture Center, Landing
-  Zones, CAF, and WAF
+  an uploaded PNG/JPEG/WebP diagram, or a written architecture description
+  across Architecture Center, Landing Zones, CAF, and WAF
 - User-confirmed Azure Portal deployment handoff through a short-lived ARM
   template URL; Diagrammatic never receives Azure credentials or silently
   creates resources
+
+#### Review a customer architecture
+
+1. Open **Cloud Architecture** and select **Review**.
+2. Choose **Current canvas**, **Describe**, **Upload diagram**, or **Import JSON**.
+3. For an uploaded diagram, use PNG, JPEG, or WebP up to 5 MiB and add customer
+   context such as business criticality, users, regions, data classification,
+   RTO/RPO, expected scale, compliance, and constraints.
+4. Select **Run architecture review**.
+5. Review the 0–100 rating, posture, evidence-based strengths, assumptions, and
+   prioritized findings tagged to Azure Architecture Center, Azure Landing
+   Zones, Cloud Adoption Framework, or the Well-Architected Framework.
+
+Uploaded architecture images are sent only to the configured Azure OpenAI
+vision-enabled deployment for the review request. Diagrammatic does not persist
+the image.
 
 ### Enterprise architecture authoring
 
@@ -386,9 +402,11 @@ Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) and
 
 ## Latest engineering log
 
-See [Development log — 2026-08-11/12](docs/development-log-2026-08-11.md)
-for the complete delivery summary, production blockers, root-cause resolutions,
-validation evidence, and key learnings from the architecture studio release.
+See [Development log — 2026-08-12](docs/development-log-2026-08-12.md) for the
+Microsoft CSA workspace, Whiteboard ownership, canvas themes, multimodal
+architecture review, production validation, blockers, and key lessons. The
+earlier architecture studio release is captured in
+[Development log — 2026-08-11/12](docs/development-log-2026-08-11.md).
 
 ## License
 

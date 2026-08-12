@@ -301,3 +301,53 @@ Validated: 2026-08-12
    deployment handoff.
 
 Application deployment was not requested and was not executed.
+
+---
+
+## 10. Multimodal Architecture Review Extension
+
+**Goal:** Let a customer upload a PNG, JPEG, or WebP architecture diagram, add
+optional business and operational context, and receive the same structured
+cross-framework review available for the current canvas, written descriptions,
+and Diagrammatic JSON.
+
+**Mode:** Modify existing production application.
+
+**Architecture:** Browser validates and previews the image, then sends one
+bounded data URL plus optional context to the existing authenticated
+`/api/ai/review` route. The route validates MIME type and size, sends
+multimodal content to the existing Azure OpenAI chat deployment, validates the
+structured JSON response, and returns no uploaded data for persistence.
+
+**Security:**
+
+- Accept PNG, JPEG, and WebP only.
+- Enforce a 5 MiB binary limit in the browser and API.
+- Do not log or persist uploaded diagrams.
+- Treat diagram text and labels as untrusted evidence, never instructions.
+- Keep the existing AI rate limit and authenticated API boundary.
+
+**Validation:**
+
+- [x] Unit-test request validation and multimodal prompt construction.
+- [x] Browser-test upload, preview, optional context, request shape, rating, and findings.
+- [x] Verify invalid type and oversized-file behavior.
+- [x] Run lint, strict TypeScript, unit tests, focused Playwright, and production build.
+
+### Multimodal extension validation proof
+
+Validated: 2026-08-12
+
+| Check | Result |
+|-------|--------|
+| `npm run lint` | Passed |
+| `npx tsc --noEmit` | Passed |
+| `npm run test:playground` | 37/37 tests passed, including image type and 5 MiB validation |
+| `npx playwright test e2e/csa-guidance.spec.ts --project=chromium --workers=1` | 9/9 CSA journeys passed |
+| `npm run build` | Production standalone build passed |
+| `az account show` | Selected subscription authenticated and enabled |
+| `az cognitiveservices account deployment list` | `gpt-4o-mini` deployment is provisioned and vision-capable |
+| `az bicep build` and `az bicep lint` | Existing generated deployment path remains valid |
+
+No Azure resources, roles, or infrastructure definitions changed. The existing
+static RBAC review and policy validation remain applicable.

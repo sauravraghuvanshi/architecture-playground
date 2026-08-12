@@ -86,10 +86,26 @@ export async function POST(req: Request) {
   }
 
   try {
+    const userContent =
+      request.data.source === "image" && request.data.image
+        ? [
+            {
+              type: "text" as const,
+              text: buildArchitectureReviewPrompt(request.data),
+            },
+            {
+              type: "image_url" as const,
+              image_url: {
+                url: request.data.image.dataUrl,
+                detail: "high" as const,
+              },
+            },
+          ]
+        : buildArchitectureReviewPrompt(request.data);
     const raw = await chatComplete(
       [
         { role: "system", content: ARCHITECTURE_REVIEW_SYSTEM_PROMPT },
-        { role: "user", content: buildArchitectureReviewPrompt(request.data) },
+        { role: "user", content: userContent },
       ],
       { temperature: 0.2, maxTokens: 4000, responseFormat: "json_object" }
     );
@@ -100,7 +116,9 @@ export async function POST(req: Request) {
       {
         error:
           err instanceof Error
-            ? `Architecture review failed: ${err.message}`
+            ? request.data.source === "image" && /Azure OpenAI 4\d\d/.test(err.message)
+              ? "Architecture image review requires a vision-enabled Azure OpenAI deployment."
+              : `Architecture review failed: ${err.message}`
             : "Architecture review failed",
       },
       { status: 502 }

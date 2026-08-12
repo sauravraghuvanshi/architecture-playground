@@ -12,7 +12,8 @@ WAF, DDoS, key management) — those live with the deployment target.
 | User-authored diagrams  | XSS via injected node labels; data exfil       | React auto-escaping; CSP; no `dangerouslySetInnerHTML` on user data |
 | Browser localStorage    | Cross-tenant leakage on shared machines       | Per-mode + per-diagram namespacing; documented in code |
 | Azure OpenAI key        | Server-side credential theft                  | Keys read from env only; never echoed to client; `/api/ai/status` returns boolean only |
-| AI endpoints            | Cost-amplification / abuse                    | In-memory token-bucket rate limiter (20 req/min/IP); 2000-char prompt cap |
+| AI endpoints            | Cost-amplification / abuse                    | In-memory token-bucket rate limiter (20 req/min/IP); bounded prompts and architecture images |
+| Uploaded architecture image | Oversized payload; unsupported content; unintended retention | PNG/JPEG/WebP allowlist; 5 MiB limit in browser and API; request-scoped processing; no persistence |
 | Shared workspace access | Credential guessing; cookie theft; open redirects | Rate-limited login; timing-safe checks; HMAC session; HttpOnly/SameSite cookie; same-origin return paths |
 | Workspace iframe embed  | Clickjacking                                  | `X-Frame-Options: DENY` + `frame-ancestors 'none'` in CSP |
 | Static assets / build   | Subresource tampering                         | Bundled by Turbopack; no third-party CDN script tags |
@@ -43,6 +44,7 @@ Applied to:
 
 - `POST /api/ai/generate`
 - `POST /api/ai/image`
+- `POST /api/ai/review`
 
 The limiter is in-process. Multi-instance deployments will let bursts through
 equal to `(rate × instance count)` — acceptable for the current single-VM
@@ -96,6 +98,18 @@ of source and logs.
 During local development only, Whiteboard image generation can proxy through a
 trusted Diagrammatic deployment when local image credentials are missing.
 Developers can opt out with `DIAGRAMMATIC_AI_PROXY_URL=disabled`.
+
+## Customer architecture image review
+
+The architecture review UI accepts PNG, JPEG, and WebP diagrams up to 5 MiB.
+The browser validates the file before preview, and the API independently
+validates MIME type, data URL consistency, base64 shape, and decoded size.
+
+The validated image and optional customer context are sent directly in the
+authenticated Azure OpenAI review request. Diagrammatic does not write the
+image to disk, browser storage, logs, the deployment-template store, or a
+database. The review system prompt treats all text inside the image as
+untrusted evidence and explicitly refuses embedded instructions.
 
 ## Reporting a vulnerability
 

@@ -39,9 +39,22 @@ export function aiConfigured(): boolean {
   return getAiConfig() !== null;
 }
 
-interface ChatMessage {
+export interface ChatTextContent {
+  type: "text";
+  text: string;
+}
+
+export interface ChatImageContent {
+  type: "image_url";
+  image_url: {
+    url: string;
+    detail?: "low" | "high" | "auto";
+  };
+}
+
+export interface ChatMessage {
   role: "system" | "user" | "assistant";
-  content: string;
+  content: string | Array<ChatTextContent | ChatImageContent>;
 }
 
 interface ChatOptions {

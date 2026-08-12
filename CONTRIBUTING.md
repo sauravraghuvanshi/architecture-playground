@@ -75,6 +75,11 @@ npx playwright test --project=chromium          # browser regression suites
 npm run build                                   # production standalone build
 ```
 
+Architecture review changes should include both pure validation coverage in
+`scripts/test-csa.mjs` and a browser journey in `e2e/csa-guidance.spec.ts`.
+Image review accepts only PNG, JPEG, and WebP up to 5 MiB; keep browser and API
+validation rules synchronized.
+
 ## Commit messages
 
 Conventional-ish: short subject (`Phase X: <thing>`), optional body. We

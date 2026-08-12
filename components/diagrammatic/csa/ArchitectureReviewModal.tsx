@@ -5,6 +5,7 @@ import {
   ArrowUpRight,
   FileJson,
   FileText,
+  ImageUp,
   Loader2,
   Network,
   ShieldCheck,
@@ -12,7 +13,11 @@ import {
   X,
 } from "lucide-react";
 import type { ArchPayload } from "../modes/architecture/ArchitectureCanvas";
-import type { ArchitectureReview } from "@/lib/architecture-review";
+import {
+  ARCHITECTURE_IMAGE_MAX_BYTES,
+  ARCHITECTURE_IMAGE_MIME_TYPES,
+  type ArchitectureReview,
+} from "@/lib/architecture-review";
 
 interface Props {
   open: boolean;
@@ -21,11 +26,18 @@ interface Props {
   onClose: () => void;
 }
 
-type ReviewSource = "canvas" | "description" | "import";
+type ReviewSource = "canvas" | "description" | "image" | "import";
+
+interface ReviewImage {
+  name: string;
+  mimeType: (typeof ARCHITECTURE_IMAGE_MIME_TYPES)[number];
+  dataUrl: string;
+}
 
 const SOURCE_OPTIONS: Array<{ id: ReviewSource; label: string; icon: typeof Network }> = [
   { id: "canvas", label: "Current canvas", icon: Network },
   { id: "description", label: "Describe", icon: FileText },
+  { id: "image", label: "Upload diagram", icon: ImageUp },
   { id: "import", label: "Import JSON", icon: FileJson },
 ];
 
@@ -39,6 +51,8 @@ export function ArchitectureReviewModal({
   const [description, setDescription] = useState("");
   const [importedPayload, setImportedPayload] = useState<ArchPayload | null>(null);
   const [importName, setImportName] = useState("");
+  const [reviewImage, setReviewImage] = useState<ReviewImage | null>(null);
+  const [imageContext, setImageContext] = useState("");
   const [review, setReview] = useState<ArchitectureReview | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -65,6 +79,43 @@ export function ArchitectureReviewModal({
     }
   };
 
+  const importImage = async (file: File) => {
+    setError("");
+    if (
+      !ARCHITECTURE_IMAGE_MIME_TYPES.includes(
+        file.type as (typeof ARCHITECTURE_IMAGE_MIME_TYPES)[number]
+      )
+    ) {
+      setReviewImage(null);
+      setError("Upload a PNG, JPEG, or WebP architecture diagram.");
+      return;
+    }
+    if (file.size > ARCHITECTURE_IMAGE_MAX_BYTES) {
+      setReviewImage(null);
+      setError("Architecture images must be 5 MiB or smaller.");
+      return;
+    }
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () =>
+          typeof reader.result === "string"
+            ? resolve(reader.result)
+            : reject(new Error("Unable to read image."));
+        reader.onerror = () => reject(reader.error ?? new Error("Unable to read image."));
+        reader.readAsDataURL(file);
+      });
+      setReviewImage({
+        name: file.name,
+        mimeType: file.type as ReviewImage["mimeType"],
+        dataUrl,
+      });
+    } catch (imageError) {
+      setReviewImage(null);
+      setError(imageError instanceof Error ? imageError.message : "Unable to read image.");
+    }
+  };
+
   const submit = async () => {
     setError("");
     setReview(null);
@@ -76,6 +127,10 @@ export function ArchitectureReviewModal({
     }
     if (source === "import" && !reviewPayload) {
       setError("Import a Diagrammatic JSON file before starting the review.");
+      return;
+    }
+    if (source === "image" && !reviewImage) {
+      setError("Upload an architecture image before starting the review.");
       return;
     }
     if (source === "canvas" && payload.nodes.length === 0) {
@@ -91,6 +146,12 @@ export function ArchitectureReviewModal({
         body: JSON.stringify({
           source,
           description: source === "description" ? description.trim() : undefined,
+          ...(source === "image"
+            ? {
+                description: imageContext.trim() || undefined,
+                image: reviewImage,
+              }
+            : {}),
           payload: reviewPayload,
         }),
       });
@@ -187,6 +248,50 @@ export function ArchitectureReviewModal({
                     className="mt-2 w-full resize-none rounded-xl border border-slate-700 bg-slate-950 p-3 text-[11px] leading-relaxed text-white outline-none focus:border-emerald-400/60"
                   />
                 </label>
+              )}
+              {source === "image" && (
+                <div className="space-y-3">
+                  <label className="block cursor-pointer rounded-xl border border-dashed border-slate-600 bg-slate-950/60 p-4 text-center transition hover:border-emerald-400/60">
+                    {reviewImage ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={reviewImage.dataUrl}
+                        alt={`Architecture diagram preview: ${reviewImage.name}`}
+                        className="mx-auto max-h-40 max-w-full rounded-lg border border-slate-700 bg-white object-contain"
+                      />
+                    ) : (
+                      <ImageUp className="mx-auto h-6 w-6 text-slate-400" />
+                    )}
+                    <span className="mt-2 block text-[10px] font-semibold text-slate-300">
+                      {reviewImage?.name || "Choose PNG, JPEG, or WebP"}
+                    </span>
+                    <span className="mt-1 block text-[9px] text-slate-500">
+                      Maximum 5 MiB · not persisted
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      aria-label="Upload architecture diagram image"
+                      className="sr-only"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (file) void importImage(file);
+                      }}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-[10px] font-semibold text-slate-300">
+                      Customer context (recommended)
+                    </span>
+                    <textarea
+                      value={imageContext}
+                      onChange={(event) => setImageContext(event.target.value)}
+                      rows={6}
+                      placeholder="Add business criticality, users, regions, data classification, RTO/RPO, expected scale, compliance, and known constraints."
+                      className="mt-2 w-full resize-none rounded-xl border border-slate-700 bg-slate-950 p-3 text-[11px] leading-relaxed text-white outline-none focus:border-emerald-400/60"
+                    />
+                  </label>
+                </div>
               )}
               {source === "import" && (
                 <label className="block cursor-pointer rounded-xl border border-dashed border-slate-600 bg-slate-950/60 p-4 text-center hover:border-emerald-400/60">

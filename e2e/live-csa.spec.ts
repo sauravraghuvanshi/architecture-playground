@@ -47,6 +47,9 @@ test.describe("Live Microsoft CSA workspace", () => {
     await page.getByRole("button", { name: "Review Azure architecture" }).click();
     const reviewModal = page.getByRole("dialog", { name: "Azure architecture review" });
     await expect(reviewModal.getByText("Cross-framework Azure review")).toBeVisible();
+    await expect(
+      reviewModal.getByRole("button", { name: "Upload diagram" })
+    ).toBeVisible();
     await reviewModal.getByRole("button", { name: "Close Azure architecture review" }).click();
 
     await page.getByRole("button", { name: "Deploy architecture to Azure" }).click();

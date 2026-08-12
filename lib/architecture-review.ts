@@ -47,9 +47,46 @@ export const architectureReviewSchema = z.object({
 
 export type ArchitectureReview = z.infer<typeof architectureReviewSchema>;
 
+export const ARCHITECTURE_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+export const ARCHITECTURE_IMAGE_MIME_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+] as const;
+
+const architectureImageSchema = z
+  .object({
+    name: z.string().trim().min(1).max(255),
+    mimeType: z.enum(ARCHITECTURE_IMAGE_MIME_TYPES),
+    dataUrl: z.string().max(7_100_000),
+  })
+  .superRefine((image, context) => {
+    const prefix = `data:${image.mimeType};base64,`;
+    if (!image.dataUrl.startsWith(prefix)) {
+      context.addIssue({
+        code: "custom",
+        message: "Architecture image data does not match its declared type.",
+      });
+      return;
+    }
+    const encoded = image.dataUrl.slice(prefix.length);
+    if (!/^[A-Za-z0-9+/]*={0,2}$/.test(encoded)) {
+      context.addIssue({ code: "custom", message: "Architecture image is not valid base64." });
+      return;
+    }
+    const padding = encoded.endsWith("==") ? 2 : encoded.endsWith("=") ? 1 : 0;
+    const byteLength = Math.floor((encoded.length * 3) / 4) - padding;
+    if (byteLength > ARCHITECTURE_IMAGE_MAX_BYTES) {
+      context.addIssue({
+        code: "custom",
+        message: "Architecture image is larger than 5 MiB.",
+      });
+    }
+  });
+
 export const architectureReviewRequestSchema = z
   .object({
-    source: z.enum(["canvas", "description", "import"]),
+    source: z.enum(["canvas", "description", "import", "image"]),
     description: z.string().trim().max(12000).optional(),
     payload: z
       .object({
@@ -57,12 +94,21 @@ export const architectureReviewRequestSchema = z
         edges: z.array(z.unknown()).max(1000),
       })
       .optional(),
+    image: architectureImageSchema.optional(),
   })
   .refine(
     (request) =>
       Boolean(request.description?.trim()) ||
-      Boolean(request.payload && request.payload.nodes.length > 0),
-    { message: "Provide an architecture description or a diagram with at least one node." }
+      Boolean(request.payload && request.payload.nodes.length > 0) ||
+      Boolean(request.image),
+    {
+      message:
+        "Provide an architecture description, an image, or a diagram with at least one node.",
+    }
+  )
+  .refine(
+    (request) => request.source !== "image" || Boolean(request.image),
+    { message: "Upload an architecture image before starting the review." }
   );
 
 export function parseArchitectureReview(raw: string): ArchitectureReview {
@@ -71,19 +117,22 @@ export function parseArchitectureReview(raw: string): ArchitectureReview {
 }
 
 export function buildArchitectureReviewPrompt(input: {
-  source: "canvas" | "description" | "import";
+  source: "canvas" | "description" | "import" | "image";
   description?: string;
   payload?: { nodes: unknown[]; edges: unknown[] };
 }): string {
   const evidence =
     input.source === "description"
       ? input.description
+      : input.source === "image"
+        ? "The attached image is the primary architecture evidence."
       : JSON.stringify(input.payload);
   return `Review this Azure architecture evidence:
 
 SOURCE: ${input.source}
 EVIDENCE:
 ${evidence}
+${input.source === "image" && input.description ? `CUSTOMER CONTEXT:\n${input.description}` : ""}
 
 Use only claims supported by the evidence. Treat missing information as an assumption or discovery gap, not as proof of a defect.`;
 }

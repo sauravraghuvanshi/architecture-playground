@@ -208,6 +208,113 @@ test.describe("Microsoft CSA guidance", () => {
     await expect(modal.getByText("Azure Landing Zones")).toBeVisible();
   });
 
+  test("uploads an architecture image and returns a rated improvement review", async ({
+    page,
+  }) => {
+    await page.route("**/api/ai/status", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ diagramConfigured: true, imageConfigured: false }),
+      })
+    );
+    await page.route("**/api/ai/review", async (route) => {
+      const request = route.request().postDataJSON() as {
+        source: string;
+        description: string;
+        image: { name: string; mimeType: string; dataUrl: string };
+      };
+      expect(request.source).toBe("image");
+      expect(request.description).toContain("four-hour RTO");
+      expect(request.image.name).toBe("customer-architecture.png");
+      expect(request.image.mimeType).toBe("image/png");
+      expect(request.image.dataUrl).toMatch(/^data:image\/png;base64,/);
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          review: {
+            summary:
+              "The visual shows a clear Azure application flow, but platform governance and recovery evidence need strengthening.",
+            posture: "mixed",
+            score: 74,
+            strengths: ["Managed ingress and application services are visible."],
+            assumptions: ["Subscription topology and data classification are not visible."],
+            findings: [
+              {
+                id: "aac-1",
+                title: "Add asynchronous workload isolation",
+                severity: "medium",
+                framework: "Azure Architecture Center",
+                pillar: "Design patterns",
+                evidence: "The diagram shows direct synchronous dependencies.",
+                recommendation: "Add queue-based load leveling for long-running work.",
+                sourceUrl: "https://learn.microsoft.com/azure/architecture/",
+              },
+              {
+                id: "alz-1",
+                title: "Define application landing zone controls",
+                severity: "high",
+                framework: "Azure Landing Zones",
+                pillar: "Governance",
+                evidence: "No policy, subscription, or connectivity boundary is visible.",
+                recommendation: "Place the workload in a governed application landing zone.",
+                sourceUrl:
+                  "https://learn.microsoft.com/azure/cloud-adoption-framework/ready/landing-zone/",
+              },
+              {
+                id: "caf-1",
+                title: "Connect the workload to adoption outcomes",
+                severity: "low",
+                framework: "Cloud Adoption Framework",
+                pillar: "Manage",
+                evidence: "Business outcomes and operational ownership are not represented.",
+                recommendation: "Document measurable outcomes and the cloud operating model.",
+                sourceUrl: "https://learn.microsoft.com/azure/cloud-adoption-framework/",
+              },
+              {
+                id: "waf-1",
+                title: "Test recovery objectives",
+                severity: "high",
+                framework: "Well-Architected Framework",
+                pillar: "Reliability",
+                evidence: "A four-hour RTO is stated but no recovery path is visible.",
+                recommendation: "Implement and exercise regional recovery against the stated RTO.",
+                sourceUrl: "https://learn.microsoft.com/azure/well-architected/",
+              },
+            ],
+          },
+        }),
+      });
+    });
+
+    await page.goto("/diagrammatic");
+    await page.getByRole("button", { name: "Review Azure architecture" }).click();
+    const modal = page.getByRole("dialog", { name: "Azure architecture review" });
+    await modal.getByRole("button", { name: "Upload diagram" }).click();
+    await modal.getByLabel("Upload architecture diagram image").setInputFiles({
+      name: "customer-architecture.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADElEQVR42mP8z8AARQAFAAH/q842AAAAAElFTkSuQmCC",
+        "base64"
+      ),
+    });
+    await expect(
+      modal.getByAltText("Architecture diagram preview: customer-architecture.png")
+    ).toBeVisible();
+    await modal
+      .getByPlaceholder(/Add business criticality/)
+      .fill("Production banking workload with a four-hour RTO and confidential data.");
+    await modal.getByRole("button", { name: "Run architecture review" }).click();
+
+    await expect(modal.getByText("74")).toBeVisible();
+    await expect(modal.getByText("Add asynchronous workload isolation")).toBeVisible();
+    await expect(modal.getByText("Define application landing zone controls")).toBeVisible();
+    await expect(modal.getByText("Connect the workload to adoption outcomes")).toBeVisible();
+    await expect(modal.getByText("Test recovery objectives")).toBeVisible();
+  });
+
   test("hands a short-lived template to Azure Portal Review + Create", async ({ page }) => {
     await page.route("**/api/deploy/template", async (route) => {
       const request = route.request().postDataJSON() as {

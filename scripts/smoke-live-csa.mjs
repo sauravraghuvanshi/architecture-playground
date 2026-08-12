@@ -63,6 +63,37 @@ const aiStatus = await fetch(`${baseUrl}/api/ai/status`, {
   headers: authenticatedHeaders,
 });
 await expectStatus(aiStatus, 200, "AI status");
+const aiCapabilities = await aiStatus.json();
+
+if (aiCapabilities.diagramConfigured) {
+  const imageReview = await fetch(`${baseUrl}/api/ai/review`, {
+    method: "POST",
+    headers: {
+      ...authenticatedHeaders,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      source: "image",
+      description:
+        "Live smoke evidence: Azure Front Door routes to App Service and Azure SQL. Treat missing details as assumptions.",
+      image: {
+        name: "live-smoke-architecture.png",
+        mimeType: "image/png",
+        dataUrl:
+          "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADElEQVR42mP8z8AARQAFAAH/q842AAAAAElFTkSuQmCC",
+      },
+    }),
+  });
+  await expectStatus(imageReview, 200, "Multimodal architecture review");
+  const imageReviewResult = await imageReview.json();
+  if (
+    typeof imageReviewResult.review?.score !== "number" ||
+    !Array.isArray(imageReviewResult.review?.findings) ||
+    imageReviewResult.review.findings.length === 0
+  ) {
+    throw new Error("Multimodal architecture review returned an invalid result.");
+  }
+}
 
 const templateResponse = await fetch(`${baseUrl}/api/deploy/template`, {
   method: "POST",
@@ -112,5 +143,5 @@ const logout = await fetch(`${baseUrl}/api/auth/logout`, {
 await expectStatus(logout, 200, "Logout");
 
 console.log(
-  "Live CSA API smoke passed: auth gate, workspace, AI status, deployment handoff, public template, and logout."
+  "Live CSA API smoke passed: auth gate, workspace, AI status, multimodal review, deployment handoff, public template, and logout."
 );
