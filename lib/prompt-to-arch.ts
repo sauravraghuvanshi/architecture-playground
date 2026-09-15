@@ -4,8 +4,9 @@
  * No LLM call: we tokenize the prompt, match keywords against the icon manifest
  * (label / id / category), assign each match to an architectural "tier"
  * (frontend → gateway → compute → data → observability), then lay tiers out as
- * columns and connect adjacent tiers with `flow`-styled edges so the result
- * animates out of the box.
+ * columns and connect workload tiers with `flow`-styled edges. Operational
+ * dependencies are dashed, separate from the request sequence. Secure or
+ * production Azure prompts also receive proposed controls and review notes.
  *
  * Why deterministic + heuristic for now:
  *   - Predictable & free (no Azure OpenAI dependency on first paint).
@@ -80,7 +81,7 @@ const KEYWORDS: { tier: Tier; needles: string[]; match: string }[] = [
   { tier: "ops", needles: ["monitor", "app insights", "application insights", "cloudwatch", "stackdriver"], match: "monitor" },
   { tier: "ops", needles: ["log analytics", "loki"], match: "log" },
   { tier: "ops", needles: ["key vault", "secrets manager", "secret manager"], match: "key vault" },
-  { tier: "ops", needles: ["identity", "entra", "active directory", "iam", "cognito"], match: "active directory" },
+  { tier: "ops", needles: ["identity", "entra", "azure active directory", "active directory", "iam", "cognito"], match: "azure active directory" },
 ];
 
 interface Picked {
@@ -90,6 +91,10 @@ interface Picked {
 
 function lower(s: string): string {
   return s.toLowerCase();
+}
+
+function mentions(prompt: string, term: string): boolean {
+  return new RegExp(`(^|[^a-z0-9])${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z0-9]|$)`, "i").test(prompt);
 }
 
 function findBestIcon(icons: IconLite[], term: string): IconLite | undefined {
@@ -122,11 +127,13 @@ function pickIcons(prompt: string, icons: IconLite[]): Picked[] {
   const candidates = provider ? icons.filter((icon) => icon.cloud === provider) : icons;
 
   for (const rule of KEYWORDS) {
-    const matchedNeedles = rule.needles.filter((needle) => p.includes(needle));
+    const matchedNeedles = rule.needles.filter((needle) => mentions(p, needle));
     if (!matchedNeedles.length) continue;
     // Prefer the provider's product name from the prompt (for example Lambda
     // or Cloud Run), then fall back to the cloud-neutral match fragment.
-    const matchedTerms = matchedNeedles.sort((a, b) => b.length - a.length);
+    const matchedTerms = matchedNeedles.sort((a, b) =>
+      Number(a === "serverless") - Number(b === "serverless") || b.length - a.length
+    );
     const searchTerms =
       rule.match === "sql database" && matchedTerms.some((term) => term === "sql" || term === "azure sql")
         ? [rule.match, ...matchedTerms]
@@ -169,15 +176,28 @@ const TIER_DISPLAY: Record<Tier, string> = {
  * Returns `null` if no keywords matched (caller can fall back to an empty
  * canvas rather than a single mystery node).
  *
- * Phase-3: now emits ONE group per tier and parents its icon nodes into
- * it. Children use parent-relative coords.
+ * Emits one group per tier with parent-relative child coordinates. Explicit
+ * simple templates keep their scope; guidedDesign can override inferred intent.
  */
 export function promptToArchitecture(
   prompt: string,
   icons: IconLite[],
-  opts: { animateEdges?: boolean } = {}
+  opts: { animateEdges?: boolean; guidedDesign?: boolean } = {}
 ): ArchPayload | null {
-  const picked = pickIcons(prompt, icons);
+  const azureOnly = /\bazure\b|\bmicrosoft\b/i.test(prompt) && !/\baws\b|\bamazon\b|\bgcp\b|\bgoogle\b/i.test(prompt);
+  const guided = opts.guidedDesign ?? (azureOnly && /\b(secure|enterprise|production|resilient|compliance|landing zone|business)\b/i.test(prompt));
+  let picked = pickIcons(prompt, icons);
+  if (guided && azureOnly) {
+    if (!picked.length && /\b(app|application|platform|system|portal|workload|solution)\b/i.test(prompt)) {
+      picked = pickIcons("Azure App Service and Azure SQL", icons);
+    }
+    if (picked.length) {
+      const controls = pickIcons("Azure Active Directory, Key Vault, and Monitor", icons);
+      for (const control of controls) {
+        if (!picked.some((item) => item.icon.id === control.icon.id)) picked.push(control);
+      }
+    }
+  }
   if (!picked.length) return null;
 
   const byTier = new Map<Tier, IconLite[]>();
@@ -210,11 +230,11 @@ export function promptToArchitecture(
 
     const ids: string[] = [];
     list.forEach((icon, rowIdx) => {
-      const id = `n_${tier}_${rowIdx}_${Math.random().toString(36).slice(2, 6)}`;
+      const id = `n_${tier}_${rowIdx}`;
       nodes.push({
         kind: "icon",
         id,
-        label: icon.label,
+        label: guided && icon.id === "azure/identity/azure-active-directory" ? "Microsoft Entra ID" : icon.label,
         iconId: icon.id,
         iconPath: icon.path,
         // parent-relative
@@ -223,6 +243,7 @@ export function promptToArchitecture(
         width: NODE_W,
         height: NODE_H,
         parentId: groupId,
+        ...(guided && azureOnly && tier === "ops" ? { subtitle: "Proposed shared control - validate configuration and ownership." } : {}),
       });
       ids.push(id);
     });
@@ -231,9 +252,10 @@ export function promptToArchitecture(
 
   const edges: ArchEdge[] = [];
   const edgeStyle: ArchEdgeStyle = opts.animateEdges === false ? "solid" : "flow";
-  for (let i = 0; i < usedTiers.length - 1; i++) {
-    const fromIds = tierToNodeIds.get(usedTiers[i]) ?? [];
-    const toIds = tierToNodeIds.get(usedTiers[i + 1]) ?? [];
+  const flowTiers = usedTiers.filter((tier) => tier !== "ops");
+  for (let i = 0; i < flowTiers.length - 1; i++) {
+    const fromIds = tierToNodeIds.get(flowTiers[i]) ?? [];
+    const toIds = tierToNodeIds.get(flowTiers[i + 1]) ?? [];
     for (const a of fromIds) {
       for (const b of toIds) {
         edges.push({
@@ -241,11 +263,38 @@ export function promptToArchitecture(
           source: a,
           target: b,
           style: edgeStyle,
-          label: usedTiers[i] === "messaging" ? "Async" : "HTTPS",
+          label: flowTiers[i] === "messaging" ? "Async" : "HTTPS",
           step: edges.length + 1,
         });
       }
     }
+  }
+
+  // Control-plane dependencies are not stages in the animated request path.
+  const workloadIds = tierToNodeIds.get("compute") ?? tierToNodeIds.get("frontend") ?? tierToNodeIds.get("data") ?? [];
+  for (const source of workloadIds) {
+    for (const target of tierToNodeIds.get("ops") ?? []) {
+      edges.push({ id: `e_${source}_${target}`, source, target, style: "dashed", label: "Operational dependency (proposed)" });
+    }
+  }
+
+  if (guided && azureOnly) {
+    const notes = [
+      ["Identity and security", "Proposed: Entra ID, managed identities and least-privilege RBAC. Validate network isolation, TLS, secrets and threat protection."],
+      ["Operations and governance", "Proposed: telemetry, actionable alerts, ownership, Azure Policy, subscription boundaries and repeatable IaC. Reuse shared landing-zone services."],
+      ["Reliability and recovery", "Define SLO, RTO and RPO; assess zone redundancy and backups. Test restore and failover. Multi-region depends on residency, cost and business need."],
+      ["Business tradeoffs", "Confirm budget, demand, data residency and regulatory obligations. Estimate service and operations costs; validate scaling under load."],
+      ["Guided draft - not deployed", "Suggested design only. Icons do not prove configuration, availability or compliance. Review assumptions and validate with workload owners before deployment."],
+    ];
+    const y = ORIGIN_Y + Math.max(...nodes.filter((node) => node.kind === "group").map((node) => node.height ?? 0)) + 70;
+    nodes.push({ kind: "group", id: "g_design_guidance", label: "Design review checkpoints (proposed)", x: ORIGIN_X, y, width: 1100, height: 460 });
+    notes.forEach(([label, subtitle], index) => {
+      nodes.push({
+        kind: "shape", shape: "document", id: `design_note_${index}`, label, subtitle,
+        parentId: "g_design_guidance", x: 30 + (index % 3) * 350, y: 60 + Math.floor(index / 3) * 190,
+        width: 320, height: 160,
+      });
+    });
   }
 
   return { nodes, edges };

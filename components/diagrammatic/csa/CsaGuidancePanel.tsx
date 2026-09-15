@@ -33,16 +33,23 @@ import {
 } from "./cloud-adoption-framework";
 import {
   assessWellArchitected,
+  assessDiagramWellArchitected,
+  diffWafAssessments,
+  WAF_DIAGRAM_METHODOLOGY,
   WAF_PILLARS,
+  type WafDiagramPayload,
+  type WafDiagramAssessment,
 } from "./well-architected";
 
 interface Props {
   open: boolean;
   onClose: () => void;
   onApplyPattern: (prompt: string) => void;
+  /** Current serialized architecture, updated by the parent on every canvas change. */
+  payload?: WafDiagramPayload;
 }
 
-export function CsaGuidancePanel({ open, onClose, onApplyPattern }: Props) {
+export function CsaGuidancePanel({ open, onClose, onApplyPattern, payload }: Props) {
   const [section, setSection] = useState<
     "architecture-center" | "landing-zones" | "cloud-adoption" | "well-architected"
   >("architecture-center");
@@ -157,6 +164,17 @@ export function CsaGuidancePanel({ open, onClose, onApplyPattern }: Props) {
       <div className="flex-1 overflow-y-auto p-3">
         {section === "well-architected" ? (
           <div className="space-y-4">
+            {payload ? (
+              <WafDiagramScorecard payload={payload} />
+            ) : (
+              <p role="status" className="rounded-xl border border-amber-400/20 p-3 text-xs text-amber-200">
+                Current canvas evidence is unavailable. Connect a diagram to assess its five pillars.
+              </p>
+            )}
+            <details>
+              <summary className="cursor-pointer rounded-xl border border-slate-700 p-3 text-xs font-semibold text-cyan-200">
+                Discovery questionnaire (self-reported, separate from canvas scores)
+              </summary>
             <section className="rounded-2xl border border-emerald-400/20 bg-emerald-400/5 p-4">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-emerald-300" />
@@ -165,11 +183,11 @@ export function CsaGuidancePanel({ open, onClose, onApplyPattern }: Props) {
                 </p>
               </div>
               <h2 className="mt-2 text-base font-semibold text-white">
-                Evidence-based workload assessment
+                Self-reported discovery checklist
               </h2>
               <p className="mt-1.5 text-[11px] leading-relaxed text-slate-400">
-                Confirm only evidence that has been reviewed. This score prioritizes discovery
-                and improvement; it is not a certification or compliance result.
+                These answers track discovery only and never change the actual-diagram score.
+                They do not verify deployed settings or provide certification.
               </p>
               <div className="mt-3 flex items-end justify-between gap-4 rounded-xl border border-slate-700 bg-slate-950/60 p-3">
                 <div>
@@ -281,6 +299,7 @@ export function CsaGuidancePanel({ open, onClose, onApplyPattern }: Props) {
                 </ol>
               </section>
             )}
+            </details>
           </div>
         ) : section === "cloud-adoption" ? (
           <div className="space-y-4">
@@ -346,6 +365,7 @@ export function CsaGuidancePanel({ open, onClose, onApplyPattern }: Props) {
                                 : [...current, methodology.id]
                             )
                           }
+
                           aria-label={`Mark ${methodology.title} ${completed ? "incomplete" : "complete"}`}
                           aria-pressed={completed}
                           className={`grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-xl border text-[10px] font-bold ${
@@ -637,6 +657,99 @@ export function CsaGuidancePanel({ open, onClose, onApplyPattern }: Props) {
         )}
       </div>
     </aside>
+  );
+}
+
+export type WafDiagramScorecardProps = { payload: WafDiagramPayload } & (
+  | { baseline: WafDiagramAssessment; onBaselineChange: (assessment: WafDiagramAssessment) => void }
+  | { baseline?: never; onBaselineChange?: never }
+);
+
+/** Modal callers own persistent baselines; the legacy panel keeps its local baseline. */
+export function WafDiagramScorecard({ payload, baseline: controlledBaseline, onBaselineChange }: WafDiagramScorecardProps) {
+  const assessment = useMemo(() => assessDiagramWellArchitected(payload), [payload]);
+  const [localBaseline, setLocalBaseline] = useState(assessment);
+  const baseline = controlledBaseline ?? localBaseline;
+  const diff = useMemo(() => diffWafAssessments(baseline, assessment), [baseline, assessment]);
+  const signed = (value: number) => `${value > 0 ? "+" : ""}${value}`;
+  const changes: Array<[string, string[]]> = [
+    ["Added nodes", diff.addedNodeIds], ["Removed nodes", diff.removedNodeIds], ["Changed nodes", diff.changedNodeIds],
+    ["Added edges", diff.addedEdgeIds], ["Removed edges", diff.removedEdgeIds], ["Changed edges", diff.changedEdgeIds],
+  ];
+  return (
+    <section aria-label="Actual diagram WAF assessment" className="space-y-3" data-testid="waf-diagram-assessment">
+      <div className="rounded-2xl border border-cyan-400/25 bg-cyan-400/5 p-4">
+        <h2 className="text-sm font-semibold text-white">Actual-diagram WAF assessment</h2>
+        <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
+          Deterministic evidence coverage of the current canvas. Service icons and connections
+          show design intent, not verified configuration. Unknown does not mean failed.
+        </p>
+        <p className="mt-3 text-2xl font-semibold text-cyan-200" data-testid="waf-overall-score">{assessment.score}/100</p>
+        <p className="text-[10px] text-slate-400">
+          {assessment.serviceCount} service icons · {assessment.observed} observed patterns · {assessment.unknown} unknown checks
+        </p>
+        <details className="mt-2 text-[10px] leading-relaxed text-slate-400">
+          <summary className="cursor-pointer text-cyan-300">Scoring method and limitations</summary>
+          <p className="mt-2">{WAF_DIAGRAM_METHODOLOGY}</p>
+          <p className="mt-1">Rule set: {assessment.version}. Layout-only moves do not change evidence.</p>
+        </details>
+      </div>
+      {assessment.warnings.map((warning) => (
+        <p key={warning} role="status" className="rounded-xl border border-amber-400/20 p-3 text-[10px] text-amber-200">{warning}</p>
+      ))}
+      <div className="grid grid-cols-2 gap-2">
+        {WAF_PILLARS.map((pillar) => (
+          <div key={pillar.id} data-testid={`waf-pillar-${pillar.id}`} className="rounded-xl border border-slate-700 bg-slate-900/70 p-3">
+            <p className="text-[10px] font-semibold text-slate-200">{pillar.title}</p>
+            <p className="mt-1 text-lg font-semibold text-cyan-200">{assessment.pillarScores[pillar.id]}/100</p>
+            <p className="text-[9px] text-slate-400">{signed(diff.pillarDeltas[pillar.id])} since baseline</p>
+          </div>
+        ))}
+      </div>
+      <div aria-live="polite" data-testid="waf-assessment-diff" className="rounded-xl border border-slate-700 p-3 text-[10px] text-slate-400">
+        <h3 className="font-semibold text-cyan-200">Canvas change impact</h3>
+        <p className="mt-1">{diff.changed ? `Rescored automatically: ${signed(diff.scoreDelta)} overall since baseline.` : "No evidence changes since baseline."}</p>
+        {diff.changed && (
+          <div className="mt-1 space-y-1">
+            <p>Nodes: +{diff.addedNodeIds.length} / -{diff.removedNodeIds.length} / {diff.changedNodeIds.length} changed.
+              {" "}Edges: +{diff.addedEdgeIds.length} / -{diff.removedEdgeIds.length} / {diff.changedEdgeIds.length} changed.</p>
+            <p>{diff.improvedFindingIds.length} newly observed patterns; {diff.regressedFindingIds.length} lost patterns.</p>
+            {changes.filter(([, ids]) => ids.length > 0).map(([label, ids]) => <p key={label}>{label}: {ids.join(", ")}</p>)}
+          </div>
+        )}
+        <button type="button" onClick={() => {
+          if (onBaselineChange) onBaselineChange(assessment);
+          else setLocalBaseline(assessment);
+        }} className="mt-2 cursor-pointer rounded-lg border border-cyan-400/30 px-2 py-1 text-cyan-200 hover:bg-cyan-400/10">
+          Use current canvas as baseline
+        </button>
+      </div>
+      <h3 className="text-xs font-semibold text-white">Prioritized evidence findings and remediation playbooks</h3>
+      {assessment.findings.map((finding) => (
+        <article key={finding.id} data-testid={`waf-finding-${finding.id}`} className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
+          <div className="flex items-center justify-between gap-2 text-[9px]">
+            <span className={finding.status === "observed" ? "text-cyan-300" : "text-amber-200"}>
+              {finding.status === "observed" ? "Observed in diagram" : finding.status === "risk" ? "Diagram risk" : "Unknown evidence"}
+              {" "}· {finding.priority} priority
+            </span>
+            <a href={finding.sourceUrl} target="_blank" rel="noreferrer" aria-label={`WAF guidance for ${finding.title}`} className="text-cyan-300 hover:underline">Guidance</a>
+          </div>
+          <h4 className="mt-1 text-[11px] font-semibold text-white">{finding.title}</h4>
+          <p className="mt-1 text-[10px] leading-relaxed text-slate-400">{finding.evidence}</p>
+          <p className="mt-1 text-[10px] text-slate-500">
+            {finding.pillar} · Nodes: {finding.nodeIds.join(", ") || "none evidenced"} · Edges: {finding.edgeIds.join(", ") || "none evidenced"}
+          </p>
+          <details className="mt-2 text-[10px] leading-relaxed text-slate-300">
+            <summary className="cursor-pointer font-semibold text-cyan-200">Remediation playbook</summary>
+            <ol className="mt-2 list-decimal space-y-1 pl-4">
+              {finding.playbook.steps.map((step) => <li key={step}>{step}</li>)}
+            </ol>
+            <p className="mt-2"><strong>Validate:</strong> {finding.playbook.validation}</p>
+            <p className="mt-1"><strong>Tradeoff:</strong> {finding.playbook.tradeoff}</p>
+          </details>
+        </article>
+      ))}
+    </section>
   );
 }
 

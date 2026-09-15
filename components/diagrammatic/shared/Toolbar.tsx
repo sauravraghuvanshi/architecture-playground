@@ -7,7 +7,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Undo2, Redo2, Maximize2, Trash2, Activity, Save, Loader2, Check, LayoutGrid, Play, Square, ChevronDown, Download, FolderOpen, Sparkles, MessageSquare, History, CloudCog, Home, FilePlus2, BookOpenCheck, Code2, CloudUpload, Moon, MoveRight, Sun } from "lucide-react";
+import { Undo2, Redo2, Maximize2, Trash2, Activity, Save, Loader2, Check, LayoutGrid, Play, Square, ChevronDown, Download, FolderOpen, Sparkles, MessageSquare, History, CloudCog, Home, FilePlus2, CloudUpload, Moon, MoveRight, Sun } from "lucide-react";
 import type { CanvasTheme } from "./types";
 
 const TIERS = ["Edge", "Frontend", "Gateway", "Compute", "Messaging", "Data", "Ops", "Custom"] as const;
@@ -27,6 +27,8 @@ interface Props {
   onRedo: () => void;
   onDelete: () => void;
   onSave?: () => void;
+  onOpenLibrary?: () => void;
+  onGoHome?: () => void;
   /** Cycle every edge in the graph through solid → dashed → flow. */
   onCycleEdgeStyle?: () => void;
   /** Current global edge style (informational — affects the icon highlight). */
@@ -48,21 +50,12 @@ interface Props {
   hideRasterExports?: boolean;
   /** Hide ordered GIF export for modes without a sequence capture driver. */
   hideGifExport?: boolean;
-  /** Mode-specific starter templates. When provided, renders a Templates
-   *  dropdown that calls onApplyTemplate(id) on selection. */
-  templates?: Array<{ id: string; name: string; description?: string }>;
-  onApplyTemplate?: (id: string) => void;
   /** Replace the current mode payload with its structurally-valid blank state. */
   onBlankCanvas?: () => void;
   /** Open the AI prompt modal (Phase 5 — per-mode generate). */
   onAiAssist?: () => void;
   /** Disables the AI button + shows a tooltip when AI env vars are absent. */
   aiDisabledReason?: string;
-  /** Toggle the Microsoft CSA guidance rail. */
-  onToggleCsaGuidance?: () => void;
-  csaGuidanceOpen?: boolean;
-  /** Open architecture-to-code generation. */
-  onGenerateCode?: () => void;
   /** Open the cross-framework Azure architecture review. */
   onReviewArchitecture?: () => void;
   /** Prepare a short-lived Azure Portal deployment handoff. */
@@ -72,6 +65,8 @@ interface Props {
   onToggleCanvasTheme?: () => void;
   /** Whiteboard-only connected arrow drawing tool. */
   onFlowArrow?: () => void;
+  onConvertWhiteboard?: () => void;
+  onImportArchitecture?: () => void;
   /** Toggle the right-rail comments panel. */
   onToggleComments?: () => void;
   commentsOpen?: boolean;
@@ -89,6 +84,8 @@ export function Toolbar({
   onRedo,
   onDelete,
   onSave,
+  onOpenLibrary,
+  onGoHome,
   onCycleEdgeStyle,
   edgeStyle = "solid",
   onAddTier,
@@ -99,19 +96,16 @@ export function Toolbar({
   extraExports,
   hideRasterExports,
   hideGifExport,
-  templates,
-  onApplyTemplate,
   onBlankCanvas,
   onAiAssist,
   aiDisabledReason,
-  onToggleCsaGuidance,
-  csaGuidanceOpen,
-  onGenerateCode,
   onReviewArchitecture,
   onDeployAzure,
   canvasTheme,
   onToggleCanvasTheme,
   onFlowArrow,
+  onConvertWhiteboard,
+  onImportArchitecture,
   onToggleComments,
   commentsOpen,
   onToggleVersions,
@@ -121,12 +115,16 @@ export function Toolbar({
 }: Props) {
   const [tierMenuOpen, setTierMenuOpen] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
-  const [templatesOpen, setTemplatesOpen] = useState(false);
   return (
-    <header className="relative z-40 flex h-14 shrink-0 items-center justify-between gap-4 border-b border-slate-800 bg-[#08111f] px-3 text-sm text-slate-200 sm:px-4">
+    <header className="relative z-40 flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-800 bg-[#08111f] px-3 py-2 text-sm text-slate-200 sm:px-4">
       <div className="flex min-w-0 items-center gap-3">
         <Link
           href="/"
+          onNavigate={(event) => {
+            if (!onGoHome) return;
+            event.preventDefault();
+            onGoHome();
+          }}
           className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-500/15 transition hover:bg-cyan-300"
           aria-label="Back to project hub"
         >
@@ -140,7 +138,13 @@ export function Toolbar({
           <span className="block truncate text-xs font-semibold text-white sm:text-sm">{title}</span>
         </div>
       </div>
-      <div className="flex shrink-0 items-center gap-1">
+      <div className="flex min-w-0 flex-wrap items-center gap-1">
+        {onOpenLibrary && (
+          <button type="button" onClick={onOpenLibrary} aria-label="My diagrams"
+            className="flex items-center gap-1 rounded-lg border border-slate-700 px-2 py-1.5 text-[10px] font-semibold text-slate-200 hover:bg-slate-800">
+            <FolderOpen className="h-3.5 w-3.5" /> My diagrams
+          </button>
+        )}
         <div className="flex shrink-0 items-center gap-0.5 rounded-xl border border-slate-800 bg-slate-950/60 p-0.5">
         <ToolButton onClick={onUndo} title="Undo (Ctrl+Z)" Icon={Undo2} />
         <ToolButton onClick={onRedo} title="Redo (Ctrl+Y)" Icon={Redo2} />
@@ -223,57 +227,28 @@ export function Toolbar({
             AI
           </button>
         )}
-        {onToggleCsaGuidance && (
-          <button
-            type="button"
-            onClick={onToggleCsaGuidance}
-            title="Azure Architecture Center guidance"
-            aria-label="Toggle Microsoft CSA guidance"
-            aria-pressed={!!csaGuidanceOpen}
-            className={`flex cursor-pointer items-center gap-1 rounded-lg border px-2 py-1.5 text-[10px] font-semibold transition ${
-              csaGuidanceOpen
-                ? "border-cyan-300 bg-cyan-400 text-slate-950"
-                : "border-cyan-400/20 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20 hover:text-white"
-            }`}
-          >
-            <BookOpenCheck className="h-3.5 w-3.5" />
-            CSA
-          </button>
-        )}
-        {onGenerateCode && (
-          <button
-            type="button"
-            onClick={onGenerateCode}
-            title="Generate Bicep, Terraform, Azure CLI, or PowerShell"
-            aria-label="Generate architecture code"
-            className="flex cursor-pointer items-center gap-1 rounded-lg border border-violet-400/20 bg-violet-400/10 px-2 py-1.5 text-[10px] font-semibold text-violet-200 transition hover:bg-violet-400/20 hover:text-white"
-          >
-            <Code2 className="h-3.5 w-3.5" />
-            Code
-          </button>
-        )}
         {onReviewArchitecture && (
           <button
             type="button"
             onClick={onReviewArchitecture}
-            title="Review against Azure architecture guidance"
-            aria-label="Review Azure architecture"
+            title="Get findings and recommendations based on this architecture"
+            aria-label="Review my architecture"
             className="flex cursor-pointer items-center gap-1 rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-2 py-1.5 text-[10px] font-semibold text-emerald-200 transition hover:bg-emerald-400/20 hover:text-white"
           >
             <Check className="h-3.5 w-3.5" />
-            Review
+            Review my architecture
           </button>
         )}
         {onDeployAzure && (
           <button
             type="button"
             onClick={onDeployAzure}
-            title="Open Azure Portal Review + Create"
+            title="Generate and review deployment code, then hand off to Azure Portal"
             aria-label="Deploy architecture to Azure"
             className="flex cursor-pointer items-center gap-1 rounded-lg bg-sky-400 px-2 py-1.5 text-[10px] font-bold text-slate-950 transition hover:bg-sky-300"
           >
             <CloudUpload className="h-3.5 w-3.5" />
-            Deploy
+            Code & deploy
           </button>
         )}
         {onFlowArrow && (
@@ -286,6 +261,20 @@ export function Toolbar({
           >
             <MoveRight className="h-3.5 w-3.5" />
             Flow arrow
+          </button>
+        )}
+        {onConvertWhiteboard && (
+          <button type="button" onClick={onConvertWhiteboard}
+            aria-label="Convert Whiteboard to architecture"
+            className="flex shrink-0 items-center gap-1 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-2 py-1.5 text-[10px] font-semibold text-cyan-200 hover:bg-cyan-400/20">
+            <CloudCog className="h-3.5 w-3.5" /> To architecture
+          </button>
+        )}
+        {onImportArchitecture && (
+          <button type="button" onClick={onImportArchitecture}
+            aria-label="Import architecture JSON"
+            className="flex shrink-0 items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-slate-300 hover:bg-slate-800">
+            <FolderOpen className="h-3.5 w-3.5" /> Import
           </button>
         )}
         {canvasTheme && onToggleCanvasTheme && (
@@ -308,50 +297,13 @@ export function Toolbar({
           <button
             type="button"
             onClick={onBlankCanvas}
-            title="Start with a blank canvas"
-            aria-label="Start with blank canvas"
+            title="Save the current diagram and start a new one"
+            aria-label="New diagram"
             className="flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white"
           >
             <FilePlus2 className="h-3.5 w-3.5" />
-            Blank
+            New
           </button>
-        )}
-        {templates && templates.length > 0 && onApplyTemplate && (
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setTemplatesOpen((o) => !o)}
-              onBlur={() => setTimeout(() => setTemplatesOpen(false), 150)}
-              title="Load a starter template"
-              aria-label="Templates"
-              className="flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white"
-            >
-              <FolderOpen className="h-3.5 w-3.5" />
-              Templates
-              <ChevronDown className="h-3 w-3" />
-            </button>
-            {templatesOpen && (
-              <div className="absolute right-0 z-50 mt-1 w-72 overflow-hidden rounded-md border border-zinc-800 bg-zinc-900 py-1 shadow-2xl">
-                {templates.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      onApplyTemplate(t.id);
-                      setTemplatesOpen(false);
-                    }}
-                    className="flex w-full cursor-pointer flex-col items-start px-2.5 py-1.5 text-left hover:bg-zinc-800"
-                  >
-                    <span className="text-[11px] font-semibold text-zinc-100">{t.name}</span>
-                    {t.description && (
-                      <span className="text-[10px] text-zinc-400">{t.description}</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
         )}
         {onExport && (
           <div className="relative">

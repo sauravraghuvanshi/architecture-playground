@@ -6,18 +6,6 @@
  * in sessionStorage under TEMPLATE_HANDOFF_KEY before navigating to /.
  */
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import {
-  Boxes,
-  BrainCircuit,
-  CloudCog,
-  Columns3,
-  Database,
-  GitBranch,
-  Network,
-  PencilRuler,
-  Workflow,
-} from "lucide-react";
 import {
   resolveTemplate,
   type ParameterizedTemplate,
@@ -26,40 +14,17 @@ import {
 
 export const TEMPLATE_HANDOFF_KEY = "architecture-playground:template-handoff";
 
-// Mode chips — clicking a non-architecture chip jumps to the workspace where
-// per-mode starter templates live in the in-canvas Templates dropdown. We
-// intentionally don't duplicate them here (they have heterogeneous payload
-// shapes that the architecture-shaped gallery cards can't render).
-const MODE_CHIPS = [
-  { id: "architecture", label: "Architecture", icon: CloudCog },
-  { id: "flowchart", label: "Flowchart", icon: GitBranch },
-  { id: "mindmap", label: "Mind Map", icon: BrainCircuit },
-  { id: "sequence", label: "Sequence", icon: Workflow },
-  { id: "er", label: "ER", icon: Database },
-  { id: "uml", label: "UML", icon: Boxes },
-  { id: "c4", label: "C4", icon: Network },
-  { id: "kanban", label: "Kanban", icon: Columns3 },
-  { id: "whiteboard", label: "Whiteboard", icon: PencilRuler },
-] as const;
-
 interface Props {
   templates: ParameterizedTemplate[];
 }
 
 export function TemplateGalleryClient({ templates }: Props) {
-  const router = useRouter();
   const [query, setQuery] = useState("");
   const [provider, setProvider] = useState<string>("all");
   const [category, setCategory] = useState<string>("all");
   const [difficulty, setDifficulty] = useState<string>("all");
-  const [activeMode, setActiveMode] = useState<string>("architecture");
   const [active, setActive] = useState<ParameterizedTemplate | null>(null);
   const [paramValues, setParamValues] = useState<Record<string, ParameterValue>>({});
-
-  function jumpToMode(modeId: string) {
-    if (modeId === "architecture") return;
-    router.push(`/diagrammatic?mode=${encodeURIComponent(modeId)}`);
-  }
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -103,37 +68,6 @@ export function TemplateGalleryClient({ templates }: Props) {
 
   return (
     <>
-      {/* Mode chip strip — architecture stays here, other modes deep-link
-          into the workspace where their per-mode templates surface in the
-          in-canvas Templates dropdown. */}
-      <div className="mb-5 flex flex-wrap items-center gap-1.5">
-        {MODE_CHIPS.map((m) => {
-          const isActive = activeMode === m.id;
-          const ModeIcon = m.icon;
-          return (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => {
-                setActiveMode(m.id);
-                jumpToMode(m.id);
-              }}
-              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition ${
-                isActive
-                  ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-200"
-                  : "border-slate-800 bg-[#0b1220] text-slate-400 hover:border-slate-700 hover:text-slate-200"
-              }`}
-            >
-              <ModeIcon className="h-3.5 w-3.5" />
-              {m.label}
-              {m.id !== "architecture" && (
-                <span className="text-[9px] uppercase tracking-wide text-zinc-500">↗</span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <input
           type="search"

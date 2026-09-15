@@ -1,10 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 
 async function openAzureBlueprint(page: Page) {
-  await page.goto("/diagrammatic");
+  await page.goto(`/diagrammatic?prompt=${encodeURIComponent("Azure web platform with Front Door and WAF, API Management, App Service, Service Bus, Azure SQL, Key Vault, and Application Insights")}`);
   await expect(page.getByRole("tab", { name: "Cloud Architecture" })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Azure secure web platform/ })).toBeVisible();
-  await page.getByRole("button", { name: /Azure secure web platform/ }).click();
   await expect(page.locator(".react-flow__node-icon").first()).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText("No issues detected.")).toBeVisible();
 }

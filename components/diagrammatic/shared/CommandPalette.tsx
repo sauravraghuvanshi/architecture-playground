@@ -1,11 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
-  Plus,
   Sparkles,
   Boxes,
   Workflow,
@@ -23,8 +21,7 @@ import {
   Undo2,
   Redo2,
   Trash2,
-  Share2,
-  Settings,
+  FolderOpen,
   HelpCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -50,21 +47,19 @@ interface Props {
  * Keyboard: ↑/↓ navigate · Enter select · Esc close.
  */
 export function CommandPalette({ open, onOpenChange, onAction }: Props) {
-  const router = useRouter();
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   // Build commands once. router/onAction live in closures.
   const commands = useMemo<CommandItem[]>(() => {
-    const fire = (id: string, fn?: () => void) => () => {
+    const fire = (id: string) => () => {
       onAction?.(id);
-      fn?.();
       onOpenChange(false);
     };
     return [
-      { id: "new-arch", group: "Create", label: "New cloud architecture", shortcut: "⌘N", icon: Boxes, run: fire("new-arch", () => router.push("/diagrammatic")) },
-      { id: "new-flow", group: "Create", label: "New flowchart", icon: Workflow, run: fire("new-flow", () => router.push("/diagrammatic?mode=flowchart")) },
+      { id: "new-arch", group: "Create", label: "New cloud architecture", shortcut: "⌘N", icon: Boxes, run: fire("new-arch") },
+      { id: "new-flow", group: "Create", label: "New flowchart", icon: Workflow, run: fire("new-flow") },
       { id: "new-mind", group: "Create", label: "New mind map", icon: Brain, run: fire("new-mind") },
       { id: "new-seq", group: "Create", label: "New sequence diagram", icon: GitBranch, run: fire("new-seq") },
       { id: "new-er", group: "Create", label: "New ER diagram", icon: Database, run: fire("new-er") },
@@ -77,6 +72,7 @@ export function CommandPalette({ open, onOpenChange, onAction }: Props) {
       { id: "mode-flow", group: "Switch mode", label: "Switch to Flowchart", shortcut: "⌘2", icon: Workflow, run: fire("mode-flow") },
 
       { id: "save", group: "Canvas", label: "Save", shortcut: "⌘S", icon: Save, run: fire("save") },
+      { id: "my-diagrams", group: "Canvas", label: "My diagrams", icon: FolderOpen, run: fire("my-diagrams") },
       { id: "fit", group: "Canvas", label: "Fit to screen", shortcut: "⌘0", icon: Maximize2, run: fire("fit") },
       { id: "undo", group: "Canvas", label: "Undo", shortcut: "⌘Z", icon: Undo2, run: fire("undo") },
       { id: "redo", group: "Canvas", label: "Redo", shortcut: "⌘⇧Z", icon: Redo2, run: fire("redo") },
@@ -84,17 +80,13 @@ export function CommandPalette({ open, onOpenChange, onAction }: Props) {
       { id: "export-png", group: "Canvas", label: "Export as PNG", icon: Download, run: fire("export-png") },
       { id: "export-svg", group: "Canvas", label: "Export as SVG", icon: Download, run: fire("export-svg") },
       { id: "export-json", group: "Canvas", label: "Export as JSON", icon: FileText, run: fire("export-json") },
-      { id: "share", group: "Canvas", label: "Share diagram", icon: Share2, run: fire("share") },
 
       { id: "ai-generate", group: "AI", label: "Generate diagram from prompt", icon: Sparkles, shortcut: "⌘G", run: fire("ai-generate") },
-      { id: "ai-explain", group: "AI", label: "Explain this diagram", icon: FileText, run: fire("ai-explain") },
-      { id: "ai-layout", group: "AI", label: "Auto-layout", icon: Plus, run: fire("ai-layout") },
-      { id: "ai-validate", group: "AI", label: "Validate architecture", icon: HelpCircle, run: fire("ai-validate") },
+      { id: "ai-validate", group: "AI", label: "Review my architecture", icon: HelpCircle, run: fire("ai-validate") },
 
       { id: "shortcuts", group: "Help", label: "Keyboard shortcuts", shortcut: "?", icon: HelpCircle, run: fire("shortcuts") },
-      { id: "settings", group: "Help", label: "Settings", icon: Settings, run: fire("settings") },
     ];
-  }, [router, onAction, onOpenChange]);
+  }, [onAction, onOpenChange]);
 
   // Filter
   const filtered = useMemo(() => {

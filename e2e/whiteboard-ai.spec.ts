@@ -8,7 +8,7 @@ test.describe("Whiteboard AI", () => {
     await page.addInitScript(() => localStorage.clear());
   });
 
-  test("reports the development image proxy without enabling unconfigured diagram AI", async ({
+  test("reports independent image and diagram configuration", async ({
     request,
     page,
   }) => {
@@ -17,22 +17,25 @@ test.describe("Whiteboard AI", () => {
     const status = (await statusResponse.json()) as {
       diagramConfigured: boolean;
       imageConfigured: boolean;
-      imageSource: string;
+      imageSource: string | null;
     };
-    expect(status).toMatchObject({
-      diagramConfigured: false,
-      imageConfigured: true,
-      imageSource: "development-proxy",
-    });
+    expect(typeof status.diagramConfigured).toBe("boolean");
+    expect(typeof status.imageConfigured).toBe("boolean");
+    expect(["local", "development-proxy", null]).toContain(status.imageSource);
 
     await page.goto("/diagrammatic?mode=whiteboard");
-    await expect(page.getByRole("button", { name: "AI Assist" })).toBeEnabled();
+    if (status.imageConfigured) await expect(page.getByRole("button", { name: "AI Assist" })).toBeEnabled();
+    else await expect(page.getByRole("button", { name: "AI Assist" })).toBeDisabled();
 
     await page.goto("/diagrammatic?mode=c4");
-    await expect(page.getByRole("button", { name: "AI Assist" })).toBeDisabled();
+    if (status.diagramConfigured) await expect(page.getByRole("button", { name: "AI Assist" })).toBeEnabled();
+    else await expect(page.getByRole("button", { name: "AI Assist" })).toBeDisabled();
   });
 
   test("generates and inserts an AI image into the Whiteboard", async ({ page }) => {
+    await page.route("**/api/ai/status", (route) => route.fulfill({
+      json: { diagramConfigured: false, imageConfigured: true, imageSource: "local" },
+    }));
     await page.route("**/api/ai/image", async (route) => {
       await route.fulfill({
         status: 200,

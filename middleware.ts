@@ -64,7 +64,7 @@ export async function middleware(req: NextRequest) {
 
   const pathname = req.nextUrl.pathname;
   const publicDeploymentTemplate =
-    req.method === "GET" && pathname === "/api/deploy/template";
+    (req.method === "GET" || req.method === "OPTIONS") && pathname === "/api/deploy/template";
   if (publicDeploymentTemplate) {
     return withSecurityHeaders(NextResponse.next());
   }

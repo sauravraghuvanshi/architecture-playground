@@ -27,6 +27,8 @@ interface Props {
   onClose: () => void;
   getCurrent: () => unknown;
   onRestore: (payload: unknown) => void;
+  initialVersions?: unknown[];
+  onChange?: (versions: Version[]) => void;
 }
 
 const STORAGE_PREFIX = "diagrammatic.versions.";
@@ -43,23 +45,33 @@ function load(scopeId: string): Version[] {
 }
 
 function save(scopeId: string, list: Version[]) {
-  try { localStorage.setItem(STORAGE_PREFIX + scopeId, JSON.stringify(list)); } catch { /* ignore — quota */ }
+  localStorage.setItem(STORAGE_PREFIX + scopeId, JSON.stringify(list));
 }
 
-export function VersionsPanel({ scopeId, open, onClose, getCurrent, onRestore }: Props) {
+function isVersion(value: unknown): value is Version {
+  return !!value && typeof value === "object" && "id" in value && typeof value.id === "string" &&
+    "label" in value && typeof value.label === "string" && "payload" in value &&
+    "createdAt" in value && typeof value.createdAt === "number";
+}
+
+export function VersionsPanel({ scopeId, open, onClose, getCurrent, onRestore, onChange, initialVersions }: Props) {
   const [versions, setVersions] = useState<Version[]>([]);
   const [label, setLabel] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!open) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setVersions(load(scopeId));
-  }, [open, scopeId]);
+    setVersions(initialVersions?.filter(isVersion) ?? load(scopeId));
+    setError(initialVersions?.some((value) => !isVersion(value)) ? "Some saved versions are invalid and cannot be displayed." : "");
+  }, [open, scopeId, initialVersions]);
 
   if (!open) return null;
 
   const snapshot = () => {
+    try {
     const payload = getCurrent();
+    if (payload === undefined) throw new Error("The canvas is still loading.");
     const v: Version = {
       id: `v_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
       label: label.trim() || `Snapshot ${new Date().toLocaleString()}`,
@@ -67,9 +79,14 @@ export function VersionsPanel({ scopeId, open, onClose, getCurrent, onRestore }:
       createdAt: Date.now(),
     };
     const list = [v, ...versions].slice(0, MAX);
+    if (!initialVersions) save(scopeId, list);
+    onChange?.(list);
     setVersions(list);
-    save(scopeId, list);
     setLabel("");
+    setError("");
+    } catch (cause) {
+      setError(cause instanceof Error ? `Snapshot could not be saved: ${cause.message}` : "Snapshot could not be saved.");
+    }
   };
 
   const restore = (v: Version) => {
@@ -79,8 +96,14 @@ export function VersionsPanel({ scopeId, open, onClose, getCurrent, onRestore }:
 
   const remove = (id: string) => {
     const list = versions.filter((v) => v.id !== id);
-    setVersions(list);
-    save(scopeId, list);
+    try {
+      if (!initialVersions) save(scopeId, list);
+      onChange?.(list);
+      setVersions(list);
+      setError("");
+    } catch {
+      setError("Snapshot could not be deleted from browser storage.");
+    }
   };
 
   return (
@@ -98,6 +121,7 @@ export function VersionsPanel({ scopeId, open, onClose, getCurrent, onRestore }:
       </header>
 
       <div className="border-b border-zinc-800 px-3 py-2">
+        {error && <p role="alert" className="mb-2 text-xs text-rose-300">{error}</p>}
         <input
           type="text"
           value={label}

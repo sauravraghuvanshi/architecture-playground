@@ -11,6 +11,7 @@
 
 const RATE = 20;          // tokens per window
 const WINDOW_MS = 60_000; // 1 minute
+const MAX_BUCKETS = 10_000;
 
 interface Bucket { tokens: number; updatedAt: number }
 const buckets = new Map<string, Bucket>();
@@ -32,6 +33,14 @@ export interface RateResult {
 export function aiRateLimit(req: Request): RateResult {
   const key = clientKey(req);
   const now = Date.now();
+  if (!buckets.has(key) && buckets.size >= MAX_BUCKETS) {
+    for (const [id, bucket] of buckets) {
+      if (now - bucket.updatedAt >= WINDOW_MS) buckets.delete(id);
+    }
+    if (buckets.size >= MAX_BUCKETS) {
+      return { ok: false, remaining: 0, retryAfterSec: 60 };
+    }
+  }
   const b = buckets.get(key) ?? { tokens: RATE, updatedAt: now };
   // Linear refill: full bucket reload over WINDOW_MS.
   const elapsed = now - b.updatedAt;

@@ -25,6 +25,8 @@ interface Props {
   scopeId: string;
   open: boolean;
   onClose: () => void;
+  initialComments?: unknown[];
+  onChange?: (comments: Comment[]) => void;
 }
 
 const STORAGE_PREFIX = "diagrammatic.comments.";
@@ -40,7 +42,7 @@ function loadComments(scopeId: string): Comment[] {
 }
 
 function saveComments(scopeId: string, list: Comment[]) {
-  try { localStorage.setItem(STORAGE_PREFIX + scopeId, JSON.stringify(list)); } catch { /* ignore */ }
+  localStorage.setItem(STORAGE_PREFIX + scopeId, JSON.stringify(list));
 }
 
 function loadAuthor(): string {
@@ -52,17 +54,25 @@ function saveAuthor(name: string) {
   try { localStorage.setItem("diagrammatic.author", name); } catch { /* ignore */ }
 }
 
-export function CommentsPanel({ scopeId, open, onClose }: Props) {
+function isComment(value: unknown): value is Comment {
+  return !!value && typeof value === "object" && "id" in value && typeof value.id === "string" &&
+    "body" in value && typeof value.body === "string" && "author" in value && typeof value.author === "string" &&
+    "createdAt" in value && typeof value.createdAt === "number";
+}
+
+export function CommentsPanel({ scopeId, open, onClose, onChange, initialComments }: Props) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [draft, setDraft] = useState("");
   const [author, setAuthor] = useState("You");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!open) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setComments(loadComments(scopeId));
+    setComments(initialComments?.filter(isComment) ?? loadComments(scopeId));
+    setError(initialComments?.some((value) => !isComment(value)) ? "Some saved comments are invalid and cannot be displayed." : "");
     setAuthor(loadAuthor());
-  }, [open, scopeId]);
+  }, [open, scopeId, initialComments]);
 
   const sorted = useMemo(() => [...comments].sort((a, b) => b.createdAt - a.createdAt), [comments]);
 
@@ -78,16 +88,28 @@ export function CommentsPanel({ scopeId, open, onClose }: Props) {
       createdAt: Date.now(),
     };
     const list = [next, ...comments];
-    setComments(list);
-    saveComments(scopeId, list);
-    saveAuthor(author);
-    setDraft("");
+    try {
+      if (!initialComments) saveComments(scopeId, list);
+      onChange?.(list);
+      setComments(list);
+      saveAuthor(author);
+      setDraft("");
+      setError("");
+    } catch {
+      setError("Comment could not be saved. Browser storage may be full.");
+    }
   };
 
   const removeComment = (id: string) => {
     const list = comments.filter((c) => c.id !== id);
-    setComments(list);
-    saveComments(scopeId, list);
+    try {
+      if (!initialComments) saveComments(scopeId, list);
+      onChange?.(list);
+      setComments(list);
+      setError("");
+    } catch {
+      setError("Comment could not be deleted from browser storage.");
+    }
   };
 
   return (
@@ -126,6 +148,7 @@ export function CommentsPanel({ scopeId, open, onClose }: Props) {
       </div>
 
       <div className="border-t border-zinc-800 px-3 py-2">
+        {error && <p role="alert" className="mb-2 text-xs text-rose-300">{error}</p>}
         <input
           type="text"
           value={author}

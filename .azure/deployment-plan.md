@@ -1,8 +1,70 @@
 # Azure Deployment Plan
 
-> **Status:** Deployed
+> **Status:** Validated
 
 Generated: 2026-08-12
+Updated: 2026-09-16 (Asia/Kolkata)
+
+## Current release: Hackathon workspace
+
+The user explicitly authorized pushing all completed changes, deploying the
+existing application, testing the live site, and updating today's Markdown log.
+This section supersedes the historical implementation recipe below.
+
+- **Recipe:** CI/CD, existing `.github/workflows/deploy.yml`, GitHub Actions plus
+  Kudu zipdeploy. No new infrastructure recipe or resource group.
+- **Release:** fast-forward `master` from the completed worktree; do not force-push.
+  Remote `master` is `445f113e2dc77542d0b9bc84991ca58bd9d414f0`, matching the local
+  baseline. The owner-scoped GitHub account has ADMIN access; all five required
+  auth/deployment secret names exist. Secret values are not inspected or logged.
+- **Target:** existing `architecture-playground` App Service in
+  `rg-architecture-playground`, existing subscription and Central India location
+  recorded below. This release does not provision customer workloads.
+- **Changes:** named IndexedDB documents, simplified navigation, genuine Foundry
+  review/deployment transport, persistent WAF baselines, guided designs, Whiteboard
+  conversion/styles, and explicit, CORS-enabled ARM-template handoff.
+- **Runtime dependency:** check the deployed Foundry project/agent names, model
+  capability, managed identity and project access. A configured flag alone is not
+  proof of successful invocation. Missing services must remain explicit blockers.
+- **Verification:** authenticated hosted browser/API checks, real configured AI
+  calls using synthetic inputs, and consented temporary template publication with
+  anonymous retrieval. Never approve customer resource creation in Azure Portal.
+- **Rollback:** deploy the prior known-good revision through the existing workflow;
+  no history rewrite, resource deletion, or silent infrastructure changes.
+- **Local preview:** leave `http://localhost:3210` running for the user.
+- **Documentation:** create `docs/development-log-2026-09-16.md`, link it from
+  README, and replace pending live results with observed evidence after deployment.
+
+### Current validation proof
+
+- [x] All validation checks pass
+  - [x] Core validation: owner-scoped GitHub auth, unchanged remote baseline,
+    required secret names, existing workflow and standalone artifact/build.
+  - [x] Application validation: relevant unit tests, lint, TypeScript and recorded
+    full local/browser verification.
+  - [x] Docker build: not applicable; this is an existing standalone zip deployment.
+  - [x] Azure template validate/What-If and new policy evaluation: not applicable;
+    no infrastructure template, SKU, region or resource configuration is deployed
+    by this application-only CI/CD release.
+  - [x] Static role boundary: Foundry calls use application identity, no customer
+    credentials or generated resource writes; missing runtime roles are checked live.
+
+The infrastructure validation recipes assume new Bicep/Terraform or container
+artifacts. This existing CI/CD release instead validates its actual executable
+pipeline and artifact; it does not invent infrastructure solely to run What-If.
+
+Before this release request, the same worktree passed 130 unit tests, strict
+TypeScript, ESLint, and a production standalone build. Eighty-one distinct
+Chromium cases passed across the full run and focused retests; three conditional
+or disabled checks were skipped. Compiled-production loopback checks passed for
+authentication, consent enforcement, anonymous template GET/OPTIONS CORS, invalid
+tokens, and offline five-pillar assessment. Run release-specific validation before
+changing the status to Validated.
+
+### Current deployment result
+
+Pending validation and release. All sections below preserve the earlier
+2026-08-12 baseline and are not evidence of this release being deployed.
 
 ---
 
@@ -179,7 +241,25 @@ subscription and region before any future direct provisioning capability.
 
 ---
 
-## 7. Security and Validation
+## 7. Validation Proof and Security
+
+### Current release proof - 2026-09-16
+
+| Command or check | Actual result |
+| --- | --- |
+| Owner-scoped `gh repo view`, branch metadata and secret-name listing | ADMIN, unprotected master at the unchanged baseline, five required secret names present |
+| `node --test scripts/test-live-csa-smoke.mjs` | 6/6 passed after correcting the review context field |
+| `npm run lint`; `npx tsc --noEmit` | Passed; focused config/smoke lint and strict types also passed |
+| Authenticated loopback `auth-gate` and `live-csa` Chromium runs | Both passed; fixed stale review-dialog selectors and used the actual browser session for capability/logout requests |
+| `npm run build` | Passed at 2026-09-16 01:03 IST; an initial EBUSY was resolved by stopping only the isolated port-3211 preflight server |
+| User preview | Port 3210 kept running throughout |
+| Static role/IaC boundary | No Bicep/Terraform deployment or RBAC changes; application identity only, no customer resource execution |
+
+Runtime Foundry existence, identity authorization, and actual model invocation
+are post-deployment checks, not established by the above build/configuration
+validation. Previously recorded 130-unit and 81-browser local evidence remains
+applicable; this release adds execution of the two previously credential-gated
+browser journeys.
 
 - Keep Azure credentials and Azure OpenAI keys server-side.
 - Treat imported diagram text as untrusted content.

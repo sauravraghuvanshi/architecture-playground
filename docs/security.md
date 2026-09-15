@@ -10,7 +10,7 @@ WAF, DDoS, key management) — those live with the deployment target.
 | Asset                   | Threats                                       | Mitigations                                |
 |-------------------------|-----------------------------------------------|--------------------------------------------|
 | User-authored diagrams  | XSS via injected node labels; data exfil       | React auto-escaping; CSP; no `dangerouslySetInnerHTML` on user data |
-| Browser localStorage    | Cross-tenant leakage on shared machines       | Per-mode + per-diagram namespacing; documented in code |
+| Browser storage        | Local data visible on shared browser profiles | Per-document isolation prevents accidental overwrite, not user-level access; use separate browser profiles for confidential work |
 | Azure OpenAI key        | Server-side credential theft                  | Keys read from env only; never echoed to client; `/api/ai/status` returns boolean only |
 | AI endpoints            | Cost-amplification / abuse                    | In-memory token-bucket rate limiter (20 req/min/IP); bounded prompts and architecture images |
 | Uploaded architecture image | Oversized payload; unsupported content; unintended retention | PNG/JPEG/WebP allowlist; 5 MiB limit in browser and API; request-scoped processing; no persistence |
@@ -45,11 +45,23 @@ Applied to:
 - `POST /api/ai/generate`
 - `POST /api/ai/image`
 - `POST /api/ai/review`
+- `POST /api/ai/describe`
+- `POST /api/ai/convert`
+- `POST /api/ai/deploy`
+- `POST /api/deploy/template`
 
 The limiter is in-process. Multi-instance deployments will let bursts through
 equal to `(rate × instance count)` — acceptable for the current single-VM
 deployment. Replace with a centralized store (Upstash Redis / SignalR /
 Cloud Memorystore) before scaling out.
+
+The in-process limiter caps the number of tracked client buckets and rejects
+new clients when capacity is exhausted rather than growing memory without
+bound. The deployment-template broker also caps outstanding handoff links.
+Image-generation request bodies are bounded before JSON parsing. AI chat calls
+have a two-minute timeout; image generation has a 270-second timeout and cancels
+upstream work when the client disconnects. Provider error bodies are not echoed
+to clients.
 
 The shared sign-in endpoint separately allows five failed attempts per IP in a
 ten-minute window. Successful sign-in clears that IP's counter.
@@ -57,7 +69,9 @@ ten-minute window. Successful sign-in clears that IP's counter.
 ## Workspace access gate
 
 When `APP_AUTH_ENABLED=true`, middleware protects every non-static page and API
-route except `/login` and the three `/api/auth/*` endpoints.
+route except `/login`, the three `/api/auth/*` endpoints, and GET/OPTIONS for
+`/api/deploy/template`. The latter exposes only explicitly published,
+short-lived bearer-token templates; POST publication remains authenticated.
 
 - Credentials are server-side environment values.
 - Username and password comparisons both execute for every attempt.
@@ -90,6 +104,13 @@ Read from environment variables only:
 `/api/ai/status` returns feature booleans and a non-secret source label so the
 client can gate diagram and image AI independently.
 
+Foundry review and deployment agents use `DefaultAzureCredential` and the
+application's Azure identity, preferably App Service managed identity. Their
+non-secret runtime settings are `AZURE_AI_PROJECT_ENDPOINT`,
+`AZURE_AI_REVIEW_AGENT_NAME`, and `AZURE_AI_DEPLOY_AGENT_NAME`. Configuration
+booleans are not connectivity or authorization checks. No customer subscription
+credentials are accepted, and these agents cannot execute tools or deploy resources.
+
 Production authentication values are stored as GitHub Actions secrets. The
 deployment workflow base64url-encodes them before creating the standalone
 runtime environment, which avoids dotenv `$` expansion and keeps raw values out
@@ -106,10 +127,62 @@ The browser validates the file before preview, and the API independently
 validates MIME type, data URL consistency, base64 shape, and decoded size.
 
 The validated image and optional customer context are sent directly in the
-authenticated Azure OpenAI review request. Diagrammatic does not write the
+authenticated Microsoft Foundry review-agent request. Diagrammatic does not write the
 image to disk, browser storage, logs, the deployment-template store, or a
 database. The review system prompt treats all text inside the image as
 untrusted evidence and explicitly refuses embedded instructions.
+
+Foundry requests specify `store:false` and do not create conversations. This is
+not a guarantee of zero provider retention: service policies, configured agent
+features, and Azure diagnostics still apply. Do not include secrets.
+
+## Azure Portal handoff
+
+Generated code and ARM templates are unverified drafts. The application validates
+bounded template structure, evidence mappings, and a restricted handoff subset;
+it is not an ARM compiler, policy evaluator, or proof of deployability. It rejects
+nested deployments, deployment scripts, extensions, credential-disclosing
+expressions, and literal values in recognized sensitive fields. These checks do
+not replace human review or guarantee that arbitrary text is free of secrets.
+
+Publication requires explicit consent. Only the reviewed ARM template is held
+in memory for 10 minutes, with a 100-link capacity bound and a random bearer
+token. Anonymous GET/OPTIONS support Azure Portal downloads with CORS and
+no-store headers. Anyone with a valid link can read the template. Do not place
+customer secrets or credentials in templates; use secure parameters entered in
+Azure Portal instead.
+
+The store is instance-local and cannot survive restarts or cross-instance
+routing. Easy Auth and private networking can also block downloads. The UI
+provides ARM download and manual Portal-upload instructions. Azure Portal
+handles subscription authentication, final review, cost approval, and creation;
+Diagrammatic never creates the resources.
+
+This request-scoped image policy is distinct from Whiteboard persistence:
+generated or user-inserted Whiteboard images are part of the user's browser-local
+draft and version snapshots. Clearing browser site data removes those drafts;
+export important work before clearing storage or changing devices.
+
+## Named diagram storage
+
+Named documents, their comments, snapshots, and Whiteboard image binaries are
+stored in IndexedDB in the current browser profile. Document and list-summary
+writes commit atomically. Revision checks reject stale saves instead of
+overwriting another tab's newer document. Original legacy drafts are not
+deleted during recovery. New/Open operations save current work before switching.
+
+There is no cross-device synchronization, user-specific encryption, or remote
+backup. The shared sign-in gate does not partition local browser data by user,
+and signing out does not erase saved work. Use separate browser profiles on
+shared machines and export backups before clearing site data.
+
+Whiteboard conversion follows the same request-scoped policy for its rendered
+PNG. The user explicitly starts analysis and separately confirms replacement
+of the architecture canvas. PNG dimensions are limited to 8,192 per side and
+16 megapixels, and request bodies are byte-bounded before JSON parsing. The
+model receives a transcription-only prompt; node IDs, topology, evidence, and
+icon identifiers are validated before the preview is accepted. Unknown icon
+identifiers produce generic nodes with warnings, never arbitrary asset URLs.
 
 ## Reporting a vulnerability
 

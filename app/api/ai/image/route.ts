@@ -39,6 +39,8 @@
  */
 import { NextResponse } from "next/server";
 import { aiRateLimit } from "@/lib/ai-rate-limit";
+import { buildImagePrompt, imageRequestSchema } from "@/lib/image-styles";
+import { readBoundedJson, RequestBodyError } from "@/lib/request-json";
 import {
   getImageAiConfig,
   getImageAiProxyBaseUrl,
@@ -54,8 +56,10 @@ const REQUEST_TIMEOUT_MS = 270_000; // 4m30s — generous upper bound for gpt-im
 function sseStream(producer: (
   send: (data: object) => void,
   fail: (message: string, status?: number) => void,
+  signal: AbortSignal,
 ) => Promise<void>): Response {
   const encoder = new TextEncoder();
+  const cancelled = new AbortController();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       let closed = false;
@@ -64,7 +68,8 @@ function sseStream(producer: (
         try {
           controller.enqueue(encoder.encode(chunk));
         } catch {
-          // controller already closed (client disconnect)
+          closed = true;
+          cancelled.abort();
         }
       };
       const heartbeat = setInterval(() => safeEnqueue(`: hb ${Date.now()}\n\n`), HEARTBEAT_MS);
@@ -73,7 +78,7 @@ function sseStream(producer: (
 
       send({ type: "started", elapsed: 0 });
       try {
-        await producer(send, fail);
+        await producer(send, fail, cancelled.signal);
       } catch (err) {
         fail(err instanceof Error ? err.message : "Unknown error");
       } finally {
@@ -81,6 +86,9 @@ function sseStream(producer: (
         closed = true;
         try { controller.close(); } catch { /* already closed */ }
       }
+    },
+    cancel() {
+      cancelled.abort();
     },
   });
   return new Response(stream, {
@@ -103,15 +111,19 @@ export async function POST(req: Request) {
     });
   }
 
-  let prompt = "";
-  let size: "1024x1024" | "1024x1536" | "1536x1024" = "1024x1024";
+  let body: unknown;
   try {
-    const body = (await req.json()) as { prompt?: string; size?: string };
-    prompt = (body.prompt || "").trim();
-    if (body.size === "1024x1536" || body.size === "1536x1024") size = body.size;
-  } catch { /* empty body */ }
-  if (!prompt) return NextResponse.json({ error: "Missing 'prompt'" }, { status: 400 });
-  if (prompt.length > 1000) return NextResponse.json({ error: "Prompt too long" }, { status: 400 });
+    body = await readBoundedJson(req, 16_000);
+  } catch (error) {
+    if (!(error instanceof RequestBodyError)) throw error;
+    return NextResponse.json({ error: error.message }, { status: error.status });
+  }
+  const parsed = imageRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+  }
+  const { size } = parsed.data;
+  const prompt = buildImagePrompt(parsed.data);
 
   const config = getImageAiConfig();
   if (!config) {
@@ -129,8 +141,8 @@ export async function POST(req: Request) {
       const upstream = await fetch(`${proxyBaseUrl}/api/ai/image`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, size }),
-        signal: req.signal,
+        body: JSON.stringify(parsed.data),
+        signal: AbortSignal.any([req.signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)]),
       });
       const headers = new Headers();
       for (const name of [
@@ -162,7 +174,7 @@ export async function POST(req: Request) {
 
   const url = `${config.endpoint}/openai/v1/images/generations`;
 
-  return sseStream(async (send, fail) => {
+  return sseStream(async (send, fail, signal) => {
     const t0 = Date.now();
     const controller = new AbortController();
     const abortTimer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -175,11 +187,10 @@ export async function POST(req: Request) {
           "api-key": config.apiKey,
         },
         body: JSON.stringify({ model: config.deployment, prompt, size, n: 1 }),
-        signal: controller.signal,
+        signal: AbortSignal.any([controller.signal, req.signal, signal]),
       });
       if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        fail(`Image API ${res.status}: ${text.slice(0, 200)}`, 502);
+        fail(`Image generation was not completed (HTTP ${res.status}). Check capacity, deployment configuration, or content policy.`, res.status);
         return;
       }
       const j = (await res.json()) as { data?: Array<{ url?: string; b64_json?: string }> };

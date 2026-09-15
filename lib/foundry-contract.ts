@@ -1,0 +1,1 @@
+export const FOUNDRY_PRIVACY_NOTICE = "The selected diagram and context are sent to your configured Microsoft Foundry project using the application's Azure identity. Responses request store:false and no conversation is created. This does not guarantee zero retention: Foundry service policies, configured agent features and Azure diagnostics still apply. Do not include secrets.";

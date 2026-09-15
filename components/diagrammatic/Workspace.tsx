@@ -13,7 +13,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import type {
   ArchitectureCanvasHandle,
   ArchPayload,
@@ -38,6 +39,11 @@ import { Inspector, deriveArchIssues } from "./shared/Inspector";
 import { StatusBar } from "./shared/StatusBar";
 import { KeyboardHints } from "./shared/KeyboardHints";
 import { promptToArchitecture } from "@/lib/prompt-to-arch";
+import { parseArchitectureDocument } from "@/lib/architecture-document";
+import { generatedArchitectureSchema } from "@/lib/ai-mode-prompts";
+import WhiteboardConvertModal from "./shared/WhiteboardConvertModal";
+import DiagramLibraryModal from "./shared/DiagramLibraryModal";
+import { useDiagramDocuments } from "./shared/useDiagramDocuments";
 import { MODE_REGISTRY } from "./shared/modeCatalog";
 import {
   FLOWCHART_EMPTY_PAYLOAD,
@@ -53,8 +59,6 @@ import type { BaseCanvasHandle } from "./shared/modeRegistry";
 import { AiPromptModal } from "./shared/AiPromptModal";
 import { CommentsPanel } from "./shared/CommentsPanel";
 import { VersionsPanel } from "./shared/VersionsPanel";
-import { CsaGuidancePanel } from "./csa/CsaGuidancePanel";
-import { ArchitectureCodeModal } from "./csa/ArchitectureCodeModal";
 import { ArchitectureReviewModal } from "./csa/ArchitectureReviewModal";
 import { AzureDeployModal } from "./csa/AzureDeployModal";
 import {
@@ -100,6 +104,7 @@ const ARCHITECTURE_EMPTY_PAYLOAD: ArchPayload = { nodes: [], edges: [] };
 interface AiStatus {
   diagramConfigured: boolean;
   imageConfigured: boolean;
+  reviewAgentConfigured: boolean;
   imageSource?: "local" | "development-proxy" | null;
 }
 
@@ -115,37 +120,6 @@ const HUB_TEMPLATE_PROMPTS: Record<string, string> = {
   "gcp-streaming-iot": "Streaming IoT analytics on GCP with Pub/Sub, Dataflow, BigQuery, and Looker",
   "multi-region-active": "Multi-region active-active on Azure with Front Door, Azure SQL HA, and Cosmos multi-write",
 };
-
-const ARCHITECTURE_TEMPLATES = [
-  {
-    id: "azure-enterprise-web",
-    name: "Azure secure web platform",
-    description: "Front Door, WAF, API Management, App Service, messaging, data, and observability",
-    prompt:
-      "Enterprise Azure web platform with Front Door and WAF, API Management, App Service, Service Bus, Azure SQL, Key Vault, and Application Insights",
-  },
-  {
-    id: "aws-event-platform",
-    name: "AWS event-driven platform",
-    description: "CloudFront, API Gateway, Lambda, EventBridge, SQS, DynamoDB, and CloudWatch",
-    prompt:
-      "Enterprise event driven platform on AWS with CloudFront, API Gateway, Lambda, EventBridge, SQS, DynamoDB, S3, and CloudWatch",
-  },
-  {
-    id: "gcp-data-ai",
-    name: "GCP data & AI platform",
-    description: "Cloud Run, Pub/Sub, Dataflow, BigQuery, Vertex AI, and operations",
-    prompt:
-      "Enterprise data and AI platform on GCP with Cloud Run, Pub Sub, Dataflow, BigQuery, Cloud Storage, Vertex AI, and Cloud Monitoring",
-  },
-  {
-    id: "multi-cloud-integration",
-    name: "Multi-cloud integration",
-    description: "Cloud-neutral edge, identity, messaging, workloads, and centralized operations",
-    prompt:
-      "Enterprise multi cloud integration platform across Azure AWS and GCP with global edge, identity, API gateway, messaging, compute, data, security, and centralized observability",
-  },
-] as const;
 
 const MODE_ICONS: Record<DiagrammaticMode, React.ComponentType<{ className?: string }>> = {
   architecture: CloudCog,
@@ -194,10 +168,12 @@ export function Workspace({
   const [aiOpen, setAiOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
-  const [csaGuidanceOpen, setCsaGuidanceOpen] = useState(false);
-  const [codeModalOpen, setCodeModalOpen] = useState(false);
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [deployModalOpen, setDeployModalOpen] = useState(false);
+  const [convertOpen, setConvertOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [documentRevision, setDocumentRevision] = useState(0);
+  const [canvasEpochs, setCanvasEpochs] = useState<Partial<Record<DiagrammaticMode, number>>>({});
   const [canvasThemes, setCanvasThemes] = useState<
     Partial<Record<DiagrammaticMode, CanvasTheme>>
   >({});
@@ -210,7 +186,61 @@ export function Workspace({
   } | null>(null);
   const [insertingWhiteboardAsset, setInsertingWhiteboardAsset] = useState<string | null>(null);
   const canvasRef = useRef<ArchitectureCanvasHandle | null>(null);
+  const [documentSaveError, setDocumentSaveError] = useState<string | null>(null);
+  const [architectureReady, setArchitectureReady] = useState(false);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const externalSeed = Boolean(initialPayload || searchParams?.get("prompt") || searchParams?.get("template") || searchParams?.get("templateHandoff"));
+  const library = useDiagramDocuments({
+    mode, revision: documentRevision, externalSeed, suspended: libraryOpen,
+    requestedId: searchParams?.get("document"),
+    capture: (targetMode) => {
+      if (targetMode === "architecture") return mode === targetMode ? canvasRef.current?.serialize() ?? archPayload : archPayload;
+      if (targetMode === mode && otherCanvasRef.current) return otherCanvasRef.current.serialize();
+      if (otherPayloads[targetMode] !== undefined) return otherPayloads[targetMode];
+      const raw = localStorage.getItem(`diagrammatic.draft.${targetMode}`);
+      return raw ? JSON.parse(raw).payload : MODE_REGISTRY[targetMode]?.defaultPayload;
+    },
+    theme: (targetMode) => canvasThemes[targetMode] ?? defaultCanvasTheme(targetMode),
+    apply: (document, activate) => {
+      if (document.mode === "architecture") setArchPayload(parseArchitectureDocument(document.payload));
+      else setOtherPayloads((previous) => ({ ...previous, [document.mode]: document.payload }));
+      setCanvasThemes((previous) => ({ ...previous, [document.mode]: document.canvasTheme }));
+      setCanvasEpochs((previous) => ({ ...previous, [document.mode]: (previous[document.mode] ?? 0) + 1 }));
+      setSelection(null);
+      setCommentsOpen(false);
+      setVersionsOpen(false);
+      setDocumentRevision((value) => value + 1);
+      if (activate) setMode(document.mode);
+    },
+    onError: (message) => {
+      setDocumentSaveError(message);
+      setExportNotice({ kind: "error", message });
+    },
+  });
+  const currentDocument = library.documents[mode];
+  useEffect(() => {
+    if (!library.ready) return;
+    const url = new URL(window.location.href);
+    if (currentDocument) {
+      for (const key of ["prompt", "template", "templateHandoff"]) url.searchParams.delete(key);
+      url.searchParams.set("document", currentDocument.id);
+    } else {
+      url.searchParams.delete("document");
+    }
+    url.searchParams.set("mode", mode);
+    if (url.toString() !== window.location.href) window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [currentDocument, library.ready, mode]);
+
+  const libraryFromUrlApplied = useRef(false);
+  useEffect(() => {
+    if (!library.ready || libraryFromUrlApplied.current) return;
+    libraryFromUrlApplied.current = true;
+    if (searchParams?.get("library") === "1") {
+      requestAnimationFrame(() => setLibraryOpen(true));
+    }
+  }, [library.ready, searchParams]);
 
   const issues = useMemo(() => deriveArchIssues(archPayload), [archPayload]);
   const canvasTheme = canvasThemes[mode] ?? defaultCanvasTheme(mode);
@@ -242,6 +272,7 @@ export function Workspace({
       [mode]: active === "light" ? "dark" : "light",
     } satisfies Partial<Record<DiagrammaticMode, CanvasTheme>>;
     setCanvasThemes(next);
+    setDocumentRevision((value) => value + 1);
     try {
       localStorage.setItem(CANVAS_THEME_KEY, JSON.stringify(next));
     } catch {
@@ -308,10 +339,9 @@ export function Workspace({
       promptApplied.current = true;
       requestAnimationFrame(() => {
         setArchPayload(generated);
-        requestAnimationFrame(() => canvasRef.current?.setAllEdgeStyle(edgeStyle));
       });
     }
-  }, [searchParams, icons, edgeStyle]);
+  }, [searchParams, icons]);
 
   // Templates Gallery handoff: parameterized template resolved into a
   // playground-format graph stowed in localStorage under a unique handoff key
@@ -335,7 +365,6 @@ export function Workspace({
         promptApplied.current = true; // suppress the prompt path on the same load
         requestAnimationFrame(() => {
           setArchPayload(arch);
-          requestAnimationFrame(() => canvasRef.current?.setAllEdgeStyle(edgeStyle));
         });
         if (storeKey) {
           localStorage.removeItem(storeKey);
@@ -351,74 +380,82 @@ export function Workspace({
 
   // Mark unsaved when canvas state changes.
   const handleArchChange = useCallback((next: ArchPayload) => {
+    if (!library.ready) return;
     setArchPayload(next);
     setSaved(false);
-  }, []);
+    setDocumentRevision((value) => value + 1);
+  }, [library.ready]);
+
+  const saveCurrentDocument = useCallback(async (name?: string) => {
+    try {
+      await library.save(name);
+      setDocumentSaveError(null);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "The diagram could not be saved.";
+      setDocumentSaveError(message);
+      setExportNotice({ kind: "error", message });
+      throw cause;
+    }
+  }, [library]);
+
+  const switchMode = useCallback(async (targetMode: DiagrammaticMode) => {
+    if (targetMode === mode) return;
+    try {
+      await saveCurrentDocument();
+      setMode(targetMode);
+    } catch {
+      // The save error is already shown; retain the outgoing canvas for recovery.
+    }
+  }, [mode, saveCurrentDocument]);
 
   const handleSave = useCallback(async () => {
-    const activePayload =
-      mode === "architecture"
-        ? archPayload
-        : otherCanvasRef.current?.serialize() ?? otherPayloads[mode];
-    if (!initialDiagramId) {
-      // R1: anonymous draft mode — just stash to localStorage so a refresh
-      // doesn't lose work. Persisted save lands in R3 with the API wiring.
-      try {
-        localStorage.setItem(
-          "diagrammatic.draft",
-          JSON.stringify({ mode, payload: activePayload, savedAt: Date.now() })
-        );
-        setSaved(true);
-      } catch {
-        /* localStorage may be disabled — fail silently */
-      }
+    if (!currentDocument) {
+      setLibraryOpen(true);
       return;
     }
     setSaving(true);
     try {
-      const res = await fetch(`/api/diagrams/${initialDiagramId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          graphJson: JSON.stringify({ mode, payload: activePayload, version: 1 }),
-        }),
-      });
-      if (res.ok) setSaved(true);
+      await saveCurrentDocument();
+      setSaved(true);
+    } catch {
+      setSaved(false);
     } finally {
       setSaving(false);
     }
-  }, [initialDiagramId, mode, archPayload, otherPayloads]);
+  }, [currentDocument, saveCurrentDocument]);
 
-  // Rehydrate from a localStorage draft on first mount when no initial payload.
-  // CRITICAL: skip when the URL carries a prompt / template / handoff — in
-  // that case the user explicitly asked to open a different diagram and the
-  // draft would clobber it.
-  useEffect(() => {
-    if (initialPayload || initialDiagramId) return;
-    if (
-      searchParams?.get("prompt") ||
-      searchParams?.get("template") ||
-      searchParams?.get("templateHandoff")
-    ) {
-      return;
-    }
+  const handleOpenLibrary = useCallback(async () => {
     try {
-      const raw = localStorage.getItem("diagrammatic.draft");
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (parsed?.mode === "architecture" && parsed?.payload?.nodes) {
-        requestAnimationFrame(() => setArchPayload(parsed.payload as ArchPayload));
-      }
+      await saveCurrentDocument();
+      setLibraryOpen(true);
     } catch {
-      /* ignore */
+      // Keep the current document visible when saving fails.
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [saveCurrentDocument]);
+
+  const goHome = useCallback(async () => {
+    try {
+      await saveCurrentDocument();
+      router.push("/");
+    } catch {
+      // A failed save leaves the canvas open with recovery actions.
+    }
+  }, [router, saveCurrentDocument]);
+
+  useEffect(() => {
+    if (!currentDocument || library.saved) return;
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [currentDocument, library.saved]);
 
   // Architecture mode now autosaves like every other mode. The debounce keeps
   // drag operations fluid while ensuring a refresh does not discard work.
   useEffect(() => {
-    if (mode !== "architecture" || initialDiagramId) return;
+    if (!library.ready || currentDocument || mode !== "architecture" || initialDiagramId) return;
     const timer = window.setTimeout(() => {
       try {
         localStorage.setItem(
@@ -428,16 +465,21 @@ export function Workspace({
         setSaved(true);
       } catch {
         setSaved(false);
+        setExportNotice({ kind: "error", message: "Autosave failed. Browser storage may be full. Export your diagram to keep it." });
       }
     }, 650);
     return () => window.clearTimeout(timer);
-  }, [archPayload, initialDiagramId, mode]);
+  }, [archPayload, initialDiagramId, mode, library.ready, currentDocument]);
 
   // ?mode=<id> on first load — set the mode if URL specifies one. One-shot;
   // subsequent tab clicks own the mode via setMode.
   const modeFromUrlApplied = useRef(false);
   useEffect(() => {
     if (modeFromUrlApplied.current) return;
+    if (searchParams?.get("document")) {
+      modeFromUrlApplied.current = true;
+      return;
+    }
     const m = searchParams?.get("mode");
     if (m && ["architecture","flowchart","mindmap","sequence","er","uml","c4","kanban","whiteboard"].includes(m)) {
       modeFromUrlApplied.current = true;
@@ -480,19 +522,21 @@ export function Workspace({
           diagramConfigured?: boolean;
           imageConfigured?: boolean;
           imageSource?: AiStatus["imageSource"];
+          reviewAgentConfigured?: boolean;
         }) => {
           if (!cancelled) {
             setAiStatus({
               diagramConfigured: result.diagramConfigured ?? !!result.configured,
               imageConfigured: result.imageConfigured ?? !!result.configured,
               imageSource: result.imageSource,
+              reviewAgentConfigured: result.reviewAgentConfigured === true,
             });
           }
         }
       )
       .catch(() => {
         if (!cancelled) {
-          setAiStatus({ diagramConfigured: false, imageConfigured: false });
+          setAiStatus({ diagramConfigured: false, imageConfigured: false, reviewAgentConfigured: false });
         }
       });
     return () => { cancelled = true; };
@@ -506,9 +550,9 @@ export function Workspace({
       setExportNotice({ kind: "working", message: `Preparing ${label} export…` });
       try {
         if (mode === "architecture") {
-          await exportCanvas(format, canvasRef.current);
+          await exportCanvas(format, canvasRef.current, canvasTheme);
         } else {
-          await exportOther(format, mode, otherCanvasRef.current, otherPayloads[mode]);
+          await exportOther(format, mode, otherCanvasRef.current, canvasTheme);
         }
         setExportNotice({ kind: "success", message: `${label} export downloaded` });
       } catch (error) {
@@ -520,7 +564,7 @@ export function Workspace({
       }
       window.setTimeout(() => setExportNotice(null), 3200);
     },
-    [mode, otherPayloads]
+    [mode, canvasTheme]
   );
 
   const updateSelection = useCallback(
@@ -530,86 +574,39 @@ export function Workspace({
     []
   );
 
-  const applyArchitectureTemplate = useCallback(
-    (templateId: string) => {
-      const template = ARCHITECTURE_TEMPLATES.find((candidate) => candidate.id === templateId);
-      if (!template) return;
-      const generated = promptToArchitecture(template.prompt, icons, { animateEdges: true });
-      if (!generated?.nodes.length) return;
-      setArchPayload(generated);
-      canvasRef.current?.hydrate(generated);
-      setSaved(false);
-      requestAnimationFrame(() => canvasRef.current?.setAllEdgeStyle(edgeStyle));
-    },
-    [edgeStyle, icons]
-  );
-
-  const applyArchitectureCenterPattern = useCallback(
-    (prompt: string) => {
-      const generated = promptToArchitecture(prompt, icons, { animateEdges: true });
-      if (!generated?.nodes.length) return;
-      setArchPayload(generated);
-      canvasRef.current?.hydrate(generated);
-      setSelection(null);
-      setSaved(false);
-      requestAnimationFrame(() => {
-        canvasRef.current?.setAllEdgeStyle(edgeStyle);
-        canvasRef.current?.fit();
-      });
-    },
-    [edgeStyle, icons]
-  );
-
-  const handleBlankCanvas = useCallback(() => {
+  const handleBlankCanvas = useCallback(async (targetMode: DiagrammaticMode = mode, name = `Untitled ${MODE_META[targetMode].label}`) => {
     const empty =
-      mode === "architecture" ? ARCHITECTURE_EMPTY_PAYLOAD : EMPTY_PAYLOAD_FOR[mode];
-    if (!empty) return;
-    const current =
-      mode === "architecture"
-        ? archPayload
-        : otherCanvasRef.current?.serialize() ?? otherPayloads[mode];
-    const hasContent = JSON.stringify(current) !== JSON.stringify(empty);
-    if (
-      hasContent &&
-      !window.confirm(`Start a blank ${MODE_META[mode].label} canvas? Your current canvas will be replaced.`)
-    ) {
-      return;
-    }
+      targetMode === "architecture" ? ARCHITECTURE_EMPTY_PAYLOAD : EMPTY_PAYLOAD_FOR[targetMode];
+    if (!empty) throw new Error("This mode does not support a blank diagram.");
+    await library.create(targetMode, name, structuredClone(empty));
+  }, [library, mode]);
 
-    const blank = structuredClone(empty);
-    if (mode === "architecture") {
-      setArchPayload(blank as ArchPayload);
-      canvasRef.current?.hydrate(blank as ArchPayload);
-      setSelection(null);
-    } else {
-      setOtherPayloads((previous) => ({ ...previous, [mode]: blank }));
-      otherCanvasRef.current?.hydrate(blank);
-      try {
-        localStorage.setItem(
-          `diagrammatic.draft.${mode}`,
-          JSON.stringify({ payload: blank, savedAt: Date.now() })
-        );
-      } catch {
-        /* localStorage may be unavailable */
-      }
-    }
-    setSaved(false);
-  }, [archPayload, mode, otherPayloads]);
+  const createBlank = useCallback((targetMode: DiagrammaticMode = mode) => {
+    void handleBlankCanvas(targetMode).then(() => setDocumentSaveError(null)).catch((cause) => {
+      const message = cause instanceof Error ? cause.message : "A new diagram could not be created. Your current diagram is unchanged.";
+      setDocumentSaveError(message);
+      setExportNotice({ kind: "error", message });
+    });
+  }, [handleBlankCanvas, mode]);
 
   const handleOtherChange = useCallback(
     (payload: unknown) => {
+      if (!library.ready) return;
       setOtherPayloads((previous) => ({ ...previous, [mode]: payload }));
       setSaved(false);
+      setDocumentRevision((value) => value + 1);
+      if (currentDocument) return;
       try {
         localStorage.setItem(
           `diagrammatic.draft.${mode}`,
           JSON.stringify({ payload, savedAt: Date.now() })
         );
+        setSaved(true);
       } catch {
-        /* localStorage may be unavailable */
+        setExportNotice({ kind: "error", message: "Autosave failed. Browser storage may be full. Export your diagram to keep it." });
       }
     },
-    [mode]
+    [mode, library.ready, currentDocument]
   );
 
   const handleOtherMount = useCallback((handle: BaseCanvasHandle | null) => {
@@ -642,45 +639,64 @@ export function Workspace({
     });
   }, []);
 
-  // Re-apply the current edge style after an external hydration (e.g. a
-  // template handoff). Triggered explicitly by the handoff/prompt paths above
-  // — NOT on every archPayload change, which previously caused a render storm
-  // on each node-add.
-  // (intentionally blank — replaced by explicit calls in the prompt/handoff effects)
-
   // Route command-palette actions back to canvas / state.
   const handleCommand = useCallback(
     (id: string) => {
+      const activeCanvas = mode === "architecture" ? canvasRef.current : otherCanvasRef.current;
+      const commandModes: Record<string, DiagrammaticMode> = {
+        "new-arch": "architecture", "mode-arch": "architecture",
+        "new-flow": "flowchart", "mode-flow": "flowchart",
+        "new-mind": "mindmap", "new-seq": "sequence", "new-er": "er",
+        "new-uml": "uml", "new-wb": "whiteboard", "new-kanban": "kanban", "new-c4": "c4",
+      };
+      if (commandModes[id]) {
+        if (id.startsWith("new-")) createBlank(commandModes[id]);
+        else void switchMode(commandModes[id]);
+        return;
+      }
+      if (id.startsWith("export-")) { void handleExport(id.slice(7)); return; }
       switch (id) {
         case "save":
           handleSave();
           break;
+        case "my-diagrams":
+          void handleOpenLibrary();
+          break;
         case "fit":
-          canvasRef.current?.fit();
+          activeCanvas?.fit();
           break;
         case "undo":
-          canvasRef.current?.undo();
+          activeCanvas?.undo();
           break;
         case "redo":
-          canvasRef.current?.redo();
+          activeCanvas?.redo();
           break;
         case "delete":
-          canvasRef.current?.deleteSelection();
+          activeCanvas?.deleteSelection();
           break;
         case "shortcuts":
           setHintsOpen(true);
           break;
-        case "mode-arch":
-          setMode("architecture");
+        case "ai-generate":
+          setAiOpen(true);
+          break;
+        case "ai-explain":
+        case "ai-validate":
+          if (mode === "architecture") setReviewModalOpen(true);
+          else setExportNotice({ kind: "error", message: "Architecture review is available in Cloud Architecture mode." });
+          break;
+        default:
+          setExportNotice({ kind: "error", message: "This action is not available. Use the toolbar to export or manage your diagram." });
           break;
       }
     },
-    [handleSave]
+    [handleSave, handleExport, handleOpenLibrary, createBlank, switchMode, mode]
   );
 
   // Global keyboard shortcuts beyond ⌘K (handled inside CommandPalette).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (!library.ready || library.busy || (mode === "architecture" && !architectureReady)) return;
       const meta = e.metaKey || e.ctrlKey;
       const target = e.target as HTMLElement | null;
       const inField =
@@ -688,31 +704,56 @@ export function Workspace({
         (target.tagName === "INPUT" ||
           target.tagName === "TEXTAREA" ||
           target.isContentEditable);
+      const activeCanvas = mode === "architecture" ? canvasRef.current : otherCanvasRef.current;
       if (e.key === "?" && !inField) {
         e.preventDefault();
         setHintsOpen((v) => !v);
       } else if (meta && e.key.toLowerCase() === "s") {
         e.preventDefault();
         handleSave();
-      } else if (meta && e.key === "0") {
+      } else if (meta && e.key === "0" && !inField) {
         e.preventDefault();
-        canvasRef.current?.fit();
-      } else if (meta && e.key.toLowerCase() === "z" && !e.shiftKey) {
+        activeCanvas?.fit();
+      } else if (meta && e.key.toLowerCase() === "z" && !e.shiftKey && !inField && mode !== "whiteboard") {
         e.preventDefault();
-        canvasRef.current?.undo();
-      } else if (meta && (e.key === "Z" || (e.key.toLowerCase() === "z" && e.shiftKey))) {
+        activeCanvas?.undo();
+      } else if (meta && !inField && mode !== "whiteboard" && (e.key.toLowerCase() === "y" || (e.key.toLowerCase() === "z" && e.shiftKey))) {
         e.preventDefault();
-        canvasRef.current?.redo();
+        activeCanvas?.redo();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [handleSave]);
+  }, [handleSave, mode, library.ready, library.busy, architectureReady]);
 
+  const workspaceLoading = !library.ready || library.busy || (mode === "architecture" && !architectureReady);
   return (
-    <div className="flex h-dvh min-w-0 flex-col overflow-hidden bg-[#07101e] text-slate-100">
+    <>
+    {workspaceLoading && <p role="status" className="sr-only">Loading saved diagram and canvas.</p>}
+    <div inert={workspaceLoading} aria-busy={workspaceLoading} className="flex h-dvh min-w-0 flex-col overflow-hidden bg-[#07101e] text-slate-100">
+      <input ref={importInputRef} type="file" accept=".json,application/json" className="hidden"
+        aria-label="Architecture JSON file"
+        onChange={async (event) => {
+          const file = event.target.files?.[0];
+          event.target.value = "";
+          if (!file) return;
+          try {
+            if (file.size > 5 * 1024 * 1024) throw new Error("Architecture JSON must be 5 MiB or smaller.");
+            const payload = parseArchitectureDocument(JSON.parse(await file.text()));
+            if (archPayload.nodes.length && !window.confirm("Replace the current architecture with this imported diagram?")) return;
+            setArchPayload(payload);
+            canvasRef.current?.hydrate(payload);
+            setSelection(null);
+            setSaved(false);
+            setExportNotice({ kind: "success", message: `Imported ${payload.nodes.length} nodes and ${payload.edges.length} connections.` });
+          } catch (error) {
+            setExportNotice({ kind: "error", message: error instanceof Error ? `Import failed: ${error.message}` : "Import failed." });
+          }
+        }} />
       <Toolbar
-        title={meta.label}
+        title={currentDocument ? `${currentDocument.name} / ${meta.label}` : meta.label}
+        onOpenLibrary={() => void handleOpenLibrary()}
+        onGoHome={() => void goHome()}
         onFit={() => (mode === "architecture" ? canvasRef.current?.fit() : otherCanvasRef.current?.fit())}
         onUndo={() => (mode === "architecture" ? canvasRef.current?.undo() : otherCanvasRef.current?.undo())}
         onRedo={() => (mode === "architecture" ? canvasRef.current?.redo() : otherCanvasRef.current?.redo())}
@@ -728,46 +769,7 @@ export function Workspace({
         extraExports={mode !== "architecture" ? MODE_REGISTRY[mode]?.capabilities.textExports : undefined}
         hideRasterExports={mode === "kanban"}
         hideGifExport={mode !== "architecture" && mode !== "whiteboard"}
-        templates={
-          mode === "architecture"
-            ? [...ARCHITECTURE_TEMPLATES]
-            : MODE_REGISTRY[mode]?.templates.map((t) => ({
-                id: t.id,
-                name: t.name,
-                description: t.description,
-              }))
-        }
-        onApplyTemplate={(id) => {
-          if (mode === "architecture") {
-            applyArchitectureTemplate(id);
-            return;
-          }
-          const tpl = MODE_REGISTRY[mode]?.templates.find((t) => t.id === id);
-          if (!tpl) return;
-          setOtherPayloads((prev) => ({ ...prev, [mode]: tpl.payload }));
-          otherCanvasRef.current?.hydrate(tpl.payload);
-          setSaved(false);
-          try {
-            localStorage.setItem(
-              `diagrammatic.draft.${mode}`,
-              JSON.stringify({ payload: tpl.payload, savedAt: Date.now() })
-            );
-          } catch {
-            /* localStorage may be unavailable */
-          }
-        }}
         onAiAssist={() => setAiOpen(true)}
-        onToggleCsaGuidance={
-          mode === "architecture"
-            ? () => {
-                setCsaGuidanceOpen((value) => !value);
-                setCommentsOpen(false);
-                setVersionsOpen(false);
-              }
-            : undefined
-        }
-        csaGuidanceOpen={csaGuidanceOpen}
-        onGenerateCode={mode === "architecture" ? () => setCodeModalOpen(true) : undefined}
         onReviewArchitecture={
           mode === "architecture" ? () => setReviewModalOpen(true) : undefined
         }
@@ -786,7 +788,9 @@ export function Workspace({
               }
             : undefined
         }
-        onBlankCanvas={handleBlankCanvas}
+        onBlankCanvas={() => createBlank()}
+        onImportArchitecture={mode === "architecture" ? () => importInputRef.current?.click() : undefined}
+        onConvertWhiteboard={mode === "whiteboard" ? () => setConvertOpen(true) : undefined}
         aiDisabledReason={
           aiStatus &&
           !(mode === "whiteboard"
@@ -799,16 +803,14 @@ export function Workspace({
         }
         onToggleComments={() => {
           setCommentsOpen((v) => !v);
-          setCsaGuidanceOpen(false);
         }}
         commentsOpen={commentsOpen}
         onToggleVersions={() => {
           setVersionsOpen((v) => !v);
-          setCsaGuidanceOpen(false);
         }}
         versionsOpen={versionsOpen}
-        saving={saving}
-        saved={saved}
+        saving={saving || library.busy}
+        saved={currentDocument ? library.saved : saved}
       />
 
       {/* Mode tab strip */}
@@ -828,7 +830,7 @@ export function Workspace({
               role="tab"
               aria-selected={active}
               aria-label={meta.label}
-              onClick={() => setMode(m)}
+              onClick={() => void switchMode(m)}
               title={meta.tagline}
               className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition ${
                 active
@@ -858,7 +860,9 @@ export function Workspace({
           {mode === "architecture" ? (
             <>
               <ArchitectureCanvas
+                key={`architecture:${canvasEpochs.architecture ?? 0}`}
                 ref={canvasRef}
+                onReadyChange={setArchitectureReady}
                 value={archPayload}
                 onChange={handleArchChange}
                 onPlayingChange={setPlaying}
@@ -885,22 +889,9 @@ export function Workspace({
                         </p>
                       </div>
                     </div>
-                    <div className="mt-6 grid gap-2 sm:grid-cols-2">
-                      {ARCHITECTURE_TEMPLATES.slice(0, 4).map((template) => (
-                        <button
-                          key={template.id}
-                          type="button"
-                          onClick={() => applyArchitectureTemplate(template.id)}
-                          className="group rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-left transition hover:-translate-y-0.5 hover:border-sky-300 hover:bg-sky-50"
-                        >
-                          <span className="text-xs font-semibold text-slate-800 group-hover:text-sky-800">
-                            {template.name}
-                          </span>
-                          <span className="mt-1 line-clamp-2 block text-[10px] leading-relaxed text-slate-500">
-                            {template.description}
-                          </span>
-                        </button>
-                      ))}
+                    <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                      <Link href="/templates" className="font-semibold text-sky-700 hover:underline">Browse starting designs</Link>
+                      <p className="mt-1">The gallery contains reusable blueprints. Once you build your diagram, use Review my architecture for personalized findings.</p>
                     </div>
                     <div className="mt-5 flex items-center gap-3 border-t border-slate-100 pt-4 text-[10px] text-slate-400">
                       <span className="rounded-md bg-slate-100 px-2 py-1 font-mono text-slate-600">Drag → connect</span>
@@ -912,6 +903,7 @@ export function Workspace({
             </>
           ) : (
             <ModeCanvasFor
+              key={`${mode}:${canvasEpochs[mode] ?? 0}`}
               mode={mode}
               value={otherPayloads[mode]}
               onMount={handleOtherMount}
@@ -962,42 +954,41 @@ export function Workspace({
           />
         )}
         <CommentsPanel
-          scopeId={`${mode}:${initialDiagramId ?? "draft"}`}
+          key={`comments:${mode}:${currentDocument?.id ?? "draft"}`}
+          scopeId={`${mode}:${currentDocument?.id ?? "draft"}`}
+          initialComments={currentDocument?.comments}
+          onChange={(comments) => { library.annotate({ comments }); setDocumentRevision((value) => value + 1); }}
           open={commentsOpen}
           onClose={() => setCommentsOpen(false)}
         />
         <VersionsPanel
-          scopeId={`${mode}:${initialDiagramId ?? "draft"}`}
+          key={`versions:${mode}:${currentDocument?.id ?? "draft"}`}
+          scopeId={`${mode}:${currentDocument?.id ?? "draft"}`}
+          initialVersions={currentDocument?.versions}
+          onChange={(versions) => { library.annotate({ versions }); setDocumentRevision((value) => value + 1); }}
           open={versionsOpen}
           onClose={() => setVersionsOpen(false)}
-          getCurrent={() => (mode === "architecture" ? archPayload : otherPayloads[mode])}
+          getCurrent={() => (mode === "architecture" ? canvasRef.current?.serialize() ?? archPayload : otherCanvasRef.current?.serialize() ?? otherPayloads[mode])}
           onRestore={(payload) => {
             if (mode === "architecture") {
               setArchPayload(payload as ArchPayload);
-              requestAnimationFrame(() => canvasRef.current?.setAllEdgeStyle(edgeStyle));
+              canvasRef.current?.hydrate(payload as ArchPayload);
             } else {
               setOtherPayloads((prev) => ({ ...prev, [mode]: payload }));
               otherCanvasRef.current?.hydrate(payload);
             }
             setSaved(false);
+            setDocumentRevision((value) => value + 1);
           }}
         />
-        {mode === "architecture" && (
-          <CsaGuidancePanel
-            open={csaGuidanceOpen}
-            onClose={() => setCsaGuidanceOpen(false)}
-            onApplyPattern={applyArchitectureCenterPattern}
-          />
-        )}
       </div>
 
       <StatusBar
-        nodeCount={archPayload.nodes?.filter((node) => node.kind !== "group").length ?? 0}
-        edgeCount={archPayload.edges?.length ?? 0}
-        zoom={100}
-        saved={saved}
-        saving={saving}
-        issuesCount={issues.length}
+        nodeCount={mode === "architecture" ? archPayload.nodes?.filter((node) => node.kind !== "group").length ?? 0 : undefined}
+        edgeCount={mode === "architecture" ? archPayload.edges?.length ?? 0 : undefined}
+        saved={currentDocument ? library.saved : saved}
+        saving={saving || library.busy}
+        issuesCount={mode === "architecture" ? issues.length : undefined}
       />
 
       {exportNotice && (
@@ -1012,33 +1003,54 @@ export function Workspace({
           }`}
         >
           {exportNotice.message}
+          {documentSaveError && currentDocument && (
+            <button type="button" className="ml-3 rounded border border-current px-2 py-1 underline"
+              onClick={() => {
+                void library.saveCopy(`${currentDocument.name} (recovery copy)`).then(() => {
+                  setDocumentSaveError(null);
+                  setExportNotice({ kind: "success", message: "Saved your current work as a separate document. The original was not overwritten." });
+                }).catch((cause) => setExportNotice({
+                  kind: "error", message: cause instanceof Error ? cause.message : "The recovery copy could not be saved. Export the canvas to keep your work.",
+                }));
+              }}>Save recovery copy</button>
+          )}
         </div>
       )}
 
       <CommandPalette open={cmdOpen} onOpenChange={setCmdOpen} onAction={handleCommand} />
+      <DiagramLibraryModal
+        open={libraryOpen && library.ready}
+        onClose={() => setLibraryOpen(false)}
+        currentMode={mode}
+        currentName={currentDocument?.name ?? ""}
+        currentDocumentId={currentDocument?.id}
+        onSave={saveCurrentDocument}
+        onNew={handleBlankCanvas}
+        onOpen={library.open}
+        onRenamed={library.renamed}
+        onDeleted={(id) => {
+          const removed = Object.values(library.documents).find((document) => document.id === id);
+          if (removed) {
+            const blank = removed.mode === "architecture" ? ARCHITECTURE_EMPTY_PAYLOAD : EMPTY_PAYLOAD_FOR[removed.mode];
+            if (removed.mode === "architecture") setArchPayload(structuredClone(ARCHITECTURE_EMPTY_PAYLOAD));
+            else setOtherPayloads((previous) => ({ ...previous, [removed.mode]: structuredClone(blank) }));
+            localStorage.removeItem(removed.mode === "architecture" ? "diagrammatic.draft" : `diagrammatic.draft.${removed.mode}`);
+            setCanvasEpochs((previous) => ({ ...previous, [removed.mode]: (previous[removed.mode] ?? 0) + 1 }));
+          }
+          library.deleted(id);
+        }}
+      />
       <KeyboardHints open={hintsOpen} onClose={() => setHintsOpen(false)} />
       <AiPromptModal
         mode={mode}
         open={aiOpen}
         onClose={() => setAiOpen(false)}
-        onResult={(graph) => {
+        onResult={async (graph) => {
           if (mode === "architecture") {
-            // Architecture API returns a PlaygroundGraph shape; convert.
-            try {
-              const arch = playgroundGraphToArchPayload(graph as PlaygroundLikeGraph, icons);
-              if (arch.nodes.length) {
-                setArchPayload(arch);
-                requestAnimationFrame(() => canvasRef.current?.setAllEdgeStyle(edgeStyle));
-              }
-            } catch {
-              /* ignore malformed graph — modal will not open if API errored */
-            }
+            const arch = parseArchitectureDocument(playgroundGraphToArchPayload(generatedArchitectureSchema.parse(graph), icons));
+            await library.create("architecture", "AI design proposal", arch);
           } else {
-            setOtherPayloads((prev) => ({ ...prev, [mode]: graph }));
-            otherCanvasRef.current?.hydrate(graph);
-            try {
-              localStorage.setItem(`diagrammatic.draft.${mode}`, JSON.stringify({ payload: graph, savedAt: Date.now() }));
-            } catch { /* ignore */ }
+            await library.create(mode, `AI ${meta.label}`, graph);
           }
           setSaved(false);
         }}
@@ -1053,15 +1065,11 @@ export function Workspace({
           }
         }}
       />
-      <ArchitectureCodeModal
-        open={codeModalOpen}
-        payload={archPayload}
-        onClose={() => setCodeModalOpen(false)}
-      />
       <ArchitectureReviewModal
+        key={library.documents.architecture?.id ?? "architecture-draft"}
         open={reviewModalOpen}
         payload={archPayload}
-        aiConfigured={Boolean(aiStatus?.diagramConfigured)}
+        reviewAgentConfigured={Boolean(aiStatus?.reviewAgentConfigured)}
         onClose={() => setReviewModalOpen(false)}
       />
       <AzureDeployModal
@@ -1069,7 +1077,19 @@ export function Workspace({
         payload={archPayload}
         onClose={() => setDeployModalOpen(false)}
       />
+      <WhiteboardConvertModal
+        open={convertOpen && mode === "whiteboard"}
+        onClose={() => setConvertOpen(false)}
+        hasExistingArchitecture={archPayload.nodes.length > 0}
+        getImage={async () => {
+          const blob = await otherCanvasRef.current?.exportBlob?.("png");
+          if (!blob) throw new Error("Whiteboard is not ready to export.");
+          return blob;
+        }}
+        onResult={(payload) => library.create("architecture", "Converted Whiteboard", payload)}
+      />
     </div>
+    </>
   );
 }
 
@@ -1167,7 +1187,7 @@ interface PlaygroundLikeGraph {
     id: string;
     source: string;
     target: string;
-    data?: { label?: string; protocol?: string; animated?: boolean; step?: number };
+    data?: { label?: string; protocol?: string; animated?: boolean; step?: number; lineStyle?: "solid" | "dashed" };
   }>;
 }
 
@@ -1263,7 +1283,7 @@ function playgroundGraphToArchPayload(
     source: e.source,
     target: e.target,
     label: e.data?.label ?? e.data?.protocol,
-    style: e.data?.animated ? "flow" : "solid",
+    style: e.data?.lineStyle === "dashed" ? "dashed" : e.data?.animated ? "flow" : "solid",
     step: e.data?.step,
   }));
 
@@ -1352,7 +1372,8 @@ function resolveTemplateIcon(
 
 async function exportCanvas(
   format: ExportFormat,
-  handle: ArchitectureCanvasHandle | null
+  handle: ArchitectureCanvasHandle | null,
+  canvasTheme: CanvasTheme
 ) {
   if (!handle) throw new Error("Architecture canvas is not ready");
   const filename = `cloud-architecture-${exportTimestamp()}`;
@@ -1373,7 +1394,7 @@ async function exportCanvas(
   const layout = createExportLayout(bounds, format === "gif" ? 1280 : 2400, format === "gif" ? 900 : 1800);
   const commonOptions = {
     cacheBust: true,
-    backgroundColor: "#f8fafc",
+    backgroundColor: canvasTheme === "light" ? "#f8fafc" : "#05080d",
     width: layout.width,
     height: layout.height,
     style: {
@@ -1476,7 +1497,7 @@ async function exportSequenceGif(
       pixelRatio: 1,
     });
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    if (!ctx) throw new Error("Unable to create the GIF image renderer.");
     const data = ctx.getImageData(0, 0, outW, outH).data;
     if (!palette) palette = quantize(data, 256);
     const index = applyPalette(data, palette);
@@ -1563,16 +1584,14 @@ async function exportOther(
   format: string,
   mode: DiagrammaticMode,
   handle: BaseCanvasHandle | null,
-  payload: unknown
+  canvasTheme: CanvasTheme
 ) {
-  if (!handle) return;
+  if (!handle) throw new Error("Canvas is not ready.");
   const stamp = Date.now();
   // Native blob export (used by Whiteboard's Excalidraw exporter).
   if (handle.exportBlob) {
-    try {
-      const native = await handle.exportBlob(format);
-      if (native) { triggerDownload(native, `${mode}-${stamp}.${format}`); return; }
-    } catch (err) { console.warn("exportBlob failed:", err); }
+    const native = await handle.exportBlob(format);
+    if (native) { triggerDownload(native, `${mode}-${stamp}.${format}`); return; }
   }
   if (format === "json") {
     const data = handle.serialize();
@@ -1595,23 +1614,22 @@ async function exportOther(
     (document.querySelector(".excalidraw") as HTMLElement | null) ??
     (document.querySelector("main") as HTMLElement | null);
   if (!target) {
-    void payload; // unused — payload may be useful for future text exporters
-    return;
+    throw new Error("Unable to locate the diagram export surface.");
   }
   try {
     const { toPng, toSvg } = await import("html-to-image");
-    if (format === "png" || format === "gif") {
-      const dataUrl = await toPng(target, { cacheBust: true, backgroundColor: "#0a0a0b", pixelRatio: 2 });
+    if (format === "png") {
+      const dataUrl = await toPng(target, { cacheBust: true, backgroundColor: canvasTheme === "light" ? "#f8fafc" : "#05080d", pixelRatio: 2 });
       const blob = await dataUrlToBlob(dataUrl);
       triggerDownload(blob, `${mode}-${stamp}.png`);
     } else if (format === "svg") {
-      const dataUrl = await toSvg(target, { cacheBust: true, backgroundColor: "#0a0a0b" });
+      const dataUrl = await toSvg(target, { cacheBust: true, backgroundColor: canvasTheme === "light" ? "#f8fafc" : "#05080d" });
       const blob = await dataUrlToBlob(dataUrl);
       triggerDownload(blob, `${mode}-${stamp}.svg`);
     } else if (format === "pdf") {
       const dataUrl = await toPng(target, {
         cacheBust: true,
-        backgroundColor: "#0a0a0b",
+        backgroundColor: canvasTheme === "light" ? "#f8fafc" : "#05080d",
         pixelRatio: 2,
       });
       const rect = target.getBoundingClientRect();
@@ -1631,6 +1649,6 @@ async function exportOther(
       throw new Error(`Unsupported ${mode} export format: ${format}`);
     }
   } catch (err) {
-    console.error("Generic export failed:", err);
+    throw new Error(`Unable to export ${mode}: ${err instanceof Error ? err.message : "rendering failed"}`);
   }
 }

@@ -22,6 +22,7 @@ import {
   convertToExcalidrawElements,
 } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
+import { z } from "zod";
 import type { BaseCanvasHandle } from "../../shared/modeRegistry";
 import type { CanvasTheme } from "../../shared/types";
 import { exportWhiteboardFlowGif } from "./export-gif";
@@ -37,6 +38,29 @@ export const WHITEBOARD_DEFAULT_PAYLOAD: WhiteboardPayload = {
   appState: { viewBackgroundColor: "#f8fafc", currentItemStrokeColor: "#0f172a" },
   files: {},
 };
+
+const binaryFileSchema = z.object({
+  id: z.string().min(1),
+  mimeType: z.enum([
+    "image/png", "image/jpeg", "image/svg+xml", "image/gif", "image/webp",
+    "image/bmp", "image/x-icon", "image/avif", "image/jfif", "application/octet-stream",
+  ]),
+  dataURL: z.string().min(1),
+  created: z.number().finite().nonnegative(),
+  lastRetrieved: z.number().finite().nonnegative().optional(),
+  version: z.number().finite().nonnegative().optional(),
+}).refine((file) => {
+  const prefix = `data:${file.mimeType};base64,`;
+  if (!file.dataURL.startsWith(prefix)) return false;
+  const encoded = file.dataURL.slice(prefix.length);
+  return encoded.length > 0 && encoded.length % 4 === 0 && /^[A-Za-z0-9+/]+={0,2}$/.test(encoded);
+});
+
+const snapshotSchema = z.object({
+  elements: z.array(z.unknown()).default([]),
+  appState: z.record(z.string(), z.unknown()).optional(),
+  files: z.record(z.string(), binaryFileSchema).optional(),
+}).refine((data) => Object.entries(data.files ?? {}).every(([id, file]) => id === file.id));
 
 interface Props {
   value: WhiteboardPayload;
@@ -351,21 +375,26 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
     },
     hydrate: (p) => {
       const api = apiRef.current;
-      if (!api) return;
-      const data = p as WhiteboardPayload;
+      if (!api) throw new Error("Whiteboard is not ready to restore a snapshot.");
+      const parsed = snapshotSchema.safeParse(p);
+      if (!parsed.success) throw new Error("Whiteboard snapshot contains invalid elements, state, or image files.");
+      const data = parsed.data;
+      const files = Object.values(data.files ?? {});
+      if (files.length) api.addFiles(files);
       api.updateScene({
-        elements: (data.elements ?? []) as unknown[],
-        appState: sanitizeAppState(data.appState as Record<string, unknown> | undefined),
+        elements: data.elements,
+        appState: sanitizeAppState(data.appState),
       });
       api.history.clear();
     },
     fit: () => apiRef.current?.scrollToContent(undefined, { fitToContent: true }),
-    undo: () => { document.querySelector<HTMLButtonElement>("[aria-label='Undo']")?.click(); },
-    redo: () => { document.querySelector<HTMLButtonElement>("[aria-label='Redo']")?.click(); },
-    deleteSelection: () => { document.querySelector<HTMLButtonElement>("[aria-label='Delete']")?.click(); },
+    undo: () => { wrapperRef.current?.querySelector<HTMLButtonElement>(".excalidraw [aria-label='Undo']")?.click(); },
+    redo: () => { wrapperRef.current?.querySelector<HTMLButtonElement>(".excalidraw [aria-label='Redo']")?.click(); },
+    deleteSelection: () => { wrapperRef.current?.querySelector<HTMLButtonElement>(".excalidraw [aria-label='Delete']")?.click(); },
     exportBlob: async (format) => {
+      if (format !== "png" && format !== "gif") return null;
       const api = apiRef.current;
-      if (!api) return null;
+      if (!api) throw new Error("Whiteboard is not ready to export. Wait for the canvas to load and retry.");
       if (format === "gif") {
         return exportWhiteboardFlowGif({
           elements: api.getSceneElements(),
@@ -374,18 +403,12 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
           backgroundColor: canvasBackground,
         });
       }
-      if (format !== "png") return null;
-      try {
-        const blob = await exportToBlob({
-          elements: api.getSceneElements() as never[],
-          appState: { ...api.getAppState(), exportBackground: true } as never,
-          files: api.getFiles() as never,
-          mimeType: "image/png",
-        });
-        return blob;
-      } catch {
-        return null;
-      }
+      return exportToBlob({
+        elements: api.getSceneElements() as never[],
+        appState: { ...api.getAppState(), exportBackground: true, exportEmbedScene: false } as never,
+        files: api.getFiles() as never,
+        mimeType: "image/png",
+      });
     },
     /**
      * Insert a base64-encoded image as a new Excalidraw image element at the

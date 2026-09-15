@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { FileText, Clock, Trash2 } from "lucide-react";
+import { FileText, Clock } from "lucide-react";
+import { listDiagrams } from "@/lib/diagram-library";
 
 type Recent = {
   id: string;
@@ -19,36 +20,27 @@ type Recent = {
  */
 export function RecentDiagrams() {
   const [recents, setRecents] = useState<Recent[] | null>(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    try {
-      const draft = localStorage.getItem("diagrammatic.draft");
-      const list: Recent[] = [];
-      if (draft) {
-        const parsed = JSON.parse(draft);
-        list.push({
-          id: "draft",
-          name: "Untitled draft",
-          mode: parsed?.mode ?? "architecture",
-          updatedAt: parsed?.savedAt ?? Date.now(),
-          nodeCount: parsed?.payload?.nodes?.length ?? 0,
-        });
+    let active = true;
+    void listDiagrams().then((documents) => {
+      const list: Recent[] = documents.slice(0, 8);
+      if (!list.length) {
+        const draft = localStorage.getItem("diagrammatic.draft");
+        if (draft) {
+          const parsed = JSON.parse(draft);
+          list.push({ id: "draft", name: "Recover previous draft", mode: "architecture", updatedAt: parsed?.savedAt ?? Date.now() });
+        }
       }
-      const recent = localStorage.getItem("diagrammatic.recent");
-      if (recent) {
-        const arr = JSON.parse(recent) as Recent[];
-        if (Array.isArray(arr)) list.push(...arr);
-      }
-      requestAnimationFrame(() => setRecents(list));
-    } catch {
-      requestAnimationFrame(() => setRecents([]));
-    }
+      if (active) setRecents(list);
+    }).catch((cause) => {
+      if (active) setError(cause instanceof Error ? cause.message : "Saved diagrams could not be loaded.");
+    });
+    return () => { active = false; };
   }, []);
 
-  const clearDraft = (id: string) => {
-    if (id === "draft") localStorage.removeItem("diagrammatic.draft");
-    setRecents((arr) => arr?.filter((r) => r.id !== id) ?? null);
-  };
+  if (error) return <SectionShell title="My diagrams"><p role="alert" className="text-sm text-rose-300">{error}</p></SectionShell>;
 
   if (recents === null) {
     return <SectionShell title="Recent" subtitle="Loading…">{null}</SectionShell>;
@@ -72,7 +64,8 @@ export function RecentDiagrams() {
   }
 
   return (
-    <SectionShell title="Recent" subtitle={`${recents.length} ${recents.length === 1 ? "diagram" : "diagrams"}`}>
+    <SectionShell title="Recent saved diagrams" subtitle="Browser-local documents. Open to continue editing; manage names and deletion in My diagrams.">
+      <Link href="/diagrammatic?library=1" className="mb-3 inline-block text-xs font-semibold text-cyan-300 hover:underline">View all saved diagrams</Link>
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
         {recents.map((r, i) => (
           <motion.div
@@ -83,7 +76,7 @@ export function RecentDiagrams() {
             whileHover={{ y: -2 }}
             className="group relative rounded-xl border border-slate-800 bg-[#0b1220]/80 hover:border-cyan-400/40 transition-all overflow-hidden"
           >
-            <Link href={r.id === "draft" ? "/diagrammatic" : `/diagrammatic/${r.id}`} className="block cursor-pointer">
+            <Link href={r.id === "draft" ? "/diagrammatic" : `/diagrammatic?document=${encodeURIComponent(r.id)}&mode=${encodeURIComponent(r.mode)}`} className="block cursor-pointer">
               <div className="relative h-28 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 border-b border-zinc-800/60">
                 <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:16px_16px]" />
                 <div className="absolute inset-0 grid place-items-center">
@@ -106,14 +99,6 @@ export function RecentDiagrams() {
                 </div>
               </div>
             </Link>
-            <button
-              type="button"
-              onClick={() => clearDraft(r.id)}
-              aria-label="Delete"
-              className="absolute top-2 right-2 p-1 rounded text-zinc-500 bg-zinc-950/80 border border-zinc-800 opacity-0 group-hover:opacity-100 hover:text-rose-400 transition-all cursor-pointer"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
           </motion.div>
         ))}
       </div>

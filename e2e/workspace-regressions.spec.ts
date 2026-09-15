@@ -77,13 +77,11 @@ test.describe("Workspace regressions", () => {
       );
 
       if (check.mode === "architecture") {
-        await expect(page.getByRole("button", { name: /Azure secure web platform/ })).toBeVisible();
-        await page.getByRole("button", { name: /Azure secure web platform/ }).click();
+        await page.getByRole("button", { name: "Component", exact: true }).click();
       }
       await expect(page.locator(".react-flow__node").first()).toBeVisible({ timeout: 30_000 });
 
-      page.once("dialog", (dialog) => dialog.accept());
-      await page.getByRole("button", { name: "Start with blank canvas" }).click();
+      await page.getByRole("button", { name: "New diagram", exact: true }).click();
       await expect(page.locator(".react-flow__node")).toHaveCount(0);
     });
   }
@@ -92,8 +90,7 @@ test.describe("Workspace regressions", () => {
     await page.goto("/diagrammatic?mode=kanban");
     await expect(page.getByText("Onboarding flow")).toBeVisible({ timeout: 30_000 });
 
-    page.once("dialog", (dialog) => dialog.accept());
-    await page.getByRole("button", { name: "Start with blank canvas" }).click();
+    await page.getByRole("button", { name: "New diagram", exact: true }).click();
 
     await expect(page.getByText("Onboarding flow")).toHaveCount(0);
     await expect(page.getByText("Backlog", { exact: false }).first()).toBeVisible();
@@ -108,8 +105,7 @@ test.describe("Workspace regressions", () => {
       "true"
     );
     await expect(page.locator(".excalidraw").first()).toBeVisible({ timeout: 30_000 });
-    page.once("dialog", (dialog) => dialog.accept());
-    await page.getByRole("button", { name: "Start with blank canvas" }).click();
+    await page.getByRole("button", { name: "New diagram", exact: true }).click();
     await expect(page.locator(".excalidraw").first()).toBeVisible();
   });
 });

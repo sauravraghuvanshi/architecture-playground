@@ -69,6 +69,10 @@ export default async function TemplatesPage() {
           <p className="mt-2 text-sm text-zinc-500">
             {templates.length} architecture patterns. Pick one to start, then customize on the canvas.
           </p>
+          <p className="mt-2 text-sm text-slate-400">
+            These are starting designs, not assessments of your workload. For personalized recommendations,
+            build or open your diagram and select <strong>Review my architecture</strong> in the workspace.
+          </p>
         </div>
 
         <TemplateGalleryClient templates={templates} />

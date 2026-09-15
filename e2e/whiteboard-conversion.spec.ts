@@ -1,0 +1,130 @@
+import { expect, test, type Page } from "@playwright/test";
+import { readSavedDiagram } from "./read-saved-diagram";
+
+const original = {
+  nodes: [{ kind: "shape", id: "existing", label: "Existing architecture", shape: "rectangle", x: 0, y: 0 }],
+  edges: [],
+};
+const converted = {
+  nodes: [
+    { kind: "group", id: "workload", label: "Workload boundary", x: 0, y: 0, width: 600, height: 300 },
+    { kind: "shape", id: "api", label: "Visible API", shape: "rectangle", x: 30, y: 80, width: 128, height: 104, parentId: "workload" },
+    { kind: "shape", id: "db", label: "Custom store", shape: "database", x: 300, y: 80, width: 128, height: 104, parentId: "workload" },
+  ],
+  edges: [{ id: "e", source: "api", target: "db", label: "TLS", style: "dashed", step: 2 }],
+};
+
+async function openConversion(page: Page) {
+  await page.goto("/diagrammatic?mode=whiteboard");
+  const canvas = page.locator(".excalidraw");
+  await expect(canvas).toBeVisible({ timeout: 60_000 });
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Whiteboard is unavailable");
+  await page.locator("label").filter({ has: page.getByRole("radio", { name: "Rectangle", exact: true }) }).click();
+  await page.mouse.move(box.x + 250, box.y + 180);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 500, box.y + 330, { steps: 5 });
+  await page.mouse.up();
+  await page.keyboard.press("Escape");
+  await expect.poll(() => page.evaluate(() => {
+    const draft = JSON.parse(localStorage.getItem("diagrammatic.draft.whiteboard") ?? "{}");
+    return draft.payload?.elements?.some((element: { type: string }) => element.type === "rectangle");
+  })).toBe(true);
+  await page.getByRole("button", { name: "Convert Whiteboard to architecture", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Convert Whiteboard to architecture", exact: true })).toBeVisible();
+}
+
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript((payload) => {
+    localStorage.clear();
+    localStorage.setItem("diagrammatic.draft", JSON.stringify({ mode: "architecture", payload }));
+  }, original);
+  await page.route("**/api/ai/status", (route) => route.fulfill({
+    json: { diagramConfigured: true, imageConfigured: true, imageSource: "local" },
+  }));
+});
+
+test("native PNG conversion previews evidence and requires replacement consent without persisting image", async ({ page }) => {
+  test.setTimeout(60_000);
+  let submitted: { image: { name: string; mimeType: string; dataUrl: string } } | undefined;
+  await page.route("**/api/ai/convert", async (route) => {
+    submitted = route.request().postDataJSON();
+    await route.fulfill({ json: { payload: converted, warnings: ["Verify handwritten TLS label."] } });
+  });
+  await openConversion(page);
+  await expect(page.getByRole("note", { name: "Existing architecture warning" })).toContainText("not merge");
+  const readArchitecture = async () => (await readSavedDiagram(page, "Converted Whiteboard"))?.payload ??
+    page.evaluate(() => JSON.parse(localStorage.getItem("diagrammatic.draft") ?? "{}").payload);
+  expect(await readArchitecture()).toEqual(original);
+  await page.getByRole("button", { name: "Analyze Whiteboard", exact: true }).click();
+  const preview = page.getByRole("region", { name: "Conversion preview" });
+  await expect(preview).toBeVisible();
+  expect(submitted?.image.mimeType).toBe("image/png");
+  expect(submitted?.image.dataUrl).toMatch(/^data:image\/png;base64,iVBOR/);
+  await expect(preview).toContainText("3 nodes");
+  await expect(preview).toContainText("TLS");
+  await expect(preview).toContainText("step 2");
+  await expect(preview).toContainText("Verify handwritten TLS label.");
+  const apply = page.getByRole("button", { name: "Replace architecture", exact: true });
+  await expect(apply).toBeDisabled();
+  expect(await readArchitecture()).toEqual(original);
+  await page.getByRole("checkbox", { name: /I reviewed this preview/ }).check();
+  await apply.click();
+  await expect(page.getByRole("dialog", { name: "Convert Whiteboard to architecture", exact: true })).toHaveCount(0);
+  await expect(page.locator(".react-flow__node")).toHaveCount(3, { timeout: 15_000 });
+  expect(await readArchitecture()).toEqual(converted);
+  const storage = await page.evaluate(() => ({ all: JSON.stringify(localStorage), whiteboard: localStorage.getItem("diagrammatic.draft.whiteboard") }));
+  expect(storage.whiteboard).toContain('"rectangle"');
+  expect(storage.all).not.toContain("data:image/png");
+  expect(storage.all).not.toContain("iVBOR");
+});
+
+test("cancellation ignores late results and reopening resets confirmation", async ({ page }) => {
+  let finish: (() => void) | undefined;
+  let requests = 0;
+  await page.route("**/api/ai/convert", async (route) => {
+    requests++;
+    if (requests === 1) await new Promise<void>((resolve) => { finish = resolve; });
+    await route.fulfill({ json: { payload: converted, warnings: [] } });
+  });
+  await openConversion(page);
+  await page.getByRole("button", { name: "Analyze Whiteboard", exact: true }).click();
+  await expect.poll(() => requests).toBe(1);
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  finish?.();
+  await page.getByRole("button", { name: "Convert Whiteboard to architecture", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Conversion preview" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Analyze Whiteboard", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Conversion preview" })).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: /I reviewed this preview/ })).not.toBeChecked();
+  await expect(page.getByRole("button", { name: "Replace architecture", exact: true })).toBeDisabled();
+  await page.keyboard.press("Escape");
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("diagrammatic.draft") ?? "{}").payload)).toEqual(original);
+});
+
+test("invalid model responses and rate limits leave the architecture untouched", async ({ page }) => {
+  let attempt = 0;
+  await page.route("**/api/ai/convert", async (route) => {
+    attempt++;
+    await route.fulfill(attempt === 1
+      ? { json: { payload: { nodes: converted.nodes, edges: [{ id: "bad", source: "missing", target: "db" }] }, warnings: [] } }
+      : { status: 429, json: { error: "Rate limit exceeded" } });
+  });
+  await openConversion(page);
+  await page.getByRole("button", { name: "Analyze Whiteboard", exact: true }).click();
+  await expect(page.getByRole("dialog").getByRole("alert")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Conversion preview" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Analyze Whiteboard", exact: true }).click();
+  await expect(page.getByRole("dialog").getByRole("alert")).toContainText("Rate limit exceeded");
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("diagrammatic.draft") ?? "{}").payload)).toEqual(original);
+});
+
+test("conversion API rejects spoofed and oversized images before contacting a model", async ({ request }) => {
+  const spoofed = await request.post("/api/ai/convert", { data: {
+    image: { name: "whiteboard.png", mimeType: "image/png", dataUrl: "data:image/png;base64,aGVsbG8=" },
+  } });
+  expect(spoofed.status()).toBe(400);
+  expect(spoofed.headers()["cache-control"]).toBe("no-store");
+  const oversized = await request.post("/api/ai/convert", { data: { image: "x".repeat(7_100_001) } });
+  expect(oversized.status()).toBe(413);
+});

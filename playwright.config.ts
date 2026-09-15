@@ -12,6 +12,7 @@ export default defineConfig({
   reporter: "html",
   use: {
     baseURL: TEST_BASE_URL,
+    storageState: process.env.PLAYWRIGHT_STORAGE_STATE,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },

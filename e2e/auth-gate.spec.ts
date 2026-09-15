@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 const username = process.env.E2E_AUTH_USERNAME;
 const password = process.env.E2E_AUTH_PASSWORD;
+test.use({ storageState: { cookies: [], origins: [] } });
 
 test.describe("Workspace access gate", () => {
   test.skip(!username || !password, "Authentication test credentials are not configured.");

@@ -187,6 +187,7 @@ interface Props {
   onChange?: (next: ArchPayload) => void;
   onPlayingChange?: (playing: boolean) => void;
   onSelectionChange?: (selection: ArchitectureSelection | null) => void;
+  onReadyChange?: (ready: boolean) => void;
   canvasTheme?: CanvasTheme;
 }
 
@@ -744,18 +745,22 @@ function computeEdgePlaybackFrames(nodes: Node[], edges: Edge[]): EdgePlaybackFr
 const STEP_MS = 700;
 
 const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasInner(
-  { value, onChange, onPlayingChange, onSelectionChange, canvasTheme = "light" },
+  { value, onChange, onPlayingChange, onSelectionChange, onReadyChange, canvasTheme = "light" },
   ref
 ) {
   const [nodes, setNodes] = useState<Node[]>(() => archToFlow(value).nodes);
   const [edges, setEdges] = useState<Edge[]>(() => archToFlow(value).edges);
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
+  useEffect(() => {
+    onReadyChange?.(rfInstance !== null);
+    return () => onReadyChange?.(false);
+  }, [rfInstance, onReadyChange]);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const defaultEdgeStyle = useRef<ArchEdgeStyle>("flow");
 
   const past = useRef<Array<{ nodes: Node[]; edges: Edge[] }>>([]);
   const future = useRef<Array<{ nodes: Node[]; edges: Edge[] }>>([]);
-  const skipNextSnapshot = useRef(false);
+  const dragging = useRef(false);
 
   // Sequence playback (runtime-only).
   const [seq, setSeq] = useState<SequenceState>({
@@ -768,10 +773,6 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
   const { screenToFlowPosition, getNodesBounds: getFlowNodesBounds } = useReactFlow();
 
   const snapshot = useCallback(() => {
-    if (skipNextSnapshot.current) {
-      skipNextSnapshot.current = false;
-      return;
-    }
     past.current.push({ nodes, edges });
     if (past.current.length > 100) past.current.shift();
     future.current = [];
@@ -796,7 +797,6 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
     const incomingCount = (value.nodes?.length ?? 0) + (value.edges?.length ?? 0);
     if (incomingCount > 0 && (localCount === 0 || Math.abs(incomingCount - localCount) >= 2)) {
       const flow = archToFlow(value);
-      skipNextSnapshot.current = true;
       requestAnimationFrame(() => {
         setNodes(flow.nodes);
         setEdges(flow.edges);
@@ -813,7 +813,10 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
       const hasStructural = changes.some((c) => c.type === "add" || c.type === "remove");
-      if (hasStructural) snapshot();
+      const moving = changes.some((change) => change.type === "position" && change.dragging);
+      if (hasStructural || (moving && !dragging.current)) snapshot();
+      if (moving) dragging.current = true;
+      if (changes.some((change) => change.type === "position" && change.dragging === false)) dragging.current = false;
       setNodes((nds) => applyNodeChanges(changes, nds));
     },
     [snapshot]
@@ -935,7 +938,6 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
       return { ...e, data: { ...(e.data as object), step: assigned } };
     });
     if (changed) {
-      skipNextSnapshot.current = true;
       requestAnimationFrame(() => setEdges(next));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1154,7 +1156,6 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
         const prev = past.current.pop();
         if (!prev) return;
         future.current.push({ nodes, edges });
-        skipNextSnapshot.current = true;
         setNodes(prev.nodes);
         setEdges(prev.edges);
       },
@@ -1162,7 +1163,6 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
         const next = future.current.pop();
         if (!next) return;
         past.current.push({ nodes, edges });
-        skipNextSnapshot.current = true;
         setNodes(next.nodes);
         setEdges(next.edges);
       },
@@ -1266,6 +1266,7 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
       recordSequence: async (onFrame) => {
         const frames = computeEdgePlaybackFrames(nodes, edges);
         if (seqTimer.current) clearTimeout(seqTimer.current);
+        try {
         // Idle start frame.
         setSeq({ activeEdgeIds: [], isPlaying: true, capturePhase: 0 });
         await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
@@ -1289,6 +1290,9 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
         await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
         await onFrame("end");
         return frames.length * 6 + 2;
+        } finally {
+          stopSequence();
+        }
       },
     }),
     [

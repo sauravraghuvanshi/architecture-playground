@@ -30,7 +30,8 @@
 
 > The hosted demo is protected by a shared workspace credential. Local
 > authentication is disabled by default. Diagrams, comments, and version
-> snapshots stay in the browser unless you explicitly export them.
+> snapshots stay in the browser unless you explicitly export them or submit
+> content for AI review, conversion, or an Azure Portal handoff.
 
 ---
 
@@ -136,8 +137,9 @@ active mode.
 - **Structured canvases:** React Flow powers Architecture, Flowchart, Mind Map,
   Sequence, ER, UML, and C4.
 - **Specialized canvases:** Excalidraw powers Whiteboard; dnd-kit powers Kanban.
-- **Local-first state:** mode drafts, comments, versions, and Whiteboard files
-  are stored in `localStorage`.
+- **Local-first state:** named diagrams, comments, versions, and Whiteboard files
+  are stored in browser IndexedDB. Legacy `localStorage` drafts are recovered
+  non-destructively; unsaved scratch canvases still use the draft cache.
 - **AI:** Next.js route handlers call Azure OpenAI. Image generation streams SSE
   heartbeats so long-running `gpt-image-2` requests survive proxy idle timeouts.
 - **Exports:** `html-to-image`, jsPDF, and gifenc produce full-diagram artifacts.
@@ -160,39 +162,40 @@ active mode.
 
 ## Feature highlights
 
-### Microsoft CSA workspace
+### Personalized architecture review
 
-- Searchable Azure Architecture Center patterns and design principles with
-  first-party Microsoft Learn links, tradeoffs, and applicable blueprints
-- Azure Landing Zones IaC Accelerator planning for Bicep or Terraform and
-  GitHub or Azure DevOps, including all eight platform design areas
-- Cloud Adoption Framework journey tracking across Strategy, Plan, Ready,
-  Adopt, Govern, Secure, and Manage
-- Evidence-based Azure Well-Architected assessment across all five pillars
-- Architecture-to-code generation for Bicep, Terraform, Azure CLI, and Azure
-  PowerShell, with unsupported-service and RBAC coverage warnings
-- LLM-assisted review of the active canvas, an imported Diagrammatic JSON file,
+- **Review my architecture** is the personalized review entry point. Reusable
+  starting designs belong in the gallery, not in a competing guidance rail.
+- Evidence-based Azure Well-Architected scorecards across all five pillars,
+  prioritized remediation playbooks, and baseline comparisons after design changes
+- First-party Microsoft Learn references and tradeoffs linked to the actual
+  architecture evidence, with missing information explicitly identified
+- **Code & deploy** generates Bicep, Terraform, Azure CLI, or Azure PowerShell
+  through a configured Foundry agent, with preview, coverage warnings, and an
+  explicitly selected offline starter export when AI is unavailable
+- Foundry-agent review of the active canvas, an imported Diagrammatic JSON file,
   an uploaded PNG/JPEG/WebP diagram, or a written architecture description
   across Architecture Center, Landing Zones, CAF, and WAF
 - User-confirmed Azure Portal deployment handoff through a short-lived ARM
-  template URL; Diagrammatic never receives Azure credentials or silently
+  template URL; Diagrammatic never receives customer subscription credentials or silently
   creates resources
 
 #### Review a customer architecture
 
-1. Open **Cloud Architecture** and select **Review**.
+1. Open **Cloud Architecture** and select **Review my architecture**.
 2. Choose **Current canvas**, **Describe**, **Upload diagram**, or **Import JSON**.
 3. For an uploaded diagram, use PNG, JPEG, or WebP up to 5 MiB and add customer
    context such as business criticality, users, regions, data classification,
    RTO/RPO, expected scale, compliance, and constraints.
-4. Select **Run architecture review**.
+4. Select **Run Foundry review** (or inspect the explicitly offline scorecard).
 5. Review the 0–100 rating, posture, evidence-based strengths, assumptions, and
    prioritized findings tagged to Azure Architecture Center, Azure Landing
    Zones, Cloud Adoption Framework, or the Well-Architected Framework.
 
-Uploaded architecture images are sent only to the configured Azure OpenAI
-vision-enabled deployment for the review request. Diagrammatic does not persist
-the image.
+Uploaded architecture images are sent to the configured Microsoft Foundry review
+agent, whose model must support vision. Diagrammatic does not persist the image.
+Requests specify `store:false` and do not create a conversation; Foundry service
+policies, agent configuration, and Azure diagnostics may still retain data.
 
 ### Enterprise architecture authoring
 
@@ -216,10 +219,50 @@ the image.
 
 ### Local collaboration
 
-- Debounced browser autosave
-- Scoped comments
-- Restorable version snapshots
-- No account or remote database
+- **My diagrams**: named Save, New, Open, rename, search, and confirmed deletion
+- Save-before-switch protection, plus debounced autosave for named documents
+- Document-scoped comments and restorable version snapshots
+- Whiteboard image binaries retained with their document, including after reload
+- Browser-local storage, not cross-device account sync or a remote database
+
+#### Keep multiple customer diagrams
+
+1. Select **My diagrams**, enter a name, and choose **Save current diagram**.
+2. Select **New** to preserve the current work and start a separate blank diagram.
+   You can also choose a name and mode in My diagrams before creating it.
+3. Reopen any saved diagram from My diagrams or the hub's recent saved diagrams.
+4. Continue editing; changes autosave to that document without replacing other
+   customers' diagrams. Comments and version snapshots follow the document.
+
+The library uses IndexedDB so Whiteboard images are not constrained by the
+smaller legacy draft cache. Existing drafts are recovered without deleting
+their original data. Storage failures and conflicting saves from another tab
+are reported explicitly. **Save recovery copy** preserves local edits under a
+new document ID without overwriting the other tab's version. Switching modes
+or returning to the hub waits for a save; refreshing with pending named-document
+edits prompts before leaving. Export remains a portable backup: clearing site data,
+using private browsing, or changing browser/device can remove access to the
+local collection.
+
+### Hackathon verification boundaries
+
+- The goal of reducing non-customer preparation time by 50% is a hypothesis
+  to measure with customer-engagement trials, not a measured product result.
+- Diagram evidence and AI findings are design-review aids, not proof of
+  deployed configuration, security, compliance, or an official Microsoft
+  Well-Architected Review certification.
+- Architecture JSON can be imported directly into the editable canvas. Imports
+  validate node IDs, connections, geometry, and bundled icon paths before
+  replacing the current diagram.
+- An uploaded architecture image is used for review only; review does not
+  silently reconstruct or replace the canvas.
+- Imported review images are request-scoped. Whiteboard images deliberately
+  inserted into a draft are saved in that browser along with the scene.
+- Azure subscription authentication and resource-creation consent stay in
+  Azure Portal. Review and deployment agents use the application's Azure identity;
+  diagram and image generation use server-side Azure OpenAI configuration.
+- Image-generation latency depends on model capacity and image complexity.
+  SSE keeps the request alive; it does not guarantee generation within seconds.
 
 ### Whiteboard
 
@@ -229,7 +272,19 @@ the image.
 - Connected Flow arrow tool for drawing bound symbol-to-symbol paths
 - Animated GIF export that walks connected arrows in scene order
 - Azure OpenAI image generation and direct canvas insertion
+- Optional workshop-sketch, executive-presentation, and technical-blueprint
+  style presets
+- Whiteboard-to-architecture conversion through the configured vision-capable
+  chat deployment: preview recognized components, connections, and uncertainty
+  before explicitly replacing the architecture canvas
 - PNG export
+
+To convert a workshop sketch, select **Convert** in Whiteboard, then
+**Analyze Whiteboard**. Only this explicit action sends a metadata-free PNG to
+the configured Azure OpenAI deployment. Review the proposed structured diagram
+and warnings, confirm replacement, and apply it. The original Whiteboard draft
+is retained; the conversion PNG is not persisted by Diagrammatic. Unknown
+services remain generic components rather than being guessed as cloud icons.
 
 Every diagram mode includes an independently persisted White/Black canvas
 toggle. Structured diagrams default to a white document surface; Whiteboard and
@@ -240,7 +295,7 @@ Kanban preserve their existing black default until changed.
 ### Prerequisites
 
 - Git
-- Node.js 20 or newer
+- Node.js 20.9 or newer for the app; Node.js 22.18 or newer for the unit tests
 - npm
 
 ### Start the workspace
@@ -295,7 +350,29 @@ AZURE_OPENAI_API_VERSION=2024-10-21
 AZURE_OPENAI_IMAGE_ENDPOINT=https://<image-resource>.openai.azure.com
 AZURE_OPENAI_IMAGE_API_KEY=<key>
 AZURE_OPENAI_IMAGE_DEPLOYMENT=gpt-image-2
+
+# Existing Microsoft Foundry prompt agents (not Azure OpenAI deployment names)
+AZURE_AI_PROJECT_ENDPOINT=https://<resource>.services.ai.azure.com/api/projects/<project>
+AZURE_AI_REVIEW_AGENT_NAME=diagrammatic-review
+AZURE_AI_DEPLOY_AGENT_NAME=diagrammatic-deployment
 ```
+
+Create the two named prompt agents in your Foundry project with a chat-capable
+model; the review agent needs vision support for image uploads. Give the App
+Service managed identity permission to invoke them (the Foundry **Azure AI User**
+role at project scope is the standard starting point). Local development uses
+`DefaultAzureCredential` with your developer identity. Do not provide customer
+subscription credentials. Set these non-public variables in App Service runtime
+settings; the deployment workflow does not create agents or configure identity.
+
+The app supplies structured, evidence-bound instructions on each invocation.
+Tool execution is disabled, no conversation is created, and responses request
+`store:false`. No agents, resources, or subscriptions are created automatically.
+Missing configuration returns an explicit unavailable state, not a silent
+fallback to ordinary chat. `/api/ai/status` reports configuration booleans only:
+it does not prove agent existence, identity access, model capacity, or vision support.
+Test an actual request after configuring and deploying. Deterministic WAF
+scorecards and explicitly selected offline code exports remain usable without AI.
 
 When local image credentials are absent, development proxies Whiteboard image
 requests through the configured public Diagrammatic demo without exposing Azure
@@ -307,6 +384,16 @@ The Azure Portal deployment handoff also uses `NEXT_PUBLIC_SITE_URL`. It must be
 the public HTTPS URL of the Diagrammatic deployment so Azure Portal can retrieve
 the random, short-lived template. Localhost deployments can generate and
 download code but intentionally cannot open the portal handoff.
+
+Review the code and separate ARM preview before approving publication. Code/ARM
+equivalence is not compiler-verified; run provider validation and What-If in your
+Azure environment. Only the ARM template is published, at a bearer URL valid for
+10 minutes. GET/OPTIONS are anonymous and CORS-enabled; publishing remains behind
+the application's access gate when enabled. The broker is instance-local:
+restarts, multi-instance routing, private networking, or App Service Easy Auth
+can prevent Portal from downloading it. In that case, download `azuredeploy.json`,
+open **Deploy a custom template** in Azure Portal, choose **Build your own template
+in the editor** then **Load file**, and review before approving deployment.
 
 ## Test
 
@@ -402,7 +489,11 @@ Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) and
 
 ## Latest engineering log
 
-See [Development log — 2026-08-12](docs/development-log-2026-08-12.md) for the
+See [Development log - 2026-09-16](docs/development-log-2026-09-16.md) for the
+hackathon release: named diagrams, personalized Foundry review, WAF comparisons,
+Whiteboard conversion, deployment handoff, and local/live verification results.
+
+See [Development log — 2026-08-12](docs/development-log-2026-08-12.md) for the earlier
 Microsoft CSA workspace, Whiteboard ownership, canvas themes, multimodal
 architecture review, production validation, blockers, and key lessons. The
 earlier architecture studio release is captured in

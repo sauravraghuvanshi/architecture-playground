@@ -61,6 +61,7 @@ interface ChatOptions {
   temperature?: number;
   maxTokens?: number;
   responseFormat?: "text" | "json_object";
+  signal?: AbortSignal;
 }
 
 export async function chatComplete(messages: ChatMessage[], opts: ChatOptions = {}): Promise<string> {
@@ -84,14 +85,22 @@ export async function chatComplete(messages: ChatMessage[], opts: ChatOptions = 
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
+    signal: opts.signal
+      ? AbortSignal.any([opts.signal, AbortSignal.timeout(120_000)])
+      : AbortSignal.timeout(120_000),
   });
 
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Azure OpenAI ${res.status}: ${text.slice(0, 300)}`);
+    throw new Error(
+      res.status === 429
+        ? "Azure OpenAI capacity is busy. Please retry shortly."
+        : `Azure OpenAI could not complete the request (HTTP ${res.status}). Check deployment configuration or content policy.`
+    );
   }
   const json = (await res.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
   };
-  return json.choices?.[0]?.message?.content ?? "";
+  const content = json.choices?.[0]?.message?.content;
+  if (!content) throw new Error("Azure OpenAI returned no content. Try a different prompt.");
+  return content;
 }

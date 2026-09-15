@@ -5,7 +5,7 @@
  *   - controlled-ish nodes/edges state with applyNodeChanges/applyEdgeChanges
  *   - undo/redo stacks (max 100)
  *   - debounced onChange notification
- *   - hydrate() that suppresses the next snapshot
+ *   - explicit hydration without recording automatic state notifications
  *   - deleteSelection()
  *
  * Architecture mode does NOT use this — it has additional concerns
@@ -60,10 +60,9 @@ export function useFlowCanvas<P>({
   const [edges, setEdges] = useState<Edge[]>(initial.edges);
   const past = useRef<Array<{ nodes: Node[]; edges: Edge[] }>>([]);
   const future = useRef<Array<{ nodes: Node[]; edges: Edge[] }>>([]);
-  const skipNext = useRef(false);
+  const dragging = useRef(false);
 
   const snapshot = useCallback(() => {
-    if (skipNext.current) { skipNext.current = false; return; }
     past.current.push({ nodes, edges });
     if (past.current.length > 100) past.current.shift();
     future.current = [];
@@ -78,7 +77,10 @@ export function useFlowCanvas<P>({
   }, [nodes, edges, onChange, toPayload]);
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
-    if (changes.some((c) => c.type === "add" || c.type === "remove")) snapshot();
+    const moving = changes.some((change) => change.type === "position" && change.dragging);
+    if (changes.some((c) => c.type === "add" || c.type === "remove") || (moving && !dragging.current)) snapshot();
+    if (moving) dragging.current = true;
+    if (changes.some((change) => change.type === "position" && change.dragging === false)) dragging.current = false;
     setNodes((nds) => applyNodeChanges(changes, nds));
   }, [snapshot]);
 
@@ -91,7 +93,6 @@ export function useFlowCanvas<P>({
     serialize: () => toPayload(nodes, edges),
     hydrate: (p) => {
       const flow = fromPayload(p as P);
-      skipNext.current = true;
       setNodes(flow.nodes);
       setEdges(flow.edges);
     },
@@ -100,20 +101,19 @@ export function useFlowCanvas<P>({
       const prev = past.current.pop();
       if (!prev) return;
       future.current.push({ nodes, edges });
-      skipNext.current = true;
       setNodes(prev.nodes); setEdges(prev.edges);
     },
     redo: () => {
       const next = future.current.pop();
       if (!next) return;
       past.current.push({ nodes, edges });
-      skipNext.current = true;
       setNodes(next.nodes); setEdges(next.edges);
     },
     deleteSelection: () => {
       snapshot();
+      const selectedIds = new Set(nodes.filter((node) => node.selected).map((node) => node.id));
       setNodes((nds) => nds.filter((n) => !n.selected));
-      setEdges((eds) => eds.filter((e) => !e.selected));
+      setEdges((eds) => eds.filter((e) => !e.selected && !selectedIds.has(e.source) && !selectedIds.has(e.target)));
     },
     exportText: exportText ? (format: string) => exportText(nodes, edges, format) : undefined,
   }), [nodes, edges, fitView, snapshot, toPayload, fromPayload, exportText]);
