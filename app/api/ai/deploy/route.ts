@@ -40,7 +40,9 @@ export async function POST(request: Request) {
     ));
   } catch (error) {
     if (request.signal.aborted) return NextResponse.json({ error: "Deployment draft request cancelled." }, { status: 499 });
-    if (error instanceof DeploymentDraftError) return NextResponse.json({ error: error.message }, { status: error.status });
+    if (error instanceof DeploymentDraftError) return NextResponse.json({
+      error: error.message, diagnostics: error.diagnostics,
+    }, { status: error.status });
     if (error instanceof FoundryAgentError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json({ error: "Deployment agent request failed. Nothing was published or executed." }, { status: 502 });
   }

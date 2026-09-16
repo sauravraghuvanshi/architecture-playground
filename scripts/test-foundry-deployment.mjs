@@ -273,6 +273,39 @@ test("supporting resources need their own exact mapping to an existing node in e
   assert.deepEqual(deployment.DEPLOYMENT_DRAFT_JSON_SCHEMA.properties.format.enum, [...deployment.DEPLOYMENT_FORMATS]);
 });
 
+test("deployment prompt uses documented Web resource root shapes without claiming deployed security", () => {
+  const [plan, site] = deployment.WEB_RESOURCE_SHAPE_EXAMPLES;
+  assert.equal(plan.type, "Microsoft.Web/serverfarms");
+  assert.equal(plan.kind, "app");
+  assert.equal(plan.sku.name, "[parameters('planSku')]");
+  assert.equal(site.type, "Microsoft.Web/sites");
+  assert.deepEqual(site.identity, { type: "SystemAssigned" });
+  for (const resource of [plan, site]) {
+    for (const property of ["kind", "identity", "sku"]) assert.equal(property in resource.properties, false);
+  }
+  assert.equal(site.properties.httpsOnly, true);
+  assert.equal(site.properties.siteConfig.minTlsVersion, "1.2");
+  const template = arm();
+  template.parameters = Object.fromEntries(["location", "planName", "planSku", "siteName"].map((name) => [name, { type: "string" }]));
+  template.resources = deployment.WEB_RESOURCE_SHAPE_EXAMPLES;
+  assert.equal(deployment.parseArmTemplate(template).resources.length, 2);
+  assert.match(deployment.DEPLOYMENT_AGENT_INSTRUCTIONS, /never properties\.identity/);
+  assert.match(deployment.DEPLOYMENT_AGENT_INSTRUCTIONS, /do not add a redundant Bicep dependsOn/);
+  assert.match(deployment.DEPLOYMENT_AGENT_INSTRUCTIONS, /NOT observed or verified deployed security/);
+});
+
+test("Bicep syntax example is supplied only for Bicep generation and correction", async () => {
+  for (const format of ["bicep", "powershell"]) {
+    let calls = 0;
+    await deployment.generateDeploymentDraft(payload, format, "", async (instructions) => {
+      calls++;
+      assert.equal(instructions.includes(deployment.WEB_BICEP_SHAPE_EXAMPLE), format === "bicep");
+      return calls === 1 ? "{}" : JSON.stringify(draftWithSupportingPlan(format));
+    });
+    assert.equal(calls, 2);
+  }
+});
+
 test("deployment generation corrects the observed missing-plan mapping without changing evidence", async () => {
   const valid = draftWithSupportingPlan();
   const missing = structuredClone(valid);
@@ -453,6 +486,11 @@ test("deployment route rejects malformed/unmapped model output without publishin
   assert.equal(response.status, 200);
   assert.equal(corrected.calls.length, 2);
   assert.equal((await response.json()).resourceMappings.length, 2);
+  const exhausted = await deployRoute({ output: JSON.stringify(missing) }).POST(request({ payload }));
+  assert.equal(exhausted.status, 502);
+  const failure = await exhausted.json();
+  assert.deepEqual(failure.diagnostics, [{ field: "resourceMappings", code: "custom" }]);
+  assert.doesNotMatch(JSON.stringify(failure), /Microsoft.Web|serverfarms|resourceName/);
 });
 
 function brokerHarness(environment = env) {

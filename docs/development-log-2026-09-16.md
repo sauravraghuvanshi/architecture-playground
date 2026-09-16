@@ -133,7 +133,7 @@ the separate real-service rows prove provider invocation.
 | Storage fault behavior | Four isolated-origin IndexedDB tests verify large payloads, stale revisions and atomic rollback; not remote database tests |
 | WAF | All five deterministic pillars, evidence tags, playbooks, baseline close/edit/reopen and added/removed evidence diffs passed |
 | Review UI | Context, ranked findings, source switching, unavailability/error states and stale-review warnings passed with mocked AI |
-| Real Foundry review | Hosted managed-identity canvas, imported JSON, description and PNG review passed; JPEG/WebP schema failures are being corrected |
+| Real Foundry review | All six hosted managed-identity inputs passed on `de94e21`: canvas, imported JSON, description, PNG, JPEG and WebP; image findings contain no invented structured IDs |
 | Real architecture generation | Both originally failing Azure prompts now pass on hosted `7585891`; AWS and GCP requests preserve their providers and services |
 | Other real diagram generation | Flowchart, Mind Map, Sequence, ER, UML, C4 and Kanban returned valid native payloads |
 | Real engineering explanation | Hosted model produced the required Components, Data flows and Notes sections |
@@ -142,7 +142,8 @@ the separate real-service rows prove provider invocation.
 | Static/text export matrix | All 36 advertised PNG/SVG/PDF/JSON/SQL/TypeScript/Markdown outputs across nine modes passed actual download/content checks on hosted `7585891` |
 | Animated exports | Architecture ordered/synchronized GIF and Whiteboard connected-flow GIF downloaded successfully |
 | Deployment UI | All formats, code/ARM preview, downloads, consent reset, malformed output and manual fallback paths passed with mocked agent replies |
-| Real Foundry deployment | Managed identity reaches the model; returned-draft validation failure is being diagnosed for all four formats |
+| Real Foundry deployment | Hosted Bicep, Terraform and Azure CLI drafts passed strict validation and complete mappings; PowerShell remains under final diagnosis |
+| Real AI browser workflows | Without mocked responses: generated design saved as a named document and reviewed; generated image inserted in the Whiteboard draft; generated Bicep and ARM reached deployment previews with publishing disabled until consent |
 | Portal handoff | Live consent enforcement, temporary offline ARM publication, anonymous GET/OPTIONS and CORS passed; no customer resources created |
 | Guardrails | Bounded imports/uploads, malformed input, cancellation, rate-limit/error contracts and no silent export/AI fallback covered by targeted API/unit/browser tests |
 
@@ -156,6 +157,26 @@ the separate real-service rows prove provider invocation.
    hosted managed identity for review.
 3. SVG data URL conversion truncated Unicode text into byte values. Valid UTF-8
    conversion fixed XML parser failures in UML and Whiteboard exported files.
+4. Image-review responses echoed JSON Schema metadata and invented IDs from box
+   labels. Explicit root fields and source-specific ID allowlists preserve strict
+   validation and now pass real PNG/JPEG/WebP review.
+5. Deployment drafts omitted mappings for supporting resources. Complete mapping
+   instructions plus a bounded validation-only correction preserve one mapping
+   for each ARM resource. A stricter PowerShell follow-up is still in progress.
+
+### Reproducing opt-in live AI checks
+
+The normal suite uses mocks for deterministic AI UI behavior. The separate
+`e2e/live-ai-workflows.spec.ts` makes real, paid inference calls and is disabled
+unless `LIVE_INVOKE_AI=true` and `PLAYWRIGHT_STORAGE_STATE` points to a temporary
+authenticated cookie-only state. Set `PLAYWRIGHT_BASE_URL` to the hosted app and
+`PLAYWRIGHT_SKIP_WEBSERVER=true`; keep the state outside the repository and delete
+it after testing. These tests never publish a template or create Azure resources.
+
+The API smoke uses separate explicit opt-ins: `LIVE_INVOKE_AGENTS=true`,
+`LIVE_REQUIRE_AGENTS=true`, and `LIVE_PUBLISH_TEMPLATE=true`. Publication stores
+only the synthetic reviewed ARM template at a ten-minute bearer URL; it does not
+deploy its resources.
 
 ## Boundaries and lessons
 
