@@ -45,7 +45,7 @@ test("saving another mode as a named document does not overwrite the architectur
   await page.addInitScript((payload) => localStorage.setItem("diagrammatic.draft", JSON.stringify({ mode: "architecture", payload })), diagram);
   await page.goto("/diagrammatic?mode=flowchart");
   await expect(page.getByRole("tab", { name: "Flowchart", exact: true })).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator(".react-flow__node").first()).toBeVisible();
+  await expect(page.locator(".react-flow__node").first()).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: "My diagrams", exact: true }).click();
   const library = page.getByRole("dialog", { name: "Saved diagrams", exact: true });
   await library.getByLabel("Diagram name", { exact: true }).fill("Flowchart handoff");

@@ -63,8 +63,33 @@ changing the status to Validated.
 
 ### Current deployment result
 
-Pending validation and release. All sections below preserve the earlier
-2026-08-12 baseline and are not evidence of this release being deployed.
+Commit `ff3e4e5116f1080e670cb76a05c717e308693e3a` deployed successfully through
+GitHub Actions run `35014990938`. The user resumed and authorized completion.
+Detailed hosted testing passed 83 browser cases across the full run and two
+remote-latency retests; one existing test is disabled. Real generation passed for
+seven non-architecture modes; vision conversion, all four image styles and
+consented ARM publication/anonymous CORS retrieval also passed.
+
+Architecture generation returned 502 schema validation on two real requests.
+The corrective release adds the complete JSON Schema and one validation-only
+retry with a shared 120-second deadline, retaining original requirements and
+catalog. No provider-error retries, fabricated defaults, or silent fallbacks.
+This application-only correction uses the same CI/CD recipe, resource target,
+identity boundary and zero-provisioning inventory. Foundry runtime discovery
+remains separate; missing named agents are not counted as verified.
+
+### Corrective release validation checklist
+
+- [x] All validation checks pass
+  - [x] 48 targeted generation/review unit cases.
+  - [x] Full unit suite, lint and TypeScript for shared client/server helper.
+  - [x] Next.js standalone production build.
+  - [x] CI/CD auth and fast-forward branch state.
+  - [x] No Docker, infrastructure, region/SKU, policy or RBAC changes in this patch.
+  - [x] Record actual proof. Deployment and real model retests follow validation.
+
+All sections below preserve the earlier 2026-08-12 baseline and are not evidence
+of this release being deployed.
 
 ---
 
@@ -242,6 +267,19 @@ subscription and region before any future direct provisioning capability.
 ---
 
 ## 7. Validation Proof and Security
+
+### Corrective release proof - 2026-09-16 10:22 IST
+
+- Targeted generation and CSA tests: 48 passed.
+- `npm run test:playground`: 138 passed, zero failures/skips.
+- `npm run lint` and `npx tsc --noEmit`: passed.
+- `npm run build`: passed, including TypeScript and standalone asset copying.
+- Remote baseline remains the deployed `ff3e4e5`; owner-scoped GitHub permission
+  is ADMIN. No infrastructure, RBAC, model, region, SKU or resource changes are
+  included in the corrective code patch.
+- Two hosted timing-sensitive browser tests passed with the same assertions and
+  a 15-second remote-load wait. The total is 83 passing distinct hosted cases,
+  one disabled legacy mid-scroll case.
 
 ### Current release proof - 2026-09-16
 

@@ -9,7 +9,7 @@ test("guided Azure prompt persists proposed design checkpoints without an LLM", 
   await expect.poll(() => page.evaluate(() => {
     const draft = JSON.parse(localStorage.getItem("diagrammatic.draft") ?? "{}");
     return draft.payload?.nodes?.some((node: { id: string }) => node.id === "g_design_guidance") ?? false;
-  })).toBe(true);
+  }), { timeout: 15_000 }).toBe(true);
   await page.goto("/diagrammatic");
   await expect(page.locator(".react-flow__node").filter({ hasText: "Guided draft - not deployed" })).toBeVisible();
 });
@@ -67,6 +67,6 @@ test("explicit AWS template stays AWS rather than receiving Azure scaffolding", 
     const draft = JSON.parse(localStorage.getItem("diagrammatic.draft") ?? "{}");
     const services = draft.payload?.nodes?.filter((node: { iconId?: string }) => node.iconId) ?? [];
     return services.length > 0 && services.every((node: { iconId: string }) => node.iconId.startsWith("aws/"));
-  })).toBe(true);
+  }), { timeout: 15_000 }).toBe(true);
   await expect(page.locator(".react-flow__node").filter({ hasText: "Guided draft - not deployed" })).toHaveCount(0);
 });

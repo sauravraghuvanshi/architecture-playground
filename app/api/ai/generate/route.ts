@@ -13,7 +13,7 @@ import { chatComplete, aiConfigured } from "@/lib/ai";
 import { aiRateLimit } from "@/lib/ai-rate-limit";
 import {
   MODE_PROMPTS, validateModeOutput, generationRequestSchema,
-  buildGenerationUserPrompt, parseGuidedArchitecture,
+  buildGenerationUserPrompt, generateGuidedArchitecture,
 } from "@/lib/ai-mode-prompts";
 import { readBoundedJson, RequestBodyError } from "@/lib/request-json";
 import manifest from "@/content/cloud-icons.json";
@@ -48,28 +48,24 @@ export async function POST(req: Request) {
   const { mode } = input.data;
 
   try {
-    const systemPrompt = mode === "architecture"
-      ? `${MODE_PROMPTS[mode]}\nBundled icon catalog (exact IDs):\n${manifest.icons.map((icon) => icon.id).join("\n")}`
-      : MODE_PROMPTS[mode];
+    if (mode === "architecture") {
+      return NextResponse.json({
+        ...await generateGuidedArchitecture(input.data, manifest.icons, chatComplete, req.signal),
+        mode,
+      });
+    }
     const raw = await chatComplete(
       [
-        { role: "system", content: systemPrompt },
+        { role: "system", content: MODE_PROMPTS[mode] },
         { role: "user", content: buildGenerationUserPrompt(input.data) },
       ],
-      { temperature: 0.4, maxTokens: mode === "architecture" ? 5000 : 2000, responseFormat: "json_object", signal: req.signal }
+      { temperature: 0.4, maxTokens: 2000, responseFormat: "json_object", signal: req.signal }
     );
     let parsed: unknown;
     try {
       parsed = JSON.parse(raw);
     } catch {
       return NextResponse.json({ error: "Model returned non-JSON output" }, { status: 502 });
-    }
-    if (mode === "architecture") {
-      try {
-        return NextResponse.json({ ...parseGuidedArchitecture(parsed, manifest.icons), mode });
-      } catch {
-        return NextResponse.json({ error: "Schema validation: invalid guided architecture or catalog reference. Try generating again." }, { status: 502 });
-      }
     }
     const err = validateModeOutput(mode, parsed);
     if (err) {
