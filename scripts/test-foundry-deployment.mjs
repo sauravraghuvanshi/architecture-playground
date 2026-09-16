@@ -240,6 +240,132 @@ test("deployment drafts bind every ARM resource to evidence and preserve explici
   assert.throws(() => deployment.parseDeploymentDraft(draft(), { nodes: [{ ...payload.nodes[0], iconId: "aws/compute/lambda" }] }, "bicep"));
 });
 
+function draftWithSupportingPlan(format = "bicep") {
+  const value = draft();
+  value.format = format;
+  value.armTemplate.resources.unshift({
+    type: "Microsoft.Web/serverfarms", apiVersion: "2024-04-01",
+    name: "[parameters('planName')]", location: "[parameters('location')]", properties: {},
+  });
+  value.armTemplate.parameters.planName = { type: "string" };
+  value.resourceMappings.unshift({
+    nodeId: "app", resourceType: "Microsoft.Web/serverfarms", resourceName: "[parameters('planName')]",
+  });
+  return value;
+}
+
+test("supporting resources need their own exact mapping to an existing node in every format", () => {
+  for (const format of deployment.DEPLOYMENT_FORMATS) {
+    const value = draftWithSupportingPlan(format);
+    assert.equal(deployment.parseDeploymentDraft(value, payload, format).resourceMappings.length, 2);
+    value.resourceMappings.shift();
+    assert.throws(() => deployment.parseDeploymentDraft(value, payload, format), (error) => {
+      assert.deepEqual(error.issues[0].path, ["resourceMappings"]);
+      assert.equal(error.issues[0].code, "custom");
+      return true;
+    });
+  }
+  const wrongExpression = draftWithSupportingPlan();
+  wrongExpression.resourceMappings[0].resourceName = "planName";
+  assert.throws(() => deployment.parseDeploymentDraft(wrongExpression, payload, "bicep"), z.ZodError);
+  assert.match(deployment.DEPLOYMENT_AGENT_INSTRUCTIONS, /iterating over EVERY entry in armTemplate\.resources/);
+  assert.match(deployment.DEPLOYMENT_AGENT_INSTRUCTIONS, /TWO mappings with nodeId "app"/);
+  assert.deepEqual(deployment.DEPLOYMENT_DRAFT_JSON_SCHEMA.properties.format.enum, [...deployment.DEPLOYMENT_FORMATS]);
+});
+
+test("deployment generation corrects the observed missing-plan mapping without changing evidence", async () => {
+  const valid = draftWithSupportingPlan();
+  const missing = structuredClone(valid);
+  missing.resourceMappings.shift();
+  const calls = [];
+  const result = await deployment.generateDeploymentDraft(payload, "bicep", "User chooses region.", async (...args) => {
+    calls.push(structuredClone({ instructions: args[0], input: args[1] }));
+    return JSON.stringify(calls.length === 1 ? missing : valid);
+  });
+  assert.equal(result.resourceMappings.length, 2);
+  assert.equal(calls.length, 2);
+  assert.deepEqual(JSON.parse(calls[0].input), { format: "bicep", context: "User chooses region.", diagram: payload });
+  assert.equal(calls[1].input[0].content, calls[0].input);
+  assert.equal(calls[1].input[1].role, "assistant");
+  assert.match(calls[1].input[2].content, /resourceMappings/);
+  assert.match(calls[1].input[2].content, /Do not remove required resources/);
+  assert.equal(calls[0].instructions, calls[1].instructions);
+});
+
+test("deployment correction retains security checks, retries validation only and never returns rejected drafts", async () => {
+  for (const initial of [
+    "not JSON",
+    JSON.stringify({ ...draft(), format: "terraform" }),
+    JSON.stringify({ ...draft(), armTemplate: { ...arm(), outputs: { key: { value: "[listKeys('x','2024-01-01')]" } } } }),
+  ]) {
+    let calls = 0;
+    const result = await deployment.generateDeploymentDraft(payload, "bicep", "", async () => {
+      calls++;
+      return calls === 1 ? initial : JSON.stringify(draft());
+    });
+    assert.equal(calls, 2);
+    assert.equal(result.format, "bicep");
+  }
+  let calls = 0;
+  await assert.rejects(deployment.generateDeploymentDraft(payload, "bicep", "", async () => {
+    calls++;
+    return JSON.stringify({ ...draft(), resourceMappings: [] });
+  }), deployment.DeploymentDraftError);
+  assert.equal(calls, 2);
+  calls = 0;
+  const transport = new Error("transport unavailable");
+  await assert.rejects(deployment.generateDeploymentDraft(payload, "bicep", "", async () => {
+    calls++;
+    throw transport;
+  }), (error) => error === transport);
+  assert.equal(calls, 1);
+});
+
+test("deployment validation reports safe ARM paths while retaining security rejection", () => {
+  const value = draft();
+  value.armTemplate.resources[0].properties.adminPassword = "synthetic-not-a-real-secret";
+  assert.throws(() => deployment.parseDeploymentDraft(value, payload, "bicep"), (error) => {
+    assert.deepEqual(error.issues[0].path, ["armTemplate", "resources", 0, "properties", "adminPassword"]);
+    assert.doesNotMatch(error.message, /synthetic-not-a-real-secret/);
+    return true;
+  });
+});
+
+test("deployment correction shares one deadline and bounds previous output", async () => {
+  const timeout = new AbortController();
+  const deadlines = [];
+  const helper = load("lib/deployment-assistance.ts", { zod: { z } }, {
+    AbortSignal: {
+      timeout: (ms) => { deadlines.push(ms); return timeout.signal; },
+      any: (signals) => AbortSignal.any(signals),
+    },
+  });
+  const signals = [];
+  await assert.rejects(helper.generateDeploymentDraft(payload, "bicep", "", async (_instructions, _input, signal) => {
+    signals.push(signal);
+    if (signals.length === 1) return "{}";
+    timeout.abort();
+    throw new Error("aborted transport");
+  }), (error) => error instanceof helper.DeploymentDraftError && error.status === 504);
+  assert.deepEqual(deadlines, [120_000]);
+  assert.equal(signals[0], signals[1]);
+  const controller = new AbortController();
+  controller.abort();
+  let calls = 0;
+  await assert.rejects(deployment.generateDeploymentDraft(payload, "bicep", "", async () => {
+    calls++;
+    return "{}";
+  }, controller.signal));
+  assert.equal(calls, 0);
+  const inputs = [];
+  await deployment.generateDeploymentDraft(payload, "bicep", "", async (_instructions, input) => {
+    inputs.push(input);
+    return inputs.length === 1 ? "x".repeat(40_000) : JSON.stringify(draft());
+  });
+  assert.equal(inputs[1][1].content.length, 32_000);
+  assert.match(inputs[1][2].content, /truncated/);
+});
+
 test("ARM validation blocks embedded secrets, unsafe execution resources and oversized templates", () => {
   for (const mutate of [
     (value) => { value.resources[0].type = "Microsoft.Resources/deploymentScripts"; },
@@ -266,7 +392,7 @@ test("ARM validation blocks embedded secrets, unsafe execution resources and ove
   assert.ok(deployment.parseArmTemplate(generated.template).resources.length);
 });
 
-function deployRoute({ configured = true, output = JSON.stringify(draft()), fail, rate = { ok: true } } = {}) {
+function deployRoute({ configured = true, output = JSON.stringify(draft()), outputs, fail, rate = { ok: true } } = {}) {
   const calls = [];
   const agent = foundryHarness();
   const loaded = load("app/api/ai/deploy/route.ts", {
@@ -279,7 +405,7 @@ function deployRoute({ configured = true, output = JSON.stringify(draft()), fail
       invokeFoundryAgent: async (...args) => {
         calls.push(args);
         if (fail) throw new agent.FoundryAgentError("Foundry request interrupted.", fail);
-        return output;
+        return outputs?.[calls.length - 1] ?? output;
       },
     },
   });
@@ -318,6 +444,15 @@ test("deployment route rejects malformed/unmapped model output without publishin
   }
   const failed = deployRoute({ fail: 499 });
   assert.equal((await failed.POST(request({ payload }))).status, 499);
+  assert.equal(failed.calls.length, 1);
+  const valid = draftWithSupportingPlan();
+  const missing = structuredClone(valid);
+  missing.resourceMappings.shift();
+  const corrected = deployRoute({ outputs: [JSON.stringify(missing), JSON.stringify(valid)] });
+  const response = await corrected.POST(request({ payload }));
+  assert.equal(response.status, 200);
+  assert.equal(corrected.calls.length, 2);
+  assert.equal((await response.json()).resourceMappings.length, 2);
 });
 
 function brokerHarness(environment = env) {

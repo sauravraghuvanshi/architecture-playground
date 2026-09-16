@@ -116,6 +116,47 @@ Target: https://architecture-playground.azurewebsites.net
 The user resumed and authorized completion at 09:47 IST. The pause is lifted.
 Do not count mocked responses or configuration flags as live AI verification.
 
+## Detailed acceptance matrix
+
+The browser suites target the deployed application unless explicitly marked
+isolated. Mocked AI UI responses test rendering, consent and failure behavior;
+the separate real-service rows prove provider invocation.
+
+| Feature | Verification and current result |
+| --- | --- |
+| Authentication | Hosted anonymous redirects, API denial, failed/correct login, cookie flags, safe return paths and logout passed |
+| Nine workspace modes | Hosted initialization, supported controls, theme persistence and New workflows passed |
+| Architecture authoring | Four-side connections, grouped boundaries, delete cascades, ordered/synchronized flow stages and undo/redo passed |
+| Catalog and gallery | 1,433 cloud icons, 600 bundled symbols, all 16 architecture templates and provider-specific imports verified |
+| Named documents | Save/New/Open/edit/reload, hub deep links, rename/delete, original draft recovery and cross-tab recovery passed |
+| Document metadata | Comments and snapshots stay isolated; Whiteboard binary images survive reopen/reload/export |
+| Storage fault behavior | Four isolated-origin IndexedDB tests verify large payloads, stale revisions and atomic rollback; not remote database tests |
+| WAF | All five deterministic pillars, evidence tags, playbooks, baseline close/edit/reopen and added/removed evidence diffs passed |
+| Review UI | Context, ranked findings, source switching, unavailability/error states and stale-review warnings passed with mocked AI |
+| Real Foundry review | Hosted managed-identity canvas, imported JSON, description and PNG review passed; JPEG/WebP schema failures are being corrected |
+| Real architecture generation | Both originally failing Azure prompts now pass on hosted `7585891`; AWS and GCP requests preserve their providers and services |
+| Other real diagram generation | Flowchart, Mind Map, Sequence, ER, UML, C4 and Kanban returned valid native payloads |
+| Real engineering explanation | Hosted model produced the required Components, Data flows and Notes sections |
+| Real Whiteboard conversion | Native synthetic PNG transcribed into two service nodes and one connection; preview/consent/source preservation separately tested in UI |
+| Real image generation | All four presets passed SSE and image decode checks; provider burst 429 surfaced explicitly and recovered after quota refill |
+| Static/text export matrix | All 36 advertised PNG/SVG/PDF/JSON/SQL/TypeScript/Markdown outputs across nine modes passed actual download/content checks on hosted `7585891` |
+| Animated exports | Architecture ordered/synchronized GIF and Whiteboard connected-flow GIF downloaded successfully |
+| Deployment UI | All formats, code/ARM preview, downloads, consent reset, malformed output and manual fallback paths passed with mocked agent replies |
+| Real Foundry deployment | Managed identity reaches the model; returned-draft validation failure is being diagnosed for all four formats |
+| Portal handoff | Live consent enforcement, temporary offline ARM publication, anonymous GET/OPTIONS and CORS passed; no customer resources created |
+| Guardrails | Bounded imports/uploads, malformed input, cancellation, rate-limit/error contracts and no silent export/AI fallback covered by targeted API/unit/browser tests |
+
+### Additional defects found by deeper live testing
+
+1. Exact App Service catalog identity was wrong in real generated output. Schema
+   completeness alone did not fix it. Existing canonical service-name guidance
+   now produces the correct asset without adding duplicates or remapping output.
+2. Named Foundry agents reject top-level `instructions`/`text` overrides and
+   require explicitly typed messages. The corrected transport works with actual
+   hosted managed identity for review.
+3. SVG data URL conversion truncated Unicode text into byte values. Valid UTF-8
+   conversion fixed XML parser failures in UML and Whiteboard exported files.
+
 ## Boundaries and lessons
 
 - Saved documents remain in the current browser profile: no account sync,

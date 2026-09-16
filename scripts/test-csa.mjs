@@ -30,6 +30,7 @@ import {
   ARCHITECTURE_REVIEW_SYSTEM_PROMPT,
   architectureReviewRequestSchema,
   buildArchitectureReviewPrompt,
+  buildArchitectureReviewSystemPrompt,
   generateArchitectureReview,
   parseArchitectureReview,
   REVIEW_SOURCES,
@@ -326,6 +327,7 @@ test("review prompt embeds the complete validator schema with literal enums and 
   assert.equal(schema.properties.score.maximum, 100);
   assert.ok(schema.required.includes("assumptions"));
   assert.match(ARCHITECTURE_REVIEW_SYSTEM_PROMPT, /NOT "Azure Well-Architected Framework"/);
+  assert.match(ARCHITECTURE_REVIEW_SYSTEM_PROMPT, /Never echo schema metadata such as "\$schema"/);
 });
 
 test("mock Azure OpenAI REST reproduces and corrects the live framework enum failure", async () => {
@@ -358,7 +360,7 @@ test("mock Azure OpenAI REST reproduces and corrects the live framework enum fai
     for (const request of requests) {
       assert.equal(request.url, "/openai/deployments/synthetic-review/chat/completions?api-version=2024-10-21");
       assert.deepEqual(request.body.response_format, { type: "json_object" });
-      assert.equal(request.body.messages[0].content, ARCHITECTURE_REVIEW_SYSTEM_PROMPT);
+      assert.equal(request.body.messages[0].content, buildArchitectureReviewSystemPrompt());
       assert.equal(request.body.messages[1].content, prompt);
     }
     assert.equal(requests[0].body.messages.length, 2);
@@ -443,6 +445,26 @@ test("request cancellation prevents a schema corrective retry", async () => {
     return JSON.stringify(correctedReview);
   }, controller.signal), { name: "AbortError" });
   assert.equal(calls, 1);
+});
+
+test("review corrections retain a single deadline and reject late success", async (t) => {
+  const deadline = new AbortController();
+  let deadlines = 0;
+  t.mock.method(AbortSignal, "timeout", (duration) => {
+    assert.equal(duration, 120_000);
+    deadlines++;
+    return deadline.signal;
+  });
+  let calls = 0;
+  await assert.rejects(generateArchitectureReview(syntheticReviewDescription, async (_messages, options) => {
+    assert.equal(options.signal, deadline.signal);
+    assert.equal(options.maxTokens, 4000);
+    if (++calls === 1) return "{}";
+    deadline.abort(new DOMException("Synthetic deadline elapsed", "TimeoutError"));
+    return JSON.stringify(correctedReview);
+  }), { name: "TimeoutError" });
+  assert.equal(calls, 2);
+  assert.equal(deadlines, 1);
 });
 
 test("review request cap permits the maximum image with context", async () => {
@@ -546,7 +568,7 @@ test("actual review route corrects JSON through the same Foundry agent and prese
   assert.equal(route.calls.length, 2);
   for (const call of route.calls) {
     assert.equal(call.purpose, "review");
-    assert.equal(call.instructions, ARCHITECTURE_REVIEW_SYSTEM_PROMPT);
+    assert.equal(call.instructions, buildArchitectureReviewSystemPrompt());
     assert.equal(call.input[0].content.find((part) => part.type === "input_image").image_url, image.dataUrl);
     assert.match(call.input[0].content.find((part) => part.type === "input_text").text, /four hours/);
   }
@@ -554,6 +576,85 @@ test("actual review route corrects JSON through the same Foundry agent and prese
   assert.deepEqual(route.calls[1].input.map((message) => message.role), ["user", "assistant", "user"]);
   assert.equal(route.calls[1].input[1].content, JSON.stringify(invalid));
   assert.match(route.calls[1].input[2].content[0].text, /findings\.0\.framework/);
+});
+
+test("review instructions and reference validation share exact structured IDs, never service labels", () => {
+  const diagram = {
+    nodes: [{ id: "n1", label: "AppService" }, { id: "n1" }, { label: "AzureSQL" }, null],
+    edges: [{ id: "e1", label: "TLS" }, { label: "TLS" }, null],
+  };
+  const instructions = buildArchitectureReviewSystemPrompt(diagram);
+  assert.ok(instructions.includes(JSON.stringify({ nodeIds: ["n1"], edgeIds: ["e1"] })));
+  assert.equal(instructions.includes('"AppService"'), false);
+  assert.equal(instructions.includes('"AzureSQL"'), false);
+  const grounded = { ...correctedReview, findings: [{ ...correctedReview.findings[0], nodeIds: ["n1"], edgeIds: ["e1"] }] };
+  assert.equal(reviewLibrary.validateArchitectureReviewReferences(grounded, diagram), grounded);
+  assert.throws(() => reviewLibrary.validateArchitectureReviewReferences(grounded), /Reference only exact/);
+  for (const payload of [undefined, { nodes: [], edges: [] }]) {
+    const empty = buildArchitectureReviewSystemPrompt(payload);
+    assert.ok(empty.includes(JSON.stringify({ nodeIds: [], edgeIds: [] })));
+    assert.match(empty, /An empty allowlist requires an empty array/);
+  }
+});
+
+test("JPEG and WebP reviews correct schema metadata and image-label IDs without stripping or inventing evidence", async () => {
+  const context = "Synthetic confidential orders workload. East US residency. Business recovery target RTO four hours and RPO one hour; configurations remain unverified.";
+  const corrected = {
+    ...correctedReview,
+    findings: [{
+      ...correctedReview.findings[0],
+      evidence: "The image shows AppService and AzureSQL boxes joined by a TLS arrow; deployment configuration remains unverified.",
+      nodeIds: [], edgeIds: [],
+    }],
+  };
+  const imageLabels = {
+    ...corrected,
+    findings: [{ ...corrected.findings[0], nodeIds: ["AppService", "AzureSQL"], edgeIds: ["TLS"] }],
+  };
+  const schemaEcho = { $schema: "https://json-schema.org/draft/2020-12/schema", ...imageLabels };
+  assert.throws(() => parseArchitectureReview(JSON.stringify(schemaEcho)), (error) => {
+    assert.equal(error.issues[0].code, "unrecognized_keys");
+    assert.deepEqual(error.issues[0].keys, ["$schema"]);
+    return true;
+  });
+  assert.throws(() => reviewLibrary.validateArchitectureReviewReferences(imageLabels), (error) => {
+    assert.deepEqual(error.issues.map((issue) => ({ path: issue.path, code: issue.code })), [
+      { path: ["findings", 0, "nodeIds"], code: "custom" },
+      { path: ["findings", 0, "edgeIds"], code: "custom" },
+    ]);
+    return true;
+  });
+  assert.deepEqual(imageLabels.findings[0].nodeIds, ["AppService", "AzureSQL"]);
+  assert.equal(schemaEcho.$schema, "https://json-schema.org/draft/2020-12/schema");
+
+  for (const mimeType of ["image/jpeg", "image/webp"]) {
+    const image = { name: "synthetic-diagram", mimeType, dataUrl: `data:${mimeType};base64,c3ludGhldGlj` };
+    const body = { source: "image", image, context };
+    for (const invalid of [schemaEcho, imageLabels]) {
+      const route = reviewRouteHarness({ outputs: [JSON.stringify(invalid), JSON.stringify(corrected)] });
+      const response = await route.POST(reviewRequest(body));
+      assert.equal(response.status, 200);
+      assert.deepEqual((await response.json()).review, corrected);
+      assert.equal(route.calls.length, 2);
+      for (const call of route.calls) {
+        assert.equal(call.instructions, buildArchitectureReviewSystemPrompt());
+        assert.match(call.instructions, /Never echo schema metadata such as "\$schema"/);
+        assert.match(call.instructions, /No structured diagram was supplied/);
+        assert.ok(call.instructions.includes('"nodeIds": [] and "edgeIds": []'));
+        assert.equal(call.input[0].content.find((part) => part.type === "input_image").image_url, image.dataUrl);
+        assert.ok(call.input[0].content.find((part) => part.type === "input_text").text.includes(context));
+      }
+      assert.equal(route.calls[0].signal, route.calls[1].signal);
+      assert.equal(route.calls[1].input[1].content, JSON.stringify(invalid));
+      assert.match(route.calls[1].input[2].content[0].text, /Do not echo JSON Schema metadata/);
+      assert.match(route.calls[1].input[2].content[0].text, /image labels are not node or edge IDs/);
+    }
+    const rejected = reviewRouteHarness({ outputs: [JSON.stringify(schemaEcho), JSON.stringify(imageLabels)] });
+    const response = await rejected.POST(reviewRequest(body));
+    assert.equal(response.status, 502);
+    assert.equal(rejected.calls.length, 2, "never add a third attempt or remove invalid references to force success");
+    assert.equal((await response.json()).error, "The review agent could not return a valid architecture review. Please retry.");
+  }
 });
 
 test("personalized route validates node references and preserves actionable agent remediation", async () => {
@@ -571,6 +672,7 @@ test("personalized route validates node references and preserves actionable agen
   assert.equal(route.calls.length, 2);
   assert.match(route.calls[1].input[2].content[0].text, /nodeIds/);
   assert.match(route.calls[0].input[0].content[0].text, /Production orders/);
+  assert.equal(route.calls[0].instructions, buildArchitectureReviewSystemPrompt({ nodes: [appNode], edges: [] }));
   assert.equal(Object.keys(result.assessment.pillarScores).length, 5);
 });
 

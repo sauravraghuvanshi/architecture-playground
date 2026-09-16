@@ -152,6 +152,37 @@ resource target. No additional infrastructure/RBAC change is part of this patch.
   - [x] Static identity boundary unchanged; live app principal/role read-back verified.
   - [x] Record validation proof. Hosted MI and exports must be verified after release.
 
+### Final agent-output contract correction
+
+Hosted `7585891` passed all static/text exports, both original Azure-generation
+requests plus AWS/GCP, and managed-identity review for canvas/import/description/PNG.
+Remaining actual failures were diagnosed rather than silently normalized:
+
+- JPEG/WebP: root `$schema` was echoed, then visible image labels were invented
+  as node IDs. The response-root instruction and evidence-specific ID allowlist
+  now pass both formats through real model validation, with empty image ID arrays.
+- Deployment: supporting ARM resources (for example the App Service plan) were
+  omitted from resourceMappings. Full schema, explicit one-mapping-per-resource
+  rules, safe validation feedback and one correction now pass all four requested
+  formats through the actual strict parser. Validation/security rules are retained.
+
+The same application-only CI/CD recipe, subscription, resources, permissions and
+identity scope apply; no new Azure configuration change is needed.
+
+- [x] All validation checks pass for agent-output contracts
+  - [x] Real direct JPEG and WebP review validation.
+  - [x] Real direct Bicep/Terraform/CLI/PowerShell strict draft validation.
+  - [x] Full unit suite, lint, TypeScript and production build.
+  - [x] CI/CD remote/auth and whitespace checks; record proof before release.
+  - [x] Core validation for the existing CI/CD recipe: owner-scoped GitHub
+    authentication/permission, unchanged fetched remote baseline, required secret
+    names and the existing standalone build/deployment pipeline.
+  - [x] Docker build applicability: not containerized; standalone Kudu zipdeploy.
+  - [x] Azure template validation/What-If and policy applicability: no deployed
+    infrastructure, resource configuration, region, SKU or model changes.
+  - [x] Static role verification: unchanged application identity and project-only
+    data-plane scope; reuse the existing read-back-verified runtime setup.
+
 All sections below preserve the earlier 2026-08-12 baseline and are not evidence
 of this release being deployed.
 
@@ -331,6 +362,65 @@ subscription and region before any future direct provisioning capability.
 ---
 
 ## 7. Validation Proof and Security
+
+### Final agent-output-contract proof - 2026-09-16
+
+Procedural validation of the final application-only patch over
+`7585891f5a2bf5aefb8182fffd170244d109362d`, using the installed
+`azure-validate/references/scripts/workflow.ps1`. All timestamps below are
+2026-09-16 in IST (`+05:30`); this is not deployment or hosted-retest proof.
+
+- Workflow completed at **2026-09-16T11:35:38.2157016+05:30** through
+  `LoadPlan`, `AddValidationSteps`, `RunValidation`, `BuildVerification`,
+  `StaticRoleVerification`, `RecordProof`, `ResolveErrors`, and `UpdateStatus`.
+  The script explicitly permitted `Validated` only after `ResolveErrors` and
+  then reported the workflow complete; `.azure/validate-status.json` records
+  `"completedStep": "UpdateStatus"`. No validation failures remain.
+
+| Command/check | Actual result and timing |
+| --- | --- |
+| `npm run test:playground` | **150 tests passed**, 0 failed/cancelled/skipped/todo, 0 suites; runner duration **2261.912 ms**. Captured run started `11:31:13.7318322+05:30`, command completed `11:31:16.7512001+05:30`; exit 0. |
+| `npm run lint` | Passed with no ESLint findings; completed `11:31:34.7246729+05:30`; exit 0. |
+| `npx tsc --noEmit` | Strict TypeScript passed; completed `11:31:39.3007496+05:30`; exit 0. Dependency installation disabled for this invocation. |
+| `npm run build` | Production prebuild, Next.js build and postbuild passed; started `11:31:56.2626801+05:30`, completed `11:34:01.5033572+05:30`; exit 0. |
+| Owner-scoped GitHub auth/permission | `$env:GH_TOKEN = gh auth token --user sauravraghuvanshi` used only in process environment; `gh repo view --json nameWithOwner,viewerPermission` returned `sauravraghuvanshi/architecture-playground`, **ADMIN**. No token or secret values exposed. |
+| Authenticated `git fetch origin master` | Existing `gh auth git-credential` helper used with the owner-scoped token. Before/after `origin/master` and `HEAD` all equal `7585891f5a2bf5aefb8182fffd170244d109362d`; divergence **0 ahead / 0 behind**, ancestor check passed. No remote drift. |
+| `gh secret list` (names only) and workflow inspection | All **5 required secret names** present among 8 configured names: `APP_AUTH_USERNAME`, `APP_AUTH_PASSWORD`, `APP_AUTH_SECRET`, `AZURE_DEPLOY_USER`, `AZURE_DEPLOY_PASSWORD`. Existing Node 20 / standalone zip / Kudu pipeline unchanged. |
+| CI/CD checks above | Started `11:30:27.7461255+05:30`, completed `11:30:32.3121716+05:30`; all exit 0. |
+| `git diff --check`; `git diff --cached --check` | Passed during CI/CD checks and after production build at `11:34:20` IST. Generated asset line-ending advisory only; no whitespace failures. |
+| Docker / ARM validate / What-If / new policy evaluation | Not applicable: existing application-only CI/CD recipe, no container or deployed infrastructure/configuration changes, **0 new resources**, no changed model/region/SKU/RBAC. Existing policy constraints remain unchanged. No Azure deployments were attempted. |
+| User preview | Existing listener on port **3210**, PID **7780**, still present at `11:34:20` IST; no process stopped or restarted. |
+
+#### Production build artifact proof
+
+- Next.js **16.2.4** (Turbopack): compilation **43 s**, TypeScript phase **59 s**,
+  **9/9** static-page generation tasks completed (735 ms).
+- Prebuild: **1,433 cloud icons** (Azure **1,130**, AWS **258**, GCP **45**),
+  **600** curated Whiteboard symbols and **22,847-byte** GIF encoder bundle.
+- Postbuild copied `public`, `.next/static` and `content` into `.next/standalone`.
+  Standalone `server.js`, `.next/static` and `public` were verified to exist.
+- `.next/BUILD_ID`: `HFBJoNEA4Z5LlaEGw56aR`.
+- `.next/standalone/server.js` SHA-256:
+  `77E049ED3A2E1A5248B914DB2140DCC59A037A655CD55555C772A7CA85832A31`.
+  Artifact proof completed `11:34:03.1921016+05:30`.
+- Existing non-blocking Next.js middleware-to-proxy deprecation warning remains.
+  No tooling/dependencies were added, no browser was opened, and no application
+  code, Azure resources, commits or deployments were changed by this validation.
+  The build-generated Whiteboard asset timestamp is left for parent cleanup.
+
+#### Role assignment verification
+
+- Status: Verified (static review, 2026-09-16 11:34 IST).
+- The patch contains no deployed Bicep/Terraform or role-assignment changes.
+  Both API routes retain the unchanged `lib/foundry-agent.ts` transport with
+  `DefaultAzureCredential`, the existing project endpoint and named agents.
+- Identity: existing app principal `d3636586-e6dd-49bd-bf2e-bc23f3f32662`.
+  Role/scope: existing Foundry User at the
+  `ap-foundry-eastus/architecture-playground-ai` project only, as read-back
+  verified in the runtime setup above; no broad management-plane grant.
+- Operations remain named-agent data-plane inference, not customer resource
+  execution. No additional permissions, identity, models or resources are needed.
+  No live RBAC query or write was performed during this procedural validation.
 
 ### Final diagnosed-fix proof - 2026-09-16 11:02 IST
 

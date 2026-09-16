@@ -12,7 +12,6 @@ import { readBoundedJson, RequestBodyError } from "@/lib/request-json";
 import { assessDiagramWellArchitected } from "@/components/diagrammatic/csa/well-architected";
 import {
   ARCHITECTURE_REVIEW_MAX_REQUEST_BYTES,
-  ARCHITECTURE_REVIEW_SYSTEM_PROMPT,
   architectureReviewRequestSchema,
   buildArchitectureReviewPrompt,
   buildFoundryReviewInput,
@@ -23,8 +22,13 @@ import {
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const completeReview: Parameters<typeof generateArchitectureReview>[1] = (messages, options) =>
-  invokeFoundryAgent("review", ARCHITECTURE_REVIEW_SYSTEM_PROMPT, buildFoundryReviewInput(messages), options.signal);
+const completeReview: Parameters<typeof generateArchitectureReview>[1] = (messages, options) => {
+  const instructions = messages[0];
+  if (instructions?.role !== "system" || typeof instructions.content !== "string") {
+    throw new Error("Architecture review requires text-only system instructions.");
+  }
+  return invokeFoundryAgent("review", instructions.content, buildFoundryReviewInput(messages), options.signal);
+};
 
 function unavailable() {
   return NextResponse.json(
