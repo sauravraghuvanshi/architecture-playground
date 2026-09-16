@@ -5,13 +5,16 @@ session that continued from September 15 into September 16.
 
 ## Executive summary
 
-Prepared Diagrammatic's hackathon release around a simpler design, review,
+Completed and deployed Diagrammatic's hackathon release around a simpler design, review,
 explain, and deployment-handoff workflow. Added browser-local named documents,
 real Microsoft Foundry agent integration, stronger evidence-based WAF review,
 guided design assistance, and Whiteboard conversion.
 
-The user authorized pushing the complete change set and testing the hosted
-application. Live release results will be recorded below only after verification.
+The complete change set is pushed to both production and the working branch.
+All supported feature groups were exercised, including genuine hosted AI calls,
+and defects discovered by live testing were corrected and retested. The final
+application release is `29a8bb9`; documentation-only follow-ups do not change the
+running application.
 
 ## Delivered
 
@@ -39,9 +42,9 @@ application. Live release results will be recorded below only after verification
 
 | Check | Observed result |
 | --- | --- |
-| Unit tests | 130 passed |
-| Chromium journeys | 81 distinct cases passed across a full run and focused retests |
-| Conditional/disabled browser cases | 3 skipped locally |
+| Unit tests | 152 passed, zero failures/skips |
+| Chromium checks | 95 distinct cases passed across full, targeted and opt-in real-AI runs: 91 hosted-app journeys and 4 isolated IndexedDB cases |
+| Disabled browser case | One existing legacy mid-scroll test; all credential-gated and opted-in AI cases were exercised |
 | ESLint and strict TypeScript | Passed |
 | Production standalone build | Passed |
 | Compiled-production API smoke | Auth gate, consent, anonymous template retrieval/CORS and offline WAF passed |
@@ -54,8 +57,8 @@ was fixed by waiting for the actual React Flow instance before enabling controls
 
 ## Live release and verification
 
-Status after resuming on September 16: initial release deployed; detailed live
-acceptance and fixes in progress.
+Status: complete. All release workflows succeeded, and the final remaining
+PowerShell draft and generated-code checks passed on the hosted application.
 
 Target: https://architecture-playground.azurewebsites.net
 
@@ -73,14 +76,10 @@ Target: https://architecture-playground.azurewebsites.net
   mid-scroll test remained disabled. Both failing assertions passed targeted
   retests with explicit remote-load allowances and unchanged expected contents:
   83 distinct cases passed overall.
-- Seven real model generation calls passed for Flowchart, Mind Map, Sequence,
-  ER, UML, C4 and Kanban. Architecture generation returned schema-validation 502
-  on two synthetic requests. The corrective release adds the full JSON Schema
-  and one validation-only correction under a shared deadline. The precise live
-  failing field was not exposed by the old route and remains unconfirmed;
-  tests reproduce invalid catalog aliases and malformed output without relaxing
-  validation. Corrective validation passed 138 unit tests, lint, TypeScript and
-  production build; real-model re-verification follows deployment.
+- Real model generation passed for all eight supported diagram modes. The exact
+  architecture failure was confirmed as `nodes.0.data.iconId` selecting a missing
+  alias. Canonical catalog guidance fixed both original Azure prompts; additional
+  AWS and GCP requests preserved their providers and intended services.
 - Real Whiteboard conversion passed: a synthetic PNG became two nodes and one
   connection, with no warnings.
 - All four image styles produced decodable images through the real hosted SSE
@@ -90,31 +89,36 @@ Target: https://architecture-playground.azurewebsites.net
 - Live, explicitly consented offline ARM publication and anonymous retrieval,
   GET/OPTIONS CORS, invalid-token handling and consent enforcement passed.
   No customer Azure resources were created.
-- The initial daily log was included in the first release. The overnight handoff
-  and resumed test evidence are included with the corrective release.
+- Final deployment-format sweep: Bicep 200 (2 resources / 2 mappings), Terraform
+  200 (3/3), Azure CLI 200 (2/2), PowerShell 200 (2/2); zero excluded diagram nodes.
+- An actual agent-generated ARM draft was explicitly published and anonymously
+  retrieved successfully; this is separate from the offline handoff test.
+- A fresh, unmodified hosted Bicep output compiled without resource diagnostics.
+  Generated PowerShell passed syntax parsing with zero errors. Neither script was
+  executed; Terraform initialization/plan and Azure resource deployment were not
+  performed. These sample checks are not a guarantee for every future AI draft.
 
-### Tomorrow's resume checklist
+### Releases
 
-1. Inspect workflow `35014990938`; resolve any failed build/deploy/smoke step before
-   proceeding. Confirm the hosted app serves the new release, not the old process.
-2. Complete the read-only Azure runtime discovery. Confirm the Foundry project,
-   named review/deployment agents, compatible models, App Service identity and
-   least-privilege project access. No runtime settings or Azure resources were
-   changed during this release preparation.
-3. Run the authenticated hosted Chromium suite, using a temporary cookie-only
-   storage state outside the repository. Login-specific tests deliberately start
-   with empty cookies. Keep the local preview running.
-4. Independently exercise real configured diagram/image generation, multimodal
-   Foundry review, Whiteboard conversion and deployment-draft generation with
-   synthetic data. Distinguish provider calls from mocked UI coverage.
-5. Verify consented temporary ARM publication and anonymous live GET/OPTIONS/CORS.
-   Do not approve actual customer resource creation in Azure Portal.
-6. Replace pending results in this log and the deployment plan with observed
-   evidence, update README if needed, commit/push the final documentation, and
-   check the resulting workflow.
+| Application commit | Purpose | Successful GitHub Actions run |
+| --- | --- | --- |
+| `ff3e4e5` | Complete hackathon workspace | [35014990938](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35014990938) |
+| `cca875e` | Full generation schema and bounded correction | [35057560382](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35057560382) |
+| `7585891` | Canonical icon guidance, Foundry protocol and UTF-8 exports | [35060174478](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35060174478) |
+| `de94e21` | Image evidence references and complete ARM resource mappings | [35062336603](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35062336603) |
+| `29a8bb9` | Compiler-guided Web resource shapes, safe diagnostics and real-AI UI tests | [35065496209](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35065496209) |
 
-The user resumed and authorized completion at 09:47 IST. The pause is lifted.
-Do not count mocked responses or configuration flags as live AI verification.
+### Runtime configuration completed
+
+- Enabled the existing App Service's system-assigned managed identity.
+- Granted **Foundry User** only at the existing
+  `ap-foundry-eastus/architecture-playground-ai` project scope.
+- Created `diagrammatic-review:1` and `diagrammatic-deployment:1` using the
+  existing `gpt-4o-mini` deployment, with no tools and JSON-object output.
+- Added only the three missing Foundry settings; preserved all existing settings.
+- Verified actual invocation through the hosted app identity, not just the
+  operator's identity or a configuration flag.
+- No new model deployments, resource groups, or customer workload resources.
 
 ## Detailed acceptance matrix
 
@@ -142,7 +146,7 @@ the separate real-service rows prove provider invocation.
 | Static/text export matrix | All 36 advertised PNG/SVG/PDF/JSON/SQL/TypeScript/Markdown outputs across nine modes passed actual download/content checks on hosted `7585891` |
 | Animated exports | Architecture ordered/synchronized GIF and Whiteboard connected-flow GIF downloaded successfully |
 | Deployment UI | All formats, code/ARM preview, downloads, consent reset, malformed output and manual fallback paths passed with mocked agent replies |
-| Real Foundry deployment | Hosted Bicep, Terraform and Azure CLI drafts passed strict validation and complete mappings; PowerShell remains under final diagnosis |
+| Real Foundry deployment | All four formats passed a clean final hosted sweep with complete resource mappings and zero excluded nodes |
 | Real AI browser workflows | Without mocked responses: generated design saved as a named document and reviewed; generated image inserted in the Whiteboard draft; generated Bicep and ARM reached deployment previews with publishing disabled until consent |
 | Portal handoff | Live consent enforcement, temporary offline ARM publication, anonymous GET/OPTIONS and CORS passed; no customer resources created |
 | Guardrails | Bounded imports/uploads, malformed input, cancellation, rate-limit/error contracts and no silent export/AI fallback covered by targeted API/unit/browser tests |
@@ -162,7 +166,11 @@ the separate real-service rows prove provider invocation.
    validation and now pass real PNG/JPEG/WebP review.
 5. Deployment drafts omitted mappings for supporting resources. Complete mapping
    instructions plus a bounded validation-only correction preserve one mapping
-   for each ARM resource. A stricter PowerShell follow-up is still in progress.
+   for each ARM resource. All formats passed final hosted verification.
+6. Bicep samples put `identity` and `kind` under `properties`. Official root-field
+   guidance and a compiler-verified example produced a new hosted sample without
+   those diagnostics. Rejected drafts now expose only safe field/code categories,
+   not generated values or credentials.
 
 ### Reproducing opt-in live AI checks
 
@@ -180,6 +188,10 @@ deploy its resources.
 
 ## Boundaries and lessons
 
+- Verification covers representative supported workflows in desktop Chromium,
+  not every possible architecture, browser, load level or generated program.
+  AI remains nondeterministic: provider throttling and invalid drafts can occur,
+  are surfaced explicitly, and are not converted into false success.
 - Saved documents remain in the current browser profile: no account sync,
   cross-device storage, or service-side diagram backup.
 - Review/conversion images are not persisted by Diagrammatic. Whiteboard images

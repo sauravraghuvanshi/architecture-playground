@@ -1,9 +1,40 @@
 # Azure Deployment Plan
 
-> **Status:** Validated
+> **Status:** Deployed
 
 Generated: 2026-08-12
 Updated: 2026-09-16 (Asia/Kolkata)
+
+## Final release result
+
+The final application commit `29a8bb9` is deployed to
+https://architecture-playground.azurewebsites.net through successful GitHub
+Actions run `35065496209`. All preceding release runs in today's engineering log
+also completed successfully. This result supersedes historical pending sections
+below, which retain the diagnostic/validation sequence.
+
+- 152 unit tests, lint, strict TypeScript and production build passed.
+- 95 distinct browser checks passed across full and targeted runs (91 hosted-app
+  journeys, four isolated IndexedDB helper cases); one legacy mid-scroll case is
+  disabled. Real AI UI tests were explicitly opted in and passed.
+- All eight model-generation modes, Azure/AWS/GCP architecture examples,
+  Whiteboard conversion and four SSE image styles passed real service checks.
+- All six Foundry review inputs passed through App Service managed identity.
+- Clean final deployment sweep: Bicep, Terraform, Azure CLI and PowerShell all
+  HTTP 200, complete resource mappings, zero excluded nodes.
+- Both offline and agent-generated ARM publication/anonymous retrieval passed
+  with explicit consent. No customer architecture resources were deployed.
+- All 36 advertised static/text exports passed file-content checks; architecture
+  and Whiteboard animated GIF workflows also passed.
+- Fresh hosted Bicep compiled without resource diagnostics; generated PowerShell
+  parsed with zero syntax errors. Scripts were not executed; no Terraform plan
+  or broad Azure What-If of generated workloads is claimed.
+- Existing app identity and project-only Foundry User assignment were read back;
+  two tool-free named agents use the existing model. No further setup blockers.
+- User preview remains at http://localhost:3210. Temporary test authentication
+  state and generated diagnostic artifacts are cleaned separately from source.
+
+Detailed evidence and limitations: `docs/development-log-2026-09-16.md`.
 
 ## Current release: Hackathon workspace
 

@@ -494,6 +494,10 @@ Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) and
 See [Development log - 2026-09-16](docs/development-log-2026-09-16.md) for the
 hackathon release: named diagrams, personalized Foundry review, WAF comparisons,
 Whiteboard conversion, deployment handoff, and local/live verification results.
+The release is deployed and verified: 152 unit tests, 95 browser checks across
+full/targeted runs, real model calls for every supported AI feature, and all 36
+advertised static/text export combinations. See the log for mocked-versus-live
+coverage, the single disabled legacy test, and generated-IaC limitations.
 
 See [Development log — 2026-08-12](docs/development-log-2026-08-12.md) for the earlier
 Microsoft CSA workspace, Whiteboard ownership, canvas themes, multimodal
