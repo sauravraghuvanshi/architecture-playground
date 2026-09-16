@@ -158,6 +158,23 @@ const evidenceNode = (id, slug, extra = {}) => ({
 const evidenceEdge = (id, source, target) => ({ id, source, target });
 const appNode = evidenceNode("app", "app-service");
 
+test("canonical App Service catalog identity works without a product-name label", () => {
+  const app = evidenceNode("app", "application-service", {
+    iconId: "azure/application/application-service", label: "Customer workload",
+  });
+  const diagram = {
+    nodes: [app, evidenceNode("telemetry", "application-insights")],
+    edges: [evidenceEdge("observe", "app", "telemetry")],
+  };
+  assert.equal(assessDiagramWellArchitected(diagram).pillarScores["operational-excellence"], 33);
+  const generated = generateArmTemplate({ nodes: [app], edges: [] });
+  assert.equal(generated.supportedNodes, 1);
+  assert.ok(generated.template.resources.some((resource) => resource.type === "Microsoft.Web/sites"));
+  for (const format of ["bicep", "terraform", "azure-cli", "powershell"]) {
+    assert.equal(generateArchitectureCode({ nodes: [app], edges: [] }, format).supportedNodes, 1);
+  }
+});
+
 test("empty and unsupported diagrams produce all five bounded scores and explicit unknowns", () => {
   for (const diagram of [
     { nodes: [], edges: [] },

@@ -59,7 +59,7 @@ const RESOURCE_MATCHERS: Array<[ResourceKind, RegExp]> = [
   ["front-door", /(front.?door|cdn)/i],
   ["apim", /(api.?management|apim)/i],
   ["functions", /(function.?app|azure.?functions|functions)/i],
-  ["app-service", /(app.?service|web.?app|webapp)/i],
+  ["app-service", /(app.?service|application.?service|web.?app|webapp)/i],
   ["sql", /(sql.?database|sql.?server|azure.?sql)/i],
   ["storage", /(storage.?account|blob.?storage|data.?lake)/i],
   ["service-bus", /(service.?bus)/i],

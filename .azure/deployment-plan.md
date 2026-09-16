@@ -88,6 +88,70 @@ remains separate; missing named agents are not counted as verified.
   - [x] No Docker, infrastructure, region/SKU, policy or RBAC changes in this patch.
   - [x] Record actual proof. Deployment and real model retests follow validation.
 
+### Required Foundry runtime setup
+
+Read-only discovery confirmed both named-agent settings and the app's managed
+identity are absent. Both existing Foundry projects and models are healthy.
+The current operator has inherited Owner and Foundry User access; explicit
+subscription-scoped authentication is required to avoid another cached identity.
+
+The user's resumed request to finish all remaining capabilities authorizes the
+following minimal changes in the existing application environment:
+
+1. Enable the existing App Service's system-assigned managed identity.
+2. Grant that identity the appropriate Foundry data-plane user role at the
+   existing `ap-foundry-eastus/architecture-playground-ai` project scope only.
+   Do not grant subscription/resource-group Owner or Contributor to the app.
+3. Create prompt agents `diagrammatic-review` and `diagrammatic-deployment` on
+   the existing `gpt-4o-mini` model deployment. No new models, compute plans,
+   storage resources, subscriptions or resource groups.
+4. Set only the three missing runtime settings to the existing project endpoint
+   and those agent names. Preserve all other settings and credentials.
+5. Verify role assignments, configuration and genuine live review/deployment
+   invocation separately. An application restart may occur when settings change.
+
+Project endpoint:
+`https://ap-foundry-eastus.services.ai.azure.com/api/projects/architecture-playground-ai`.
+The model reports agentsV2, Responses and JSON-object support. Image generation
+continues using the existing image deployment and its existing credentials.
+No customer architecture resources will be created or deployed.
+
+### Final diagnosed fixes and verification
+
+Runtime setup is complete and read-back verified: system identity
+`d3636586-e6dd-49bd-bf2e-bc23f3f32662`, project-only Foundry User, named prompt
+agents `diagrammatic-review:1` and `diagrammatic-deployment:1`, three settings
+added without removing the sixteen existing settings, no new model deployment.
+
+Actual provider calls confirmed two distinct defects:
+
+- Generation: the model used nonexistent `azure/application/app-service`.
+  The actual `azure/application/application-service` asset already exists.
+  Label-to-ID catalog presentation and explicit canonical guidance passed both
+  original Azure requests plus AWS and GCP direct real-model validation.
+  Offline code generation and WAF now recognize the same canonical service.
+- Named agents: service HTTP 400 rejected top-level `instructions`, `text`,
+  and untyped input messages. Developer instructions now travel in explicitly
+  typed input messages; the agent definition owns JSON formatting. Both agents
+  responded through the patched SDK with scoped-user authentication.
+
+An extended nine-mode export matrix also found that percent-encoded SVG text
+was truncated to byte values rather than UTF-8 encoded. The shared decoder now
+preserves Unicode and binary data. Both affected UML/Whiteboard export journeys
+pass locally; seven other mode journeys passed live.
+
+The final application-only patch retains the same CI/CD recipe and existing
+resource target. No additional infrastructure/RBAC change is part of this patch.
+
+- [x] All validation checks pass for final fixes
+  - [x] Full unit suite, lint and strict TypeScript.
+  - [x] Production build and unchanged CI/CD permissions/remote baseline.
+  - [x] Direct model verification of both original Azure requests, AWS and GCP.
+  - [x] Direct real named-agent transport calls for review and deployment.
+  - [x] Locally corrected UML/Whiteboard artifact exports and UTF-8/binary units.
+  - [x] Static identity boundary unchanged; live app principal/role read-back verified.
+  - [x] Record validation proof. Hosted MI and exports must be verified after release.
+
 All sections below preserve the earlier 2026-08-12 baseline and are not evidence
 of this release being deployed.
 
@@ -267,6 +331,20 @@ subscription and region before any future direct provisioning capability.
 ---
 
 ## 7. Validation Proof and Security
+
+### Final diagnosed-fix proof - 2026-09-16 11:02 IST
+
+- `npm run test:playground`: 142 passed, zero failures/skips.
+- `npm run lint` and `npx tsc --noEmit`: passed.
+- `npm run build`: passed, including standalone assembly and asset counts.
+- `export-matrix` UML and Whiteboard tests: both passed locally, including valid
+  SVG XML, PNG signatures, PDF trailers, JSON and TypeScript where advertised.
+- Direct existing-model generation: both formerly failing Azure prompts and
+  AWS/GCP requests passed full graph/catalog validation on the first attempt.
+- Direct patched Foundry transport: both named agents responded under the
+  explicitly scoped operator identity. App MI invocation remains a live release gate.
+- GitHub Owner account still has ADMIN; remote master remains `cca875e`;
+  no concurrent upstream commits or unresolved whitespace failures.
 
 ### Corrective release proof - 2026-09-16 10:22 IST
 

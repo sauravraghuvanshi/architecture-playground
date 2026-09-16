@@ -127,6 +127,7 @@ test("generation prompt includes the complete schema and cross-field catalog rul
     assert.equal(list.items.maxLength, 1200);
   }
   assert.match(MODE_PROMPTS.architecture, /distinct existing node IDs/);
+  assert.match(MODE_PROMPTS.architecture, /Never use catalog icon IDs as node IDs or edge source\/target/);
   assert.match(MODE_PROMPTS.architecture, /Copy the entire icon ID verbatim/);
 });
 
@@ -143,7 +144,7 @@ test("real manifest IDs satisfy the graph schema but plausible aliases fail cata
     assert.equal(validateModeOutput("architecture", value), null, "ID syntax alone is insufficient");
     assert.throws(() => parseGuidedArchitecture(value, icons), (error) => {
       assert.deepEqual(error.issues[0].path, ["nodes", 0, "data", "iconId"]);
-      assert.match(error.issues[0].message, /exact icon ID/);
+      assert.match(error.issues[0].message, alias === "azure/application/app-service" ? /azure\/application\/application-service/ : /exact icon ID/);
       return true;
     });
     assert.equal(value.nodes[0].data.iconId, alias, "never remap an invalid model ID");
@@ -282,6 +283,59 @@ const syntheticGenerationInput = {
   businessConstraints: { budget: "Small prototype", recovery: "RTO four hours; RPO one hour", dataResidency: "East US only" },
 };
 
+test("App Service guidance selects the existing Application Service asset without remapping output", async () => {
+  const canonical = icons.find((icon) => icon.id === "azure/application/application-service");
+  assert.ok(canonical);
+  assert.equal(canonical.label, "Application Service");
+  assert.equal(canonical.path, "/cloud-icons/azure/application/application-service.svg");
+  assert.match(readFileSync(new URL(`../public${canonical.path}`, import.meta.url), "utf8"), /<svg\b/);
+  assert.match(MODE_PROMPTS.architecture, /Azure App Service \(Web Apps\) is catalogued as "Application Service"/);
+  assert.ok(MODE_PROMPTS.architecture.includes(`its exact existing iconId is "${canonical.id}"`));
+  assert.match(MODE_PROMPTS.architecture, /Keep the human node label "Azure App Service"/);
+
+  const corrected = modelOutput();
+  corrected.nodes[0].data = { iconId: canonical.id, label: "Azure App Service", cloud: "azure" };
+  corrected.nodes.push({
+    id: "sql", type: "service", position: { x: 200, y: 0 },
+    data: { iconId: "azure/data/sql-database", label: "Azure SQL Database", cloud: "azure" },
+  });
+  corrected.edges.push({
+    id: "app_sql", source: "app", target: "sql",
+    data: { label: "SQL connection", connectionType: "data-flow", lineStyle: "solid", arrowStyle: "forward" },
+  });
+  const invalid = structuredClone(corrected);
+  invalid.nodes[0].data.iconId = "azure/application/app-service";
+  assert.throws(() => parseGuidedArchitecture(invalid, icons), (error) => {
+    assert.equal(error.issues.length, 1);
+    assert.equal(error.issues[0].code, "custom");
+    assert.deepEqual(error.issues[0].path, ["nodes", 0, "data", "iconId"]);
+    assert.ok(error.issues[0].message.includes(canonical.id));
+    return true;
+  });
+  assert.equal(invalid.nodes[0].data.iconId, "azure/application/app-service");
+  const invalidGraphIds = structuredClone(corrected);
+  invalidGraphIds.nodes[0].id = canonical.id;
+  invalidGraphIds.edges[0].source = canonical.id;
+  for (const firstOutput of [corrected, invalid, invalidGraphIds]) {
+    let calls = 0;
+    const route = generationRoute({ complete: async () => JSON.stringify(++calls === 1 ? firstOutput : corrected) });
+    const response = await route.post(syntheticGenerationInput);
+    assert.equal(response.status, 200);
+    const result = await response.json();
+    assert.deepEqual(result.graph.nodes, corrected.nodes);
+    assert.deepEqual(result.graph.edges, corrected.edges);
+    assert.equal(calls, firstOutput === corrected ? 1 : 2);
+    assert.ok(route.calls[0][0][0].content.includes(`${canonical.label} -> ${canonical.id}`));
+    if (firstOutput === invalid) {
+      assert.ok(route.calls[1][0][3].content.includes(canonical.id));
+      assert.match(route.calls[1][0][3].content, /preserve the requested Azure App Service label/);
+    } else if (firstOutput === invalidGraphIds) {
+      assert.match(route.calls[1][0][3].content, /nodes\.0\.id/);
+      assert.match(route.calls[1][0][3].content, /edges\.0\.source/);
+    }
+  }
+});
+
 test("generation corrects JSON, schema, reference and catalog failures once while preserving requirements", async () => {
   const unknownIcon = modelOutput();
   unknownIcon.nodes[0].data.iconId = "azure/compute/app-service";
@@ -316,7 +370,7 @@ test("generation corrects JSON, schema, reference and catalog failures once whil
       description: syntheticGenerationInput.prompt,
       businessConstraints: syntheticGenerationInput.businessConstraints,
     });
-    assert.equal(second[0][0].content, `${MODE_PROMPTS.architecture}\nBundled icon catalog (exact IDs):\n${icons.map((icon) => icon.id).join("\n")}`);
+    assert.equal(second[0][0].content, `${MODE_PROMPTS.architecture}\nBundled icon catalog (service label -> exact iconId):\n${icons.map((icon) => `${icon.label} -> ${icon.id}`).join("\n")}`);
     assert.equal(second[0][2].role, "assistant");
     assert.equal(second[0][2].content, invalid);
     assert.ok(second[0][3].content.includes(issuePath));

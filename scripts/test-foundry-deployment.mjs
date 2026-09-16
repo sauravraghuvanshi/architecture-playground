@@ -100,43 +100,68 @@ test("Foundry invokes the named role agent with Entra auth, stateless requests a
     assert.equal(body.store, false);
     assert.equal(body.tool_choice, "none");
     assert.equal("model" in body, false);
+    assert.equal("instructions" in body, false);
+    assert.equal("text" in body, false);
     assert.equal("conversation" in body, false);
     assert.equal("previous_response_id" in body, false);
+    assert.equal(body.input[0].role, "developer");
+    assert.ok(body.input.every((message) => message.type === "message"));
     assert.ok(options.signal instanceof AbortSignal);
   }
   assert.equal(agent.calls[0][1].body.agent_reference.name, "review-agent");
   assert.equal(agent.calls[1][1].body.agent_reference.name, "deployment-agent");
   assert.equal(agent.calls[0][1].body.agent_reference.type, "agent_reference");
-  assert.deepEqual(agent.calls[0][0].input, image);
-  assert.deepEqual(agent.calls[2][0].input, retryInput);
-  assert.equal(agent.calls[2][0].input[0].content[1].image_url, "data:image/png;base64,AAAA");
+  assert.deepEqual(JSON.parse(JSON.stringify(agent.calls[0][0].input)), [
+    { type: "message", role: "developer", content: "Return JSON" },
+    ...image.map((message) => ({ ...message, type: "message" })),
+  ]);
+  assert.deepEqual(JSON.parse(JSON.stringify(agent.calls[1][0].input)), [
+    { type: "message", role: "developer", content: "Generate JSON" },
+    { type: "message", role: "user", content: "diagram" },
+  ]);
+  assert.deepEqual(JSON.parse(JSON.stringify(agent.calls[2][0].input)), [
+    { type: "message", role: "developer", content: "Return corrected JSON" },
+    ...retryInput.map((message) => ({ ...message, type: "message" })),
+  ]);
+  assert.equal(agent.calls[2][0].input[1].content[1].image_url, "data:image/png;base64,AAAA");
   assert.equal(agent.calls[2][1].body.agent_reference.name, "review-agent");
   assert.equal(agent.clients[0].options.maxRetries, 0);
   assert.equal(agent.clients[0].endpoint, env.AZURE_AI_PROJECT_ENDPOINT);
   assert.equal(agent.timeoutValues[0], 120_000);
 });
 
-test("installed Foundry SDK serializes named-agent extension together with stateless input", async () => {
+test("installed Foundry SDK sends service-compatible named-agent messages without forbidden overrides", async () => {
   let sent;
-  const project = new AIProjectClient(env.AZURE_AI_PROJECT_ENDPOINT, {
-    getToken: async () => ({ token: "test-only-token", expiresOnTimestamp: Date.now() + 60_000 }),
-  });
-  const client = project.getOpenAIClient({ maxRetries: 0 });
-  // AI Projects wraps its own fetch; replace the returned client's public
-  // transport so this compatibility check cannot contact a project.
-  client.fetch = async (url, options) => {
+  class Credential {
+    async getToken() { return { token: "test-only-token", expiresOnTimestamp: Date.now() + 60_000 }; }
+  }
+  class Projects extends AIProjectClient {
+    getOpenAIClient(options) {
+      const client = super.getOpenAIClient(options);
+      // Replace the public transport so this check cannot contact a project.
+      client.fetch = async (url, options) => {
       assert.match(String(url), /\/openai\/v1\/responses/);
       sent = JSON.parse(options.body);
+      assert.equal("instructions" in sent, false, "named agents reject top-level instructions");
+      assert.equal("text" in sent, false, "named agents reject top-level output format");
+      assert.ok(sent.input.every((message) => message.type === "message"), "Foundry requires explicit message discriminators");
       return Response.json({
         id: "resp-test", object: "response", created_at: 1, status: "completed",
         output: [{ id: "msg-test", type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text: '{"ok":true}', annotations: [] }] }],
       });
-  };
-  await client.responses.create(
-    { input: "diagram", instructions: "Return JSON", store: false, tool_choice: "none" },
-    { body: { agent_reference: { name: "deployment-agent", type: "agent_reference" } } }
-  );
-  assert.equal(sent.input, "diagram");
+      };
+      return client;
+    }
+  }
+  const agent = load("lib/foundry-agent.ts", {
+    "@azure/ai-projects": { AIProjectClient: Projects },
+    "@azure/identity": { DefaultAzureCredential: Credential },
+  }, { process: { env } });
+  await agent.invokeFoundryAgent("deployment", "Return JSON", "diagram");
+  assert.deepEqual(sent.input, [
+    { type: "message", role: "developer", content: "Return JSON" },
+    { type: "message", role: "user", content: "diagram" },
+  ]);
   assert.equal(sent.store, false);
   assert.equal(sent.tool_choice, "none");
   assert.equal(sent.agent_reference.name, "deployment-agent");
@@ -145,11 +170,11 @@ test("installed Foundry SDK serializes named-agent extension together with state
     { role: "assistant", content: '{"invalid":"first response"}' },
     { role: "user", content: "Correct only the response schema." },
   ];
-  await client.responses.create(
-    { input: correction, store: false, tool_choice: "none" },
-    { body: { agent_reference: { name: "review-agent", type: "agent_reference" } } }
-  );
-  assert.deepEqual(sent.input, correction);
+  await agent.invokeFoundryAgent("review", "Return corrected JSON", correction);
+  assert.deepEqual(sent.input, [
+    { type: "message", role: "developer", content: "Return corrected JSON" },
+    ...correction.map((message) => ({ ...message, type: "message" })),
+  ]);
   assert.equal(sent.agent_reference.name, "review-agent");
   assert.equal(sent.store, false);
 });

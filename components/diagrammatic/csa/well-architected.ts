@@ -245,7 +245,7 @@ type Signal =
 
 // Match service identity, not prose: a label such as "no backup" is not backup evidence.
 const SIGNAL_SLUGS: Record<Signal, readonly string[]> = {
-  workload: ["app-service", "app-services", "function-app", "function-apps", "functions", "kubernetes-services", "container-kubernetes-service", "aks", "container-app", "container-apps", "virtual-machine", "virtual-machines", "virtual-machine-scale-set", "virtual-machine-scale-sets", "sql-database", "sql-databases", "cosmos-db", "azure-cosmos-db", "storage-account", "storage-accounts", "api-management", "openai", "azure-openai"],
+  workload: ["app-service", "app-services", "application-service", "function-app", "function-apps", "functions", "kubernetes-services", "container-kubernetes-service", "aks", "container-app", "container-apps", "virtual-machine", "virtual-machines", "virtual-machine-scale-set", "virtual-machine-scale-sets", "sql-database", "sql-databases", "cosmos-db", "azure-cosmos-db", "storage-account", "storage-accounts", "api-management", "openai", "azure-openai"],
   distribution: ["front-door", "front-doors", "azure-front-door", "load-balancer", "load-balancers", "application-gateway", "application-gateways", "traffic-manager-profile", "traffic-manager-profiles"],
   backup: ["backup", "azure-backup", "recovery-services", "recovery-services-vault", "recovery-services-vaults", "backup-vault", "backup-vaults", "app-service-backup"],
   secrets: ["key-vault", "key-vaults", "managed-identity", "managed-identities"],

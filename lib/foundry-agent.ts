@@ -57,6 +57,13 @@ export async function invokeFoundryAgent(
   let onAbort: (() => void) | undefined;
   try {
     combined.throwIfAborted();
+    const evidence = typeof input === "string" ? [{ role: "user" as const, content: input }] : input;
+    // Named agents reject top-level instructions/text overrides. Their definition
+    // owns JSON output; trusted app instructions remain separate from user evidence.
+    const messages = [
+      { type: "message" as const, role: "developer" as const, content: instructions },
+      ...evidence.map((message) => ({ ...message, type: "message" as const })),
+    ];
     const project = new AIProjectClient(config.endpoint, new DefaultAzureCredential());
     const client = project.getOpenAIClient({ timeout: FOUNDRY_AGENT_TIMEOUT_MS, maxRetries: 0 });
     const aborted = new Promise<never>((_, reject) => {
@@ -66,10 +73,9 @@ export async function invokeFoundryAgent(
     const response = await Promise.race([
       client.responses.create(
         {
-          input, instructions, store: false, stream: false,
+          input: messages, store: false, stream: false,
           max_output_tokens: purpose === "deployment" ? 12_000 : 6000,
           tool_choice: "none",
-          text: { format: { type: "json_object" } },
         },
         {
           signal: combined,

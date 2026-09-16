@@ -359,13 +359,15 @@ AZURE_AI_DEPLOY_AGENT_NAME=diagrammatic-deployment
 
 Create the two named prompt agents in your Foundry project with a chat-capable
 model; the review agent needs vision support for image uploads. Give the App
-Service managed identity permission to invoke them (the Foundry **Azure AI User**
+Service managed identity permission to invoke them (the **Foundry User**
 role at project scope is the standard starting point). Local development uses
 `DefaultAzureCredential` with your developer identity. Do not provide customer
 subscription credentials. Set these non-public variables in App Service runtime
 settings; the deployment workflow does not create agents or configure identity.
 
-The app supplies structured, evidence-bound instructions on each invocation.
+Set both agent definitions to JSON-object output. The app supplies structured,
+evidence-bound developer messages on each invocation; named-agent requests do
+not support top-level `instructions` or `text` format overrides.
 Tool execution is disabled, no conversation is created, and responses request
 `store:false`. No agents, resources, or subscriptions are created automatically.
 Missing configuration returns an explicit unavailable state, not a silent

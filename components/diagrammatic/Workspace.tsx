@@ -60,6 +60,7 @@ import { AiPromptModal } from "./shared/AiPromptModal";
 import { CommentsPanel } from "./shared/CommentsPanel";
 import { VersionsPanel } from "./shared/VersionsPanel";
 import { ArchitectureReviewModal } from "./csa/ArchitectureReviewModal";
+import { dataUrlToBlob } from "@/lib/data-url";
 import { AzureDeployModal } from "./csa/AzureDeployModal";
 import {
   WhiteboardAssetPalette,
@@ -1522,20 +1523,6 @@ async function exportSequenceGif(
   const buf = new Uint8Array(bytes.byteLength);
   buf.set(bytes);
   return new Blob([buf], { type: "image/gif" });
-}
-
-async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
-  const separator = dataUrl.indexOf(",");
-  if (separator < 0) throw new Error("Export renderer returned an invalid data URL");
-  const header = dataUrl.slice(0, separator);
-  const encoded = dataUrl.slice(separator + 1);
-  const mime = header.match(/^data:([^;,]+)/)?.[1] ?? "application/octet-stream";
-  const binary = header.includes(";base64") ? atob(encoded) : decodeURIComponent(encoded);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  return new Blob([bytes], { type: mime });
 }
 
 function exportTimestamp(): string {

@@ -4,6 +4,7 @@ import { parseArchitectureDocument } from "../lib/architecture-document.ts";
 import { imageRequestSchema, buildImagePrompt } from "../lib/image-styles.ts";
 import { aiRateLimit, _resetAiRateLimit } from "../lib/ai-rate-limit.ts";
 import { readBoundedJson } from "../lib/request-json.ts";
+import { dataUrlToBlob } from "../lib/data-url.ts";
 
 const graph = {
   nodes: [
@@ -13,6 +14,23 @@ const graph = {
   ],
   edges: [{ id: "e1", source: "api", target: "db", label: "TLS", style: "dashed", step: 2 }],
 };
+
+test("SVG data URL conversion preserves UTF-8 rather than truncating Unicode characters", async () => {
+  const text = '<svg xmlns="http://www.w3.org/2000/svg"><text>\u2014 \u2192 \u4e2d\u6587 \ud83d\ude80</text></svg>';
+  const blob = dataUrlToBlob(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(text)}`);
+  assert.equal(blob.type, "image/svg+xml");
+  assert.equal(await blob.text(), text);
+  assert.deepEqual(Buffer.from(await blob.arrayBuffer()), Buffer.from(text, "utf8"));
+});
+
+test("base64 exports preserve every binary byte and malformed data URLs fail", async () => {
+  const bytes = Buffer.from(Array.from({ length: 256 }, (_, index) => index));
+  const blob = dataUrlToBlob(`data:image/png;base64,${bytes.toString("base64")}`);
+  assert.equal(blob.type, "image/png");
+  assert.deepEqual(Buffer.from(await blob.arrayBuffer()), bytes);
+  assert.throws(() => dataUrlToBlob("not-a-data-url"));
+  assert.throws(() => dataUrlToBlob("data:image/svg+xml,%ZZ"));
+});
 
 test("architecture JSON round-trip preserves grouping, shapes, protocols, styles and stages", () => {
   assert.deepEqual(parseArchitectureDocument(JSON.parse(JSON.stringify(graph))), graph);
