@@ -1,6 +1,6 @@
 # Azure Deployment Plan
 
-> **Status:** Validated
+> **Status:** Deployed
 
 Generated: 2026-08-12
 Updated: 2026-09-20 (Asia/Kolkata)
@@ -68,11 +68,28 @@ or role assignment validation is applicable to this client history change.
 - [x] Static role boundary: no API, authentication, model, RBAC or workflow changes.
 - [x] Completed azure-validate using the actual build/test evidence and reviewed
   release diff. No unresolved priority 2 validation failures remain.
-- [ ] Deploy and repeat authenticated history/persistence acceptance.
+- [x] Deploy and repeat authenticated history/persistence acceptance.
 
 ### Priority 2 deployment result
 
-Not deployed.
+- Application release: `d2c21fe64849abc7d728c140b74436620e23e961`
+  (`fix(canvas): complete architecture and Whiteboard undo history`).
+- [GitHub Actions run 35464756442](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35464756442)
+  succeeded in 2 minutes 43 seconds, including hosted API/browser smoke.
+- Production: https://architecture-playground.azurewebsites.net.
+- Post-deployment Chromium acceptance: 21/21 passed in one run. This includes
+  all six new native history scenarios, all seven priority 1 recovery scenarios,
+  six named-document workflows, authentication, and non-invoking agent navigation.
+- Click/drag/AI-fixture image insertions undo individually and redo with identical
+  binaries. Native keyboard and toolbar history agree; new edits replace redo
+  branches. Architecture resize, bulk styles/default toolbar state and connected
+  keyboard deletion are restored correctly.
+- All model output in the history tests used synthetic fixtures. No live model
+  inference, cloud resources, role changes or infrastructure modifications.
+- Temporary production authentication state is removed and the local validation
+  server is stopped. The original local Audit Report remains Git-excluded.
+- This completion record is documentation-only and does not trigger another
+  application deployment. Remaining audit priorities are unchanged.
 
 ## Priority 1: Reliable saving and recovery
 
