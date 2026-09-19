@@ -7,6 +7,8 @@
 
 export type CloudId = "azure" | "aws" | "gcp";
 
+export const PLAYGROUND_LIMITS = { nodes: 200, edges: 500, sequenceStep: 500 } as const;
+
 /** Superset that includes a "generic" provider for cloud-agnostic shapes. */
 export type CloudProvider = CloudId | "generic";
 

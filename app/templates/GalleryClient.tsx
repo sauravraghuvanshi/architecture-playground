@@ -25,6 +25,7 @@ export function TemplateGalleryClient({ templates }: Props) {
   const [difficulty, setDifficulty] = useState<string>("all");
   const [active, setActive] = useState<ParameterizedTemplate | null>(null);
   const [paramValues, setParamValues] = useState<Record<string, ParameterValue>>({});
+  const [handoffError, setHandoffError] = useState("");
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -48,6 +49,7 @@ export function TemplateGalleryClient({ templates }: Props) {
   }, [templates, query, provider, category, difficulty]);
 
   function openPreview(t: ParameterizedTemplate) {
+    setHandoffError("");
     setActive(t);
     const defaults: Record<string, ParameterValue> = {};
     for (const p of t.parameters ?? []) defaults[p.id] = p.default;
@@ -55,15 +57,19 @@ export function TemplateGalleryClient({ templates }: Props) {
   }
 
   function handoffAndGo(t: ParameterizedTemplate, values: Record<string, ParameterValue>) {
-    const graph = resolveTemplate(t, values);
-    // Use localStorage with a unique handoff key (cross-tab safe) and open in
-    // a NEW tab so the user's existing canvas in the original tab is preserved.
-    const handoffId = `tpl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
-    localStorage.setItem(
-      `${TEMPLATE_HANDOFF_KEY}:${handoffId}`,
-      JSON.stringify({ id: t.id, name: t.name, graph, savedAt: new Date().toISOString() })
-    );
-    window.open(`/diagrammatic?templateHandoff=${handoffId}`, "_blank", "noopener");
+    try {
+      const graph = resolveTemplate(t, values);
+      // A unique handoff in a new tab preserves the existing canvas.
+      const handoffId = `tpl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+      localStorage.setItem(
+        `${TEMPLATE_HANDOFF_KEY}:${handoffId}`,
+        JSON.stringify({ id: t.id, name: t.name, graph, savedAt: new Date().toISOString() })
+      );
+      setHandoffError("");
+      window.open(`/diagrammatic?templateHandoff=${handoffId}`, "_blank", "noopener");
+    } catch (cause) {
+      setHandoffError(`Template could not be opened: ${cause instanceof Error ? cause.message : "Invalid template or unavailable browser storage."}`);
+    }
   }
 
   return (
@@ -179,6 +185,7 @@ export function TemplateGalleryClient({ templates }: Props) {
               </button>
             </div>
             <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">{active.description}</p>
+            {handoffError && <p role="alert" className="mb-4 text-sm text-rose-300">{handoffError}</p>}
 
             {(active.parameters ?? []).length > 0 && (
               <div className="mb-4 space-y-3 rounded-md border border-zinc-200 p-3 dark:border-zinc-800">

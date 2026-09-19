@@ -16,6 +16,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { MAX_PLAYBACK_STEP } from "@/lib/architecture-document";
 import type {
   ArchitectureSelection,
   ArchitectureSelectionPatch,
@@ -239,9 +240,12 @@ function SelectionProperties({
             <input
               type="number"
               min={1}
+              max={MAX_PLAYBACK_STEP}
+              required
               step={1}
               defaultValue={selection.step ?? 1}
               onBlur={(event) => {
+                if (!event.currentTarget.reportValidity()) return;
                 const step = Number(event.currentTarget.value);
                 if (Number.isFinite(step) && step > 0 && step !== selection.step) {
                   onUpdate?.(selection.id, { step });

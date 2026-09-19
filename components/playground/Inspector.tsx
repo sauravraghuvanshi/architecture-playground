@@ -8,6 +8,7 @@ import { useMemo } from "react";
 import type { Edge, Node } from "@xyflow/react";
 import type { GroupNodeData, ServiceNodeData, StickyNodeData, ConnectionType, LineStyle, ArrowStyle } from "./lib/types";
 import { usePlaygroundUI } from "./PlaygroundUIContext";
+import { PLAYGROUND_LIMITS } from "./lib/types";
 
 interface Props {
   nodes: Node[];
@@ -122,14 +123,19 @@ export function Inspector({ nodes, edges, onUpdateNode, onUpdateEdge, onDeleteSe
               placeholder="e.g. HTTP request"
             />
           </Field>
-          <Field label="Sequence step (1–100)">
+          <Field label={`Sequence step (1–${PLAYGROUND_LIMITS.sequenceStep})`}>
             <input
               type="number"
               min={1}
-              max={100}
+              max={PLAYGROUND_LIMITS.sequenceStep}
+              step={1}
               value={(selectedEdge.data as { step?: number })?.step ?? ""}
               onChange={(e) => {
-                const v = e.target.value === "" ? undefined : Math.max(1, Math.min(100, Number(e.target.value)));
+                if (e.currentTarget.value !== "" && !Number.isInteger(e.currentTarget.valueAsNumber)) {
+                  e.currentTarget.reportValidity();
+                  return;
+                }
+                const v = e.target.value === "" ? undefined : Math.max(1, Math.min(PLAYGROUND_LIMITS.sequenceStep, Number(e.target.value)));
                 onUpdateEdge(selectedEdge.id, {
                   data: { ...(selectedEdge.data ?? {}), step: v },
                 });

@@ -64,6 +64,7 @@ import {
 } from "lucide-react";
 
 import type { CanvasTheme, IconLite } from "../../shared/types";
+import { MAX_PLAYBACK_STEP, parseArchitectureDocument } from "@/lib/architecture-document";
 
 // ─── Public types (preserved + extended for Phase 3) ──────────────────────
 
@@ -125,6 +126,8 @@ export interface ArchEdge {
   id: string;
   source: string;
   target: string;
+  sourceHandle?: string | null;
+  targetHandle?: string | null;
   label?: string;
   style?: ArchEdgeStyle;
   /** Explicit 1-based playback/GIF order. Lower steps animate first. */
@@ -189,6 +192,7 @@ interface Props {
   onSelectionChange?: (selection: ArchitectureSelection | null) => void;
   onReadyChange?: (ready: boolean) => void;
   onEdgeStyleChange?: (style: ArchEdgeStyle) => void;
+  onError?: (message: string) => void;
   canvasTheme?: CanvasTheme;
 }
 
@@ -215,6 +219,8 @@ interface IconNodeData {
   iconPath: string;
   iconId: string;
   subtitle?: string;
+  width?: number;
+  height?: number;
 }
 
 function ConnectionHandles() {
@@ -247,7 +253,7 @@ const IconNodeImpl = ({ data, selected }: NodeProps) => {
           ? "border-sky-500 ring-4 ring-sky-500/15"
           : "border-slate-200 hover:border-sky-300 hover:shadow-[0_14px_36px_-18px_rgba(2,132,199,0.45)]"
       }`}
-      style={{ transitionDuration: "200ms" }}
+      style={{ transitionDuration: "200ms", width: d.width ?? 132, height: d.height ?? 116 }}
     >
       <ConnectionHandles />
       {d.iconPath && !imgFailed ? (
@@ -309,7 +315,7 @@ const ShapeNodeImpl = ({ data, selected }: NodeProps) => {
             : "rounded-xl";
   return (
     <div
-      className={`relative flex h-[104px] w-[128px] flex-col items-center justify-center gap-2 border bg-white px-3 text-center shadow-[0_10px_28px_-18px_rgba(15,23,42,0.4)] ${shapeClass} ${
+      className={`relative flex h-full w-full flex-col items-center justify-center gap-2 border bg-white px-3 text-center shadow-[0_10px_28px_-18px_rgba(15,23,42,0.4)] ${shapeClass} ${
         selected ? "border-sky-500 ring-4 ring-sky-500/15" : "border-slate-300 hover:border-sky-300"
       }`}
     >
@@ -512,10 +518,12 @@ function edgePropsForStyle(style: ArchEdgeStyle): Partial<Edge> {
 // ─── Serialization ────────────────────────────────────────────────────────
 
 function archToFlow(payload: ArchPayload): { nodes: Node[]; edges: Edge[] } {
+  payload = parseArchitectureDocument(payload);
   const groupIds = new Set(
     (payload.nodes ?? []).filter((n) => n.kind === "group").map((n) => n.id)
   );
-  const nodes: Node[] = (payload.nodes ?? []).map((n) => {
+  const orderedNodes = [...payload.nodes].sort((left, right) => Number(right.kind === "group") - Number(left.kind === "group"));
+  const nodes: Node[] = orderedNodes.map((n) => {
     if (n.kind === "group") {
       return {
         id: n.id,
@@ -547,7 +555,8 @@ function archToFlow(payload: ArchPayload): { nodes: Node[]; edges: Edge[] } {
       id: n.id,
       type: "icon",
       position: { x: n.x, y: n.y },
-      data: { label: n.label, iconPath: n.iconPath, iconId: n.iconId, subtitle: n.subtitle },
+      data: { label: n.label, iconPath: n.iconPath, iconId: n.iconId, subtitle: n.subtitle, width: n.width, height: n.height },
+      ...(n.width !== undefined || n.height !== undefined ? { style: { width: n.width, height: n.height } } : {}),
       zIndex: 2,
       ...(parentId ? { parentId, extent: "parent" as const } : {}),
     };
@@ -556,6 +565,8 @@ function archToFlow(payload: ArchPayload): { nodes: Node[]; edges: Edge[] } {
     id: e.id,
     source: e.source,
     target: e.target,
+    sourceHandle: e.sourceHandle,
+    targetHandle: e.targetHandle,
     label: undefined,
     ...edgePropsForStyle(e.style ?? "flow"),
     data: { archStyle: e.style ?? "flow", label: e.label, step: e.step },
@@ -563,19 +574,18 @@ function archToFlow(payload: ArchPayload): { nodes: Node[]; edges: Edge[] } {
   return { nodes, edges };
 }
 
+function declaredDimension(node: Node, dimension: "width" | "height"): number | undefined {
+  const value = node[dimension] ?? node.style?.[dimension];
+  return typeof value === "number" ? value : undefined;
+}
+
 function flowToArch(nodes: Node[], edges: Edge[]): ArchPayload {
   return {
     nodes: nodes.map((n): ArchNode => {
       if (n.type === "group") {
         const d = n.data as unknown as GroupNodeData;
-        const w =
-          (n.measured?.width as number | undefined) ??
-          ((n.style?.width as number | undefined)) ??
-          280;
-        const h =
-          (n.measured?.height as number | undefined) ??
-          ((n.style?.height as number | undefined)) ??
-          200;
+        const w = declaredDimension(n, "width") ?? n.measured?.width ?? 280;
+        const h = declaredDimension(n, "height") ?? n.measured?.height ?? 200;
         return {
           kind: "group",
           id: n.id,
@@ -597,8 +607,8 @@ function flowToArch(nodes: Node[], edges: Edge[]): ArchPayload {
           subtitle: d?.subtitle,
           x: n.position.x,
           y: n.position.y,
-          width: (n.measured?.width as number | undefined) ?? (n.style?.width as number | undefined),
-          height: (n.measured?.height as number | undefined) ?? (n.style?.height as number | undefined),
+          width: declaredDimension(n, "width") ?? n.measured?.width,
+          height: declaredDimension(n, "height") ?? n.measured?.height,
           ...(n.parentId ? { parentId: n.parentId } : {}),
         };
       }
@@ -612,6 +622,8 @@ function flowToArch(nodes: Node[], edges: Edge[]): ArchPayload {
         subtitle: d?.subtitle,
         x: n.position.x,
         y: n.position.y,
+        ...(declaredDimension(n, "width") !== undefined ? { width: declaredDimension(n, "width") } : {}),
+        ...(declaredDimension(n, "height") !== undefined ? { height: declaredDimension(n, "height") } : {}),
         ...(n.parentId ? { parentId: n.parentId } : {}),
       };
     }),
@@ -621,6 +633,8 @@ function flowToArch(nodes: Node[], edges: Edge[]): ArchPayload {
         id: e.id,
         source: e.source,
         target: e.target,
+        ...(e.sourceHandle !== undefined ? { sourceHandle: e.sourceHandle } : {}),
+        ...(e.targetHandle !== undefined ? { targetHandle: e.targetHandle } : {}),
         label: d.label,
         style: d.archStyle ?? "flow",
         step: d.step,
@@ -746,7 +760,7 @@ function computeEdgePlaybackFrames(nodes: Node[], edges: Edge[]): EdgePlaybackFr
 const STEP_MS = 700;
 
 const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasInner(
-  { value, onChange, onPlayingChange, onSelectionChange, onReadyChange, onEdgeStyleChange, canvasTheme = "light" },
+  { value, onChange, onPlayingChange, onSelectionChange, onReadyChange, onEdgeStyleChange, onError, canvasTheme = "light" },
   ref
 ) {
   const [nodes, setNodes] = useState<Node[]>(() => archToFlow(value).nodes);
@@ -763,6 +777,11 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
   const future = useRef<Array<{ nodes: Node[]; edges: Edge[]; edgeStyle: ArchEdgeStyle }>>([]);
   const dragging = useRef(false);
   const resizing = useRef(false);
+  const resizingNodeIds = useRef(new Set<string>());
+  const reportError = useCallback((message: string) => {
+    if (onError) onError(message);
+    else throw new Error(message);
+  }, [onError]);
 
   useEffect(() => { onEdgeStyleChange?.(defaultEdgeStyle.current); }, [onEdgeStyleChange]);
 
@@ -828,7 +847,14 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
       if (changingSize) resizing.current = true;
       if (changes.some((change) => change.type === "position" && change.dragging === false)) dragging.current = false;
       if (changes.some((change) => change.type === "dimensions" && change.resizing === false)) resizing.current = false;
-      setNodes((nds) => applyNodeChanges(changes, nds));
+      const updates = changes.map((change) => {
+        if (change.type !== "dimensions") return change;
+        const userResize = change.resizing === true || resizingNodeIds.current.has(change.id);
+        if (change.resizing === true) resizingNodeIds.current.add(change.id);
+        if (change.resizing === false) resizingNodeIds.current.delete(change.id);
+        return userResize && change.dimensions ? { ...change, setAttributes: true } : change;
+      });
+      setNodes((nds) => applyNodeChanges(updates, nds));
     },
     [snapshot]
   );
@@ -849,7 +875,6 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
         (edge) => edge.source === connection.source && edge.target === connection.target
       );
       if (duplicate) return;
-      snapshot();
       const id = `e_${connection.source}_${connection.target}_${Date.now().toString(36)}`;
       const props = edgePropsForStyle(defaultEdgeStyle.current);
       const nextStep =
@@ -857,6 +882,11 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
           const step = (edge.data as LabeledEdgeData | undefined)?.step;
           return typeof step === "number" && Number.isFinite(step) ? Math.max(max, step) : max;
         }, 0) + 1;
+      if (nextStep > MAX_PLAYBACK_STEP) {
+        reportError(`Playback order is at its ${MAX_PLAYBACK_STEP} step limit. Lower the largest step before adding another connection.`);
+        return;
+      }
+      snapshot();
       setEdges((eds) =>
         addEdge(
           {
@@ -873,7 +903,7 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
         )
       );
     },
-    [edges, snapshot]
+    [edges, snapshot, reportError]
   );
 
   // Find the smallest group node whose bounding box contains the given
@@ -939,6 +969,11 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
       .map((edge) => (edge.data as LabeledEdgeData | undefined)?.step)
       .filter((step): step is number => typeof step === "number" && Number.isFinite(step) && step > 0);
     let nextStep = orderedSteps.length ? Math.max(...orderedSteps) + 1 : 1;
+    const unassignedCount = edges.length - orderedSteps.length;
+    if (nextStep + unassignedCount - 1 > MAX_PLAYBACK_STEP) {
+      requestAnimationFrame(() => reportError(`Automatic playback order exceeds ${MAX_PLAYBACK_STEP}. Assign remaining steps manually; the diagram has not been changed.`));
+      return;
+    }
     let changed = false;
     const next = edges.map((e) => {
       const have = (e.data as LabeledEdgeData | undefined)?.step;
@@ -1130,8 +1165,8 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
       },
       serialize: () => flowToArch(nodes, edges),
       hydrate: (payload) => {
-        snapshot();
         const flow = archToFlow(payload);
+        snapshot();
         setNodes(flow.nodes);
         setEdges(flow.edges);
         requestAnimationFrame(() => rfInstance?.fitView({ padding: 0.2, duration: 400 }));
@@ -1171,6 +1206,7 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
         onEdgeStyleChange?.(prev.edgeStyle);
         dragging.current = false;
         resizing.current = false;
+        resizingNodeIds.current.clear();
         stopSequence();
         setNodes(prev.nodes);
         setEdges(prev.edges);
@@ -1183,6 +1219,7 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
         onEdgeStyleChange?.(next.edgeStyle);
         dragging.current = false;
         resizing.current = false;
+        resizingNodeIds.current.clear();
         stopSequence();
         setNodes(next.nodes);
         setEdges(next.edges);
@@ -1211,6 +1248,10 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
         const node = nodes.find((candidate) => candidate.id === id);
         const edge = edges.find((candidate) => candidate.id === id);
         if (!node && !edge) return;
+        if (patch.step !== undefined && (!Number.isInteger(patch.step) || patch.step < 1 || patch.step > MAX_PLAYBACK_STEP)) {
+          reportError(`Playback order must be a whole number from 1 to ${MAX_PLAYBACK_STEP}.`);
+          return;
+        }
         snapshot();
         if (node) {
           setNodes((current) =>
@@ -1248,7 +1289,7 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
                     data: {
                       ...(candidate.data as object),
                       ...(patch.label !== undefined ? { label: patch.label } : {}),
-                      ...(patch.step !== undefined ? { step: Math.max(1, Math.round(patch.step)) } : {}),
+                      ...(patch.step !== undefined ? { step: patch.step } : {}),
                       archStyle: nextStyle,
                     },
                   }
@@ -1332,6 +1373,7 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
       seq.isPlaying,
       onSelectionChange,
       onEdgeStyleChange,
+      reportError,
     ]
   );
 

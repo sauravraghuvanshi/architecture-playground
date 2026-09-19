@@ -1,9 +1,85 @@
 # Azure Deployment Plan
 
-> **Status:** Deployed
+> **Status:** Validated
 
 Generated: 2026-08-12
 Updated: 2026-09-20 (Asia/Kolkata)
+
+## Priority 3: Lossless architecture save/import/export
+
+Current application-only release, selected by the user's "move next" under the
+existing plan/implement/test/deploy/verify workflow. Earlier priorities remain
+completed releases and must retain their recovery and history guarantees.
+
+- **Recipe/target:** Existing GitHub Actions standalone App Service deployment
+  at https://architecture-playground.azurewebsites.net. No new resources,
+  infrastructure, identities, runtime configuration or live model invocation.
+- **Baseline:** `5678dd8395c8b7411c11abec5f0e005e627bc68e`; application `d2c21fe`.
+- **Scope:** Preserve native connection handles and supported node geometry,
+  identities, grouping, labels and explicit stages through serialization,
+  validation, named saves, snapshots and JSON import/export. Align legacy
+  sequence/import limits and enforce valid import/template hierarchy.
+- **Plan:** Trace all relevant adapters/schemas, add failing round-trip and
+  boundary tests, implement backward-compatible fields and invariant checks,
+  validate native/legacy behavior plus priorities 1/2, deploy and repeat
+  authenticated hosted acceptance on synthetic documents.
+- **Boundaries:** No new architecture-model redesign, provider/IaC changes,
+  native SVG/PPTX export, Whiteboard features or other backlog priorities.
+- **Rollback:** Prior application release; preserve browser documents and
+  existing data. No destructive migration or force push. Export updated diagrams
+  before a rollback: older clients do not retain the new optional handle fields
+  and older legacy imports reject stages above 100.
+
+### Priority 3 - Section 7: Validation Proof
+
+- Twelve new production-bound assertions failed on the prior implementation.
+  The initial corrected targeted suite passes 25/25; an additional shared
+  sequence-limit boundary test and five browser acceptance journeys were added.
+- Native fields remain optional for older files. Explicit declared dimensions
+  take precedence over renderer measurement rounding; actual user resize
+  dimensions remain authoritative. Native groups are ordered before children.
+- Invalid hydration validates before adding history or replacing state.
+  Legacy import/template containment uses one shared invariant helper; the
+  existing warning-based sanitization policy for unknown icons/edges is retained.
+- Final full unit/contract suite: 180/180 passed. Repository ESLint, strict
+  TypeScript and standalone production build pass.
+- Initial broad browser regression: 62/66 passed. Three initial five-second
+  readiness assertions were rerun unchanged. A resize serialization regression
+  was corrected by distinguishing per-node user resize updates from ordinary
+  rounded layout measurements; a production-bound regression covers both.
+- Final focused acceptance: 29/29 passed, including all four earlier failures
+  and the added native stage-boundary scenario. Across the broad and focused
+  runs, 67 distinct related browser cases passed.
+- Eight new round-trip browser journeys cover complete JSON/save/reload
+  comparison, actual bottom-to-right routing, snapshot restoration, invalid
+  import atomicity, old files, stage-editor bounds, failed template handoff,
+  and legacy named handles with stages above 100.
+- Native manual/automatic playback assignment cannot create a step above its
+  importer limit; errors leave the graph unchanged. User-resize dimensions
+  remain authoritative without rounding unrelated fractional-size nodes.
+- Validation completed by 2026-09-20 02:13 IST using `npm run test:playground`,
+  `npm run lint`, `npx tsc --noEmit --incremental false`, `npm run build`,
+  and Playwright against the standalone candidate. The final 29-case run
+  completed without failures or skips; prior broad results are retained above.
+
+### Priority 3: All validation checks pass
+
+Existing CI/CD standalone application recipe; no new containers, Azure
+resources, role assignments or deployment infrastructure.
+
+- [x] `npm run test:playground`: 180 passing production-bound/unit contracts.
+- [x] `npm run lint`, `npx tsc --noEmit --incremental false`.
+- [x] `npm run build` and responsive standalone server on port 3317.
+- [x] Native/legacy round-trip, template, review, conversion, export, persistence,
+  and Undo/Redo regression evidence recorded above; no remaining scoped failures.
+- [x] No authentication, model configuration, RBAC or workflow changes.
+- [x] Completed azure-validate and verified scoped diff, owner permissions and
+  unchanged production baseline after actual tests/build.
+- [ ] Deploy and repeat authenticated production acceptance.
+
+### Priority 3 deployment result
+
+Not deployed.
 
 ## Priority 2: Complete Undo/Redo for both canvases
 

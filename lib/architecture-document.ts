@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { ArchPayload } from "../components/diagrammatic/modes/architecture/ArchitectureCanvas";
 
+export const MAX_PLAYBACK_STEP = 100_000;
 const id = z.string().min(1).max(200);
 const position = {
   id,
@@ -15,12 +16,14 @@ const schema = z.object({
   nodes: z.array(z.union([
     z.object({ ...position, ...child, kind: z.literal("icon").optional(), iconId: z.string().max(1000), iconPath: z.string().max(2000) }),
     z.object({ ...position, ...child, kind: z.literal("shape"), shape: z.enum(["rectangle", "circle", "diamond", "database", "person", "document", "internet"]) }),
-    z.object({ ...position, kind: z.literal("group"), width: z.number().positive().max(100_000), height: z.number().positive().max(100_000), tier: z.string().max(200).optional() }),
+    z.object({ ...position, kind: z.literal("group"), parentId: z.never().optional(), width: z.number().positive().max(100_000), height: z.number().positive().max(100_000), tier: z.string().max(200).optional() }),
   ])).max(500),
   edges: z.array(z.object({
     id, source: id, target: id, label: z.string().max(1000).optional(),
+    sourceHandle: z.enum(["top", "right", "bottom", "left"]).nullable().optional(),
+    targetHandle: z.enum(["top", "right", "bottom", "left"]).nullable().optional(),
     style: z.enum(["solid", "dashed", "flow"]).optional(),
-    step: z.number().int().positive().max(100_000).optional(),
+    step: z.number().int().positive().max(MAX_PLAYBACK_STEP).optional(),
   })).max(1000),
 });
 

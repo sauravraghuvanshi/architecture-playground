@@ -43,6 +43,26 @@ test("architecture import rejects dangling edges, duplicate IDs, invalid positio
   assert.throws(() => parseArchitectureDocument({ nodes: [{ kind: "icon", id: "x", label: "X", x: 0, y: 0, iconId: "x", iconPath: "https://example.com/icon.svg" }], edges: [] }));
 });
 
+test("native JSON preserves all connection sides, null defaults and explicit geometry", () => {
+  for (const sourceHandle of ["top", "right", "bottom", "left", null]) {
+    for (const targetHandle of ["top", "right", "bottom", "left", null]) {
+      const input = {
+        ...graph,
+        nodes: graph.nodes.map((node) => ({ ...node, width: 240.5, height: 160.25 })),
+        edges: [{ ...graph.edges[0], sourceHandle, targetHandle, step: 100_000 }],
+      };
+      assert.deepEqual(parseArchitectureDocument(JSON.parse(JSON.stringify(input))), input);
+    }
+  }
+});
+
+test("native import rejects unsupported handles and nested groups instead of silently stripping them", () => {
+  assert.throws(() => parseArchitectureDocument({ ...graph, edges: [{ ...graph.edges[0], sourceHandle: "invalid-side" }] }));
+  assert.throws(() => parseArchitectureDocument({
+    ...graph, nodes: [{ ...graph.nodes[0], parentId: "tier" }, ...graph.nodes.slice(1)],
+  }));
+});
+
 test("image styles preserve default prompt and validate explicit presets", () => {
   const original = imageRequestSchema.parse({ prompt: "An order workflow" });
   assert.equal(buildImagePrompt(original), "An order workflow");

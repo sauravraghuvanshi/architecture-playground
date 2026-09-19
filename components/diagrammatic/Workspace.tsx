@@ -361,7 +361,7 @@ export function Workspace({
         sessionStorage.getItem(TEMPLATE_HANDOFF_KEY);
       if (!raw) return;
       const parsed = JSON.parse(raw) as { graph?: PlaygroundLikeGraph };
-      const arch = parsed?.graph ? playgroundGraphToArchPayload(parsed.graph, icons) : null;
+      const arch = parsed?.graph ? parseArchitectureDocument(playgroundGraphToArchPayload(parsed.graph, icons)) : null;
       if (arch && arch.nodes.length) {
         handoffApplied.current = true;
         promptApplied.current = true; // suppress the prompt path on the same load
@@ -374,8 +374,10 @@ export function Workspace({
         }
         sessionStorage.removeItem(TEMPLATE_HANDOFF_KEY);
       }
-    } catch {
-      /* ignore handoff failures — falls back to empty canvas */
+    } catch (cause) {
+      handoffApplied.current = true;
+      const message = `Template could not be opened: ${cause instanceof Error ? cause.message : "Invalid template data."} Existing saved diagrams have not been changed.`;
+      requestAnimationFrame(() => setExportNotice({ kind: "error", message }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
@@ -919,6 +921,7 @@ export function Workspace({
                 onChange={handleArchChange}
                 onPlayingChange={setPlaying}
                 onEdgeStyleChange={setEdgeStyle}
+                onError={(message) => setExportNotice({ kind: "error", message })}
                 onSelectionChange={setSelection}
                 canvasTheme={canvasTheme}
               />
@@ -1025,15 +1028,22 @@ export function Workspace({
           onClose={() => setVersionsOpen(false)}
           getCurrent={() => (mode === "architecture" ? canvasRef.current?.serialize() ?? archPayload : otherCanvasRef.current?.serialize() ?? otherPayloads[mode])}
           onRestore={(payload) => {
-            if (mode === "architecture") {
-              setArchPayload(payload as ArchPayload);
-              canvasRef.current?.hydrate(payload as ArchPayload);
-            } else {
-              setOtherPayloads((prev) => ({ ...prev, [mode]: payload }));
-              otherCanvasRef.current?.hydrate(payload);
+            try {
+              if (mode === "architecture") {
+                const checked = parseArchitectureDocument(payload);
+                if (!canvasRef.current) throw new Error("The canvas is still loading.");
+                canvasRef.current.hydrate(checked);
+                setArchPayload(checked);
+              } else {
+                if (!otherCanvasRef.current) throw new Error("The canvas is still loading.");
+                otherCanvasRef.current.hydrate(payload);
+                setOtherPayloads((prev) => ({ ...prev, [mode]: payload }));
+              }
+              setSaved(false);
+              setDocumentRevision((value) => value + 1);
+            } catch (cause) {
+              setExportNotice({ kind: "error", message: `Snapshot could not be restored: ${cause instanceof Error ? cause.message : "Invalid diagram data."}` });
             }
-            setSaved(false);
-            setDocumentRevision((value) => value + 1);
           }}
         />
       </div>
@@ -1260,6 +1270,8 @@ interface PlaygroundLikeGraph {
     id: string;
     source: string;
     target: string;
+    sourceHandle?: string | null;
+    targetHandle?: string | null;
     data?: { label?: string; protocol?: string; animated?: boolean; step?: number; lineStyle?: "solid" | "dashed" };
   }>;
 }
@@ -1294,16 +1306,16 @@ function playgroundGraphToArchPayload(
   const absoluteChildParents = new Set<string>();
   for (const [groupId, group] of groups) {
     const children = (graph.nodes ?? []).filter((node) => node.parentId === groupId);
-    const fits = (x: number, y: number) =>
+    const fits = (x: number, y: number, width = 132, height = 116) =>
       x >= 0 &&
       y >= 0 &&
-      x + 132 <= group.width + 24 &&
-      y + 116 <= group.height + 24;
+      x + width <= group.width + 24 &&
+      y + height <= group.height + 24;
     if (
       children.some(
         (child) =>
-          !fits(child.position.x, child.position.y) &&
-          fits(child.position.x - group.x, child.position.y - group.y)
+          !fits(child.position.x, child.position.y, child.width, child.height) &&
+          fits(child.position.x - group.x, child.position.y - group.y, child.width, child.height)
       )
     ) {
       absoluteChildParents.add(groupId);
@@ -1314,6 +1326,7 @@ function playgroundGraphToArchPayload(
   );
   for (const n of orderedNodes) {
     if (n.type === "group") {
+      if (n.parentId) throw new Error("Nested template groups are not supported by Cloud Architecture. Use the legacy playground for this hierarchy.");
       const variant = (n.data?.variant as string) ?? "custom";
       nodes.push({
         kind: "group",
@@ -1345,16 +1358,22 @@ function playgroundGraphToArchPayload(
         label,
         iconId: resolvedIcon?.id ?? iconId,
         iconPath: resolvedIcon?.path ?? "",
+        ...(n.width !== undefined ? { width: n.width } : {}),
+        ...(n.height !== undefined ? { height: n.height } : {}),
+        ...(typeof n.data.description === "string" ? { subtitle: n.data.description } : {}),
         ...(n.parentId ? { parentId: n.parentId } : {}),
       });
+    } else {
+      throw new Error(`Template node type "${n.type}" is not supported by Cloud Architecture. Use the legacy playground instead.`);
     }
-    // (sticky / other types are ignored for now)
   }
 
   const edges: ArchEdge[] = (graph.edges ?? []).map((e) => ({
     id: e.id,
     source: e.source,
     target: e.target,
+    ...(e.sourceHandle !== undefined ? { sourceHandle: e.sourceHandle } : {}),
+    ...(e.targetHandle !== undefined ? { targetHandle: e.targetHandle } : {}),
     label: e.data?.label ?? e.data?.protocol,
     style: e.data?.lineStyle === "dashed" ? "dashed" : e.data?.animated ? "flow" : "solid",
     step: e.data?.step,

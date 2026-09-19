@@ -208,6 +208,13 @@ policies, agent configuration, and Azure diagnostics may still retain data.
 - Architecture validation for disconnected or unlabeled components
 - One-step Undo/Redo for boundary resizing and bulk connection-style changes,
   including the toolbar's default connection style
+- JSON/save/snapshot round-trips preserve connection-side handles, explicit
+  service/shape dimensions (including fractional values), labels, grouping,
+  relative positions, and explicit playback stages. Older files without handle
+  fields retain their default attachments.
+- Imports validate before replacing the current canvas. Native boundaries stay
+  flat; invalid or nested group references are rejected rather than detached.
+  Groups are hydrated before their children without changing coordinates.
 
 ### Presentation-quality export
 
@@ -440,6 +447,17 @@ The regression suites cover:
 - Whiteboard symbol insertion and persisted reload;
 - mode-specific AI status and mocked SSE image insertion;
 - public-page visual-system and capability-claim consistency.
+
+Architecture round-trip tests additionally cover every connection-side
+combination, invalid-import atomicity, fractional geometry, saved-version
+restoration, and real connected-edge routing after reload. Legacy Playground
+imports retain nested groups only when containment is valid, reject nonpositive
+dimensions, and support integer sequence stages 1-500 consistently with the
+inspector. Filtering a template boundary also filters its descendants and
+dependent edges; unsupported native template content is reported explicitly.
+The native playback editor accepts whole-number stages 1-100,000. Out-of-range
+edits or automatic assignments report an error instead of producing a diagram
+that cannot be saved or re-imported.
 
 ## Deploy to Azure
 

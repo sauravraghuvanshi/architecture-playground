@@ -44,8 +44,8 @@ function ServiceNodeImpl({ id, data, selected }: Props) {
       } ${isActive ? `animate-pulse ring-4 ${CLOUD_RING[cloud] ?? "ring-brand-500"}` : ""}`}
       style={{ minWidth: 96 }}
     >
-      <Handle type="target" position={Position.Top} className="!h-2 !w-2 !bg-brand-500" />
-      <Handle type="target" position={Position.Left} className="!h-2 !w-2 !bg-brand-500" />
+      <Handle id="top" type="target" position={Position.Top} className="!h-2 !w-2 !bg-brand-500" />
+      <Handle id="left" type="target" position={Position.Left} className="!h-2 !w-2 !bg-brand-500" />
       <div className="relative flex h-12 w-12 items-center justify-center">
         {iconPath && !iconBroken ? (
           /* eslint-disable-next-line @next/next/no-img-element */
@@ -71,8 +71,8 @@ function ServiceNodeImpl({ id, data, selected }: Props) {
       <div className="max-w-[140px] truncate text-center text-xs font-medium text-zinc-900 dark:text-zinc-100">
         {label}
       </div>
-      <Handle type="source" position={Position.Right} className="!h-2 !w-2 !bg-brand-500" />
-      <Handle type="source" position={Position.Bottom} className="!h-2 !w-2 !bg-brand-500" />
+      <Handle id="right" type="source" position={Position.Right} className="!h-2 !w-2 !bg-brand-500" />
+      <Handle id="bottom" type="source" position={Position.Bottom} className="!h-2 !w-2 !bg-brand-500" />
     </div>
   );
 }

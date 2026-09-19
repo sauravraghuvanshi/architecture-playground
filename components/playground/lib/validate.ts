@@ -15,9 +15,11 @@
 import { z } from "zod";
 import type { IconManifestEntry, PlaygroundGraph } from "./types";
 import { normalizeGraph } from "./migrations";
+import { PLAYGROUND_LIMITS } from "./types";
+import { hierarchyErrors, parentFirst } from "./hierarchy";
 
-const MAX_NODES = 200;
-const MAX_EDGES = 500;
+const MAX_NODES = PLAYGROUND_LIMITS.nodes;
+const MAX_EDGES = PLAYGROUND_LIMITS.edges;
 const MAX_LABEL = 200;
 const COORD_LIMIT = 50_000;
 
@@ -27,6 +29,7 @@ const finite = z
   .refine((n) => n >= -COORD_LIMIT && n <= COORD_LIMIT, "out of range");
 
 const positionSchema = z.object({ x: finite, y: finite });
+const dimension = z.number().finite().positive().max(COORD_LIMIT);
 
 const labelSchema = z.string().max(MAX_LABEL);
 
@@ -74,8 +77,8 @@ const nodeSchema = z.discriminatedUnion("type", [
     position: positionSchema,
     data: serviceDataSchema,
     parentId: z.string().min(1).max(64).optional(),
-    width: finite.optional(),
-    height: finite.optional(),
+    width: dimension.optional(),
+    height: dimension.optional(),
     zIndex: z.number().optional(),
   }),
   z.object({
@@ -84,8 +87,8 @@ const nodeSchema = z.discriminatedUnion("type", [
     position: positionSchema,
     data: groupDataSchema,
     parentId: z.string().min(1).max(64).optional(),
-    width: finite.optional(),
-    height: finite.optional(),
+    width: dimension.optional(),
+    height: dimension.optional(),
     zIndex: z.number().optional(),
   }),
   z.object({
@@ -94,8 +97,8 @@ const nodeSchema = z.discriminatedUnion("type", [
     position: positionSchema,
     data: stickyDataSchema,
     parentId: z.string().min(1).max(64).optional(),
-    width: finite.optional(),
-    height: finite.optional(),
+    width: dimension.optional(),
+    height: dimension.optional(),
     zIndex: z.number().optional(),
   }),
 ]);
@@ -110,7 +113,7 @@ const edgeSchema = z.object({
     .object({
       label: labelSchema.optional(),
       animated: z.boolean().optional(),
-      step: z.number().int().min(1).max(100).optional(),
+      step: z.number().int().min(1).max(PLAYGROUND_LIMITS.sequenceStep).optional(),
       color: hexColor,
       connectionType: z.enum(["data-flow", "network", "dependency", "sequence", "custom"]).optional(),
       protocol: z.string().max(50).optional(),
@@ -205,9 +208,14 @@ export function validateImportedGraph(
   }
 
   const cleanEdges: PlaygroundGraph["edges"] = [];
+  const containmentErrors = hierarchyErrors(cleanNodes);
+  if (containmentErrors.length) return { ok: false, errors: [...errors, ...containmentErrors] };
   const seenEdgeIds = new Set<string>();
   for (const e of parsed.data.edges) {
-    if (seenEdgeIds.has(e.id)) continue;
+    if (seenEdgeIds.has(e.id)) {
+      errors.push(`duplicate edge id: ${e.id}`);
+      continue;
+    }
     if (!seenNodeIds.has(e.source) || !seenNodeIds.has(e.target)) {
       errors.push(`edge ${e.id} references missing node`);
       continue;
@@ -226,7 +234,7 @@ export function validateImportedGraph(
   return {
     ok: true,
     graph: normalizeGraph({
-      nodes: cleanNodes,
+      nodes: parentFirst(cleanNodes),
       edges: cleanEdges,
       viewport: parsed.data.viewport,
       layers: parsed.data.layers,

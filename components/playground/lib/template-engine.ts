@@ -8,7 +8,7 @@
  *   - Resolving a template means: read parameter values (defaults if missing),
  *     drop nodes/edges whose `_when` predicate fails, optionally swap icon
  *     choices, then return a clean `PlaygroundGraph`.
- *   - Drops cascade: edges whose source/target was filtered out are dropped.
+ *   - Drops cascade to contained descendants and edges with filtered endpoints.
  *
  * The engine is pure & deterministic so it's trivial to unit test.
  */
@@ -20,6 +20,7 @@ import type {
   ServiceNodeData,
 } from "./types";
 import { normalizeGraph } from "./migrations";
+import { hierarchyErrors, parentFirst } from "./hierarchy";
 
 export type ParameterValue = string | number | boolean;
 
@@ -126,6 +127,8 @@ export function resolveTemplate(
   overrides: Record<string, ParameterValue> = {}
 ): PlaygroundGraph {
   const values = resolveParameterValues(template, overrides);
+  const errors = hierarchyErrors(template.graph.nodes);
+  if (errors.length) throw new Error(`Invalid template hierarchy: ${errors.join(" ")}`);
 
   // 1. Filter & finalize nodes.
   const keptNodes: PlaygroundNode[] = [];
@@ -148,6 +151,18 @@ export function resolveTemplate(
     keptIds.add(n.id);
   }
 
+  // A filtered boundary also excludes its descendants, regardless of array order.
+  let removed = true;
+  while (removed) {
+    removed = false;
+    for (const node of keptNodes) {
+      if (keptIds.has(node.id) && node.parentId && !keptIds.has(node.parentId)) {
+        keptIds.delete(node.id);
+        removed = true;
+      }
+    }
+  }
+
   // 2. Filter edges (drop if endpoints missing or predicate fails).
   const keptEdges: PlaygroundEdge[] = [];
   for (const e of template.graph.edges) {
@@ -159,7 +174,7 @@ export function resolveTemplate(
   }
 
   return normalizeGraph({
-    nodes: keptNodes,
+    nodes: parentFirst(keptNodes.filter((node) => keptIds.has(node.id))),
     edges: keptEdges,
     viewport: template.graph.viewport,
     layers: template.graph.layers,
