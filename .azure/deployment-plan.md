@@ -1,6 +1,6 @@
 # Azure Deployment Plan
 
-> **Status:** Validated
+> **Status:** Deployed
 
 Generated: 2026-08-12
 Updated: 2026-09-20 (Asia/Kolkata)
@@ -75,11 +75,30 @@ resources, role assignments or deployment infrastructure.
 - [x] No authentication, model configuration, RBAC or workflow changes.
 - [x] Completed azure-validate and verified scoped diff, owner permissions and
   unchanged production baseline after actual tests/build.
-- [ ] Deploy and repeat authenticated production acceptance.
+- [x] Deploy and repeat authenticated production acceptance.
 
 ### Priority 3 deployment result
 
-Not deployed.
+- Application release: `64f1c4807acc25be7918195266cb896bdccb1f85`
+  (`fix(diagrams): preserve architecture round-trip fidelity`).
+- [GitHub Actions run 35468584984](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35468584984)
+  succeeded in 2 minutes 48 seconds, including hosted API/browser smoke.
+- Production: https://architecture-playground.azurewebsites.net.
+- Post-deployment Chromium acceptance: 32/32 passed in one run (5.4 minutes).
+  This covers all eight new round-trip journeys, all six Undo/Redo cases, all
+  seven priority 1 recovery cases, six named-document workflows, three template
+  import cases (including all 16 bundled templates), and two auth/navigation cases.
+- Confirmed actual bottom-to-right routing, fractional geometry, identity,
+  grouping and explicit stages survive JSON, named saves, reload and snapshots.
+  Invalid imports/handoffs retain the original graph/data and report errors.
+  Legacy named-side connections and stages above 100 round-trip correctly.
+- No live model inference, customer resource creation, role changes or
+  infrastructure modifications. Synthetic AI fixtures were used only where
+  needed by existing regression journeys.
+- The temporary production authentication file is removed and the owned local
+  validation server is stopped. The original Audit Report remains Git-excluded.
+- This completion record is documentation-only; no second application deployment
+  is triggered. Remaining audit priorities and browser-support limitations remain.
 
 ## Priority 2: Complete Undo/Redo for both canvases
 
