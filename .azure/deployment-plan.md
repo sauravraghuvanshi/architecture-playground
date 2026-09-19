@@ -1,6 +1,6 @@
 # Azure Deployment Plan
 
-> **Status:** Validated
+> **Status:** Deployed
 
 Generated: 2026-08-12
 Updated: 2026-09-20 (Asia/Kolkata)
@@ -86,7 +86,29 @@ workflow rather than introducing a new infrastructure deployment recipe.
 
 ### Priority 1 deployment result
 
-Not deployed. Historical September 16 results below are not validation of this fix.
+- Application release: `79e353b6d498e1beb168c1792bec6ba642ffdf66`
+  (`fix(persistence): preserve drafts and isolate recovery failures`).
+- Deployment succeeded through [GitHub Actions run 35462536382](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35462536382)
+  in 2 minutes 37 seconds, including authenticated API/browser smoke.
+- Production: https://architecture-playground.azurewebsites.net.
+- Authenticated production verification covered 15 distinct browser cases:
+  seven new persistence/recovery cases, six existing named-document journeys,
+  authentication, and the non-invoking named-agent navigation smoke.
+- Initial hosted run: 14 passed; the existing hub-navigation assertion exceeded
+  its five-second wait. Its failure screenshot already showed the hub. The exact
+  unchanged scenario then passed three consecutive targeted repeats, including
+  the persisted two-node assertion. No assertion was relaxed or app code changed.
+- Immediate scratch refresh, Back, Whiteboard binaries, corruption isolation,
+  original recovery-data download, quota warnings, failed-save navigation,
+  pending named saves, and cross-tab recovery were all verified on the release.
+- No live model inference, customer resource creation, infrastructure changes,
+  or role modifications were performed. Temporary production authentication
+  state and owned local validation server are cleaned after verification.
+- The broad audit remains applicable to other priorities. In particular, the
+  existing local AI-availability timing assertion is not fixed by this release.
+
+This documentation-only completion record does not trigger another application
+deployment. Historical September 16 results below remain historical evidence.
 
 ## Final release result
 
