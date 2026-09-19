@@ -20,6 +20,7 @@ import {
   MainMenu,
   exportToBlob,
   convertToExcalidrawElements,
+  CaptureUpdateAction,
 } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import { z } from "zod";
@@ -72,7 +73,11 @@ interface ExcalidrawAPI {
   getSceneElements: () => readonly unknown[];
   getAppState: () => Record<string, unknown>;
   getFiles: () => Record<string, unknown>;
-  updateScene: (s: { elements?: unknown[]; appState?: Record<string, unknown> }) => void;
+  updateScene: (s: {
+    elements?: unknown[];
+    appState?: Record<string, unknown>;
+    captureUpdate?: (typeof CaptureUpdateAction)[keyof typeof CaptureUpdateAction];
+  }) => void;
   scrollToContent: (els?: readonly unknown[], opts?: { fitToContent?: boolean }) => void;
   addFiles: (files: Array<{ id: string; mimeType: string; dataURL: string; created: number }>) => void;
   setActiveTool: (tool: { type: "arrow" }) => void;
@@ -210,6 +215,7 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
     requestAnimationFrame(() => {
       if (apiRef.current !== registeredApi) return;
       registeredApi.updateScene({
+        captureUpdate: CaptureUpdateAction.NEVER,
         appState: {
           viewBackgroundColor: canvasBackground,
           currentItemStrokeColor: canvasStroke,
@@ -221,6 +227,7 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
 
   useEffect(() => {
     apiRef.current?.updateScene({
+      captureUpdate: CaptureUpdateAction.NEVER,
       appState: {
         viewBackgroundColor: canvasBackground,
         currentItemStrokeColor: canvasStroke,
@@ -311,7 +318,10 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
           status: "saved",
         },
       ] as never);
-      api.updateScene({ elements: [...api.getSceneElements(), ...elements] });
+      api.updateScene({
+        elements: [...api.getSceneElements(), ...elements],
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
     },
     []
   );
@@ -384,6 +394,7 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
       api.updateScene({
         elements: data.elements,
         appState: sanitizeAppState(data.appState),
+        captureUpdate: CaptureUpdateAction.NEVER,
       });
       api.history.clear();
     },

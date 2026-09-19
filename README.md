@@ -206,6 +206,8 @@ policies, agent configuration, and Azure diagnostics may still retain data.
 - Solid, dashed, and animated flow styles
 - Explicit synchronized playback stages
 - Architecture validation for disconnected or unlabeled components
+- One-step Undo/Redo for boundary resizing and bulk connection-style changes,
+  including the toolbar's default connection style
 
 ### Presentation-quality export
 
@@ -283,6 +285,8 @@ are reported independently so valid annotations can still be recovered.
 ### Whiteboard
 
 - Native freehand drawing, shapes, text, and image tools
+- Individually undoable click/drag symbol inserts and AI image inserts;
+  Redo restores the same image binaries
 - 600 bundled Lucide symbols generated at build time
 - Diagrammatic-only menus and bundled assets with external scene/library imports disabled
 - Connected Flow arrow tool for drawing bound symbol-to-symbol paths
@@ -305,6 +309,10 @@ services remain generic components rather than being guessed as cloud icons.
 Every diagram mode includes an independently persisted White/Black canvas
 toggle. Structured diagrams default to a white document surface; Whiteboard and
 Kanban preserve their existing black default until changed.
+
+Undo/Redo uses the active canvas's editing history. A new edit after Undo
+replaces the old redo branch. Loading another document or reloading the page
+starts a new editing session; use saved version snapshots for durable history.
 
 ## Run locally
 

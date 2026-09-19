@@ -12,7 +12,7 @@
     "lint": "eslint",
     "build:icon-manifest": "node scripts/build-cloud-icon-manifest.mjs",
     "build:whiteboard-assets": "node scripts/build-whiteboard-assets.mjs",
-    "test:playground": "node --test scripts/test-playground.mjs scripts/test-csa.mjs scripts/test-hackathon.mjs scripts/test-whiteboard-conversion.mjs scripts/test-whiteboard-canvas.mjs scripts/test-design-assistance.mjs scripts/test-diagram-library.mjs scripts/test-diagram-documents.mjs scripts/test-foundry-deployment.mjs scripts/test-live-csa-smoke.mjs",
+    "test:playground": "node --test scripts/test-playground.mjs scripts/test-architecture-canvas.mjs scripts/test-csa.mjs scripts/test-hackathon.mjs scripts/test-whiteboard-conversion.mjs scripts/test-whiteboard-canvas.mjs scripts/test-design-assistance.mjs scripts/test-diagram-library.mjs scripts/test-diagram-documents.mjs scripts/test-foundry-deployment.mjs scripts/test-live-csa-smoke.mjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },

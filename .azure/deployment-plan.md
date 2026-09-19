@@ -1,9 +1,78 @@
 # Azure Deployment Plan
 
-> **Status:** Deployed
+> **Status:** Validated
 
 Generated: 2026-08-12
 Updated: 2026-09-20 (Asia/Kolkata)
+
+## Priority 2: Complete Undo/Redo for both canvases
+
+Current application-only release. The user's "go to next" selects priority 2
+and continues the authorized plan/implement/test/deploy/verify cycle.
+Priority 1 and historical results below remain completed prior releases.
+
+- **Recipe/target:** Existing GitHub Actions CI/CD and standalone App Service at
+  https://architecture-playground.azurewebsites.net. No new resources, model
+  calls, infrastructure, identities, permissions, or runtime configuration.
+- **Baseline:** `0dd947605845ef9573833d2a8033c714c02bb211`; application `79e353b`.
+- **Scope:** Immediate history checkpoints for Whiteboard click/drag/AI image
+  insertion; architecture resize and bulk-style history; preserve binaries on
+  redo, gesture-level history, and correct redo branching after a new edit.
+- **Plan:** Read native history APIs and existing tests; add failing regression
+  coverage; implement minimal history changes; validate related editing,
+  persistence, and export behavior; deploy through the existing workflow and
+  repeat authenticated acceptance tests against the release.
+- **Boundaries:** Preserve priority 1 durability/recovery. Do not change theme,
+  image aspect ratio, AI providers, graph schema or unrelated audit priorities.
+- **Rollback:** Redeploy the prior application revision without changing browser
+  documents. No destructive storage migration or force push.
+
+### Priority 2 - Section 7: Validation Proof
+
+- Five new production-bound assertions failed before changes and now pass.
+  The targeted architecture/Whiteboard canvas suite passes 12/12.
+- Full unit/contract suite: 163 passed. Repository ESLint, strict TypeScript,
+  and standalone production build passed on 2026-09-20 (Asia/Kolkata).
+- Browser regression: 49/49 passed across history, architecture editing,
+  priority 1 persistence/recovery, named documents, Whiteboard assets/conversion,
+  and all-mode export matrix. An additional keyboard-delete history scenario
+  passed two unchanged targeted repeats (50 distinct local browser cases total).
+- The extra keyboard-delete case initially exceeded a five-second scratch-draft
+  setup wait while a separate export suite was running. No history action had
+  begun; the unchanged scenario passed after the concurrent run completed.
+- Six new real browser history journeys cover click/drag/AI-fixture insertion,
+  original binary restoration, native keyboard shortcuts, group resize,
+  bulk-style/toolbar state, redo branching, and connected keyboard deletion.
+- The fix uses Excalidraw's exported capture action; it does not add a parallel
+  Whiteboard undo stack. Architecture snapshots include default edge style,
+  deduplicate batched node/edge deletion, and capture resize gestures once.
+- The UI edge-style cycle no longer performs a canvas mutation inside a React
+  state updater, preventing duplicate history side effects under Strict Mode.
+- Validation completed by 2026-09-20 00:57 IST: `npm run test:playground`,
+  `npm run lint`, `npx tsc --noEmit --incremental false`, `npm run build`,
+  the nine selected Playwright suites against the standalone candidate, and the
+  unchanged keyboard-delete test repeated twice. All model responses used by
+  these tests were synthetic fixtures; live inference was disabled.
+
+### Priority 2: All validation checks pass
+
+Existing CI/CD application-only recipe; no new AZD, container, infrastructure,
+or role assignment validation is applicable to this client history change.
+
+- [x] Owner-scoped push/admin permission and remote baseline confirmed.
+- [x] Production-bound unit/contract tests: `npm run test:playground` (163/163).
+- [x] `npm run lint`, `npx tsc --noEmit --incremental false`.
+- [x] `npm run build` and standalone HTTP readiness on port 3317.
+- [x] Relevant browser suites and six new history scenarios passed without
+  changing expected output or history semantics.
+- [x] Static role boundary: no API, authentication, model, RBAC or workflow changes.
+- [x] Completed azure-validate using the actual build/test evidence and reviewed
+  release diff. No unresolved priority 2 validation failures remain.
+- [ ] Deploy and repeat authenticated history/persistence acceptance.
+
+### Priority 2 deployment result
+
+Not deployed.
 
 ## Priority 1: Reliable saving and recovery
 

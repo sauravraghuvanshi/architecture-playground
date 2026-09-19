@@ -188,6 +188,7 @@ interface Props {
   onPlayingChange?: (playing: boolean) => void;
   onSelectionChange?: (selection: ArchitectureSelection | null) => void;
   onReadyChange?: (ready: boolean) => void;
+  onEdgeStyleChange?: (style: ArchEdgeStyle) => void;
   canvasTheme?: CanvasTheme;
 }
 
@@ -745,7 +746,7 @@ function computeEdgePlaybackFrames(nodes: Node[], edges: Edge[]): EdgePlaybackFr
 const STEP_MS = 700;
 
 const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasInner(
-  { value, onChange, onPlayingChange, onSelectionChange, onReadyChange, canvasTheme = "light" },
+  { value, onChange, onPlayingChange, onSelectionChange, onReadyChange, onEdgeStyleChange, canvasTheme = "light" },
   ref
 ) {
   const [nodes, setNodes] = useState<Node[]>(() => archToFlow(value).nodes);
@@ -758,9 +759,12 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const defaultEdgeStyle = useRef<ArchEdgeStyle>("flow");
 
-  const past = useRef<Array<{ nodes: Node[]; edges: Edge[] }>>([]);
-  const future = useRef<Array<{ nodes: Node[]; edges: Edge[] }>>([]);
+  const past = useRef<Array<{ nodes: Node[]; edges: Edge[]; edgeStyle: ArchEdgeStyle }>>([]);
+  const future = useRef<Array<{ nodes: Node[]; edges: Edge[]; edgeStyle: ArchEdgeStyle }>>([]);
   const dragging = useRef(false);
+  const resizing = useRef(false);
+
+  useEffect(() => { onEdgeStyleChange?.(defaultEdgeStyle.current); }, [onEdgeStyleChange]);
 
   // Sequence playback (runtime-only).
   const [seq, setSeq] = useState<SequenceState>({
@@ -773,7 +777,11 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
   const { screenToFlowPosition, getNodesBounds: getFlowNodesBounds } = useReactFlow();
 
   const snapshot = useCallback(() => {
-    past.current.push({ nodes, edges });
+    const previous = past.current.at(-1);
+    // React Flow can report node and edge removal in the same batched action.
+    if (previous?.nodes !== nodes || previous.edges !== edges || previous.edgeStyle !== defaultEdgeStyle.current) {
+      past.current.push({ nodes, edges, edgeStyle: defaultEdgeStyle.current });
+    }
     if (past.current.length > 100) past.current.shift();
     future.current = [];
   }, [nodes, edges]);
@@ -814,9 +822,12 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
     (changes: NodeChange[]) => {
       const hasStructural = changes.some((c) => c.type === "add" || c.type === "remove");
       const moving = changes.some((change) => change.type === "position" && change.dragging);
-      if (hasStructural || (moving && !dragging.current)) snapshot();
+      const changingSize = changes.some((change) => change.type === "dimensions" && change.resizing);
+      if (hasStructural || (moving && !dragging.current && !resizing.current) || (changingSize && !resizing.current && !dragging.current)) snapshot();
       if (moving) dragging.current = true;
+      if (changingSize) resizing.current = true;
       if (changes.some((change) => change.type === "position" && change.dragging === false)) dragging.current = false;
+      if (changes.some((change) => change.type === "dimensions" && change.resizing === false)) resizing.current = false;
       setNodes((nds) => applyNodeChanges(changes, nds));
     },
     [snapshot]
@@ -1155,19 +1166,32 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
       undo: () => {
         const prev = past.current.pop();
         if (!prev) return;
-        future.current.push({ nodes, edges });
+        future.current.push({ nodes, edges, edgeStyle: defaultEdgeStyle.current });
+        defaultEdgeStyle.current = prev.edgeStyle;
+        onEdgeStyleChange?.(prev.edgeStyle);
+        dragging.current = false;
+        resizing.current = false;
+        stopSequence();
         setNodes(prev.nodes);
         setEdges(prev.edges);
       },
       redo: () => {
         const next = future.current.pop();
         if (!next) return;
-        past.current.push({ nodes, edges });
+        past.current.push({ nodes, edges, edgeStyle: defaultEdgeStyle.current });
+        defaultEdgeStyle.current = next.edgeStyle;
+        onEdgeStyleChange?.(next.edgeStyle);
+        dragging.current = false;
+        resizing.current = false;
+        stopSequence();
         setNodes(next.nodes);
         setEdges(next.edges);
       },
       setAllEdgeStyle: (style) => {
+        if (defaultEdgeStyle.current === style && edges.every((edge) => ((edge.data as LabeledEdgeData | undefined)?.archStyle ?? "flow") === style)) return;
+        snapshot();
         defaultEdgeStyle.current = style;
+        onEdgeStyleChange?.(style);
         const props = edgePropsForStyle(style);
         setEdges((eds) =>
           eds.map((e) => {
@@ -1307,6 +1331,7 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
       stopSequence,
       seq.isPlaying,
       onSelectionChange,
+      onEdgeStyleChange,
     ]
   );
 

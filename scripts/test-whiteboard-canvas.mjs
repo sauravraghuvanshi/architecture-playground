@@ -37,7 +37,10 @@ function canvasHarness({ ready = true, pngFailure, gifFailure } = {}) {
     },
     history: { clear: () => calls.push(["clearHistory"]) },
   };
-  const wrapper = { querySelector: (selector) => ({ click: () => calls.push(["click", selector]) }) };
+  const wrapper = {
+    querySelector: (selector) => ({ click: () => calls.push(["click", selector]) }),
+    getBoundingClientRect: () => ({ left: 0, top: 0 }),
+  };
   let refIndex = 0;
   const dependencies = {
     react: {
@@ -53,6 +56,7 @@ function canvasHarness({ ready = true, pngFailure, gifFailure } = {}) {
       Excalidraw: "Excalidraw",
       MainMenu: { DefaultItems: { SaveAsImage: "SaveAsImage", ClearCanvas: "ClearCanvas" } },
       convertToExcalidrawElements: (value) => value,
+      CaptureUpdateAction: { IMMEDIATELY: "IMMEDIATELY", NEVER: "NEVER", EVENTUALLY: "EVENTUALLY" },
       exportToBlob: async (options) => {
         calls.push(["exportPng", options]);
         if (pngFailure) throw pngFailure;
@@ -72,6 +76,8 @@ function canvasHarness({ ready = true, pngFailure, gifFailure } = {}) {
   const exports = {};
   vm.runInNewContext(compiled, {
     exports,
+    TextEncoder,
+    btoa: (value) => Buffer.from(value, "binary").toString("base64"),
     document: { querySelector: () => { throw new Error("Canvas controls must not query the global document"); } },
     require: (name) => {
       if (!(name in dependencies)) throw new Error(`Unexpected canvas dependency: ${name}`);
@@ -150,4 +156,17 @@ test("undo, redo and delete use only this canvas's Excalidraw controls", () => {
     ["click", ".excalidraw [aria-label='Redo']"],
     ["click", ".excalidraw [aria-label='Delete']"],
   ]);
+});
+
+test("each custom image and symbol insertion registers files before an immediate history checkpoint", () => {
+  const { handle, calls, files } = canvasHarness();
+  handle.insertImage(pngData.split(",")[1], "image/png");
+  handle.insertSvgAsset('<svg xmlns="http://www.w3.org/2000/svg"><rect width="10" height="10"/></svg>', "Symbol");
+  const updates = calls.filter(([operation]) => operation === "updateScene");
+  assert.equal(updates.length, 2);
+  assert.deepEqual(updates.map(([, scene]) => scene.captureUpdate), ["IMMEDIATELY", "IMMEDIATELY"]);
+  assert.equal(updates[0][1].elements.length, 1);
+  assert.equal(updates[1][1].elements.length, 2);
+  assert.equal(Object.keys(files).length, 2);
+  assert.deepEqual(calls.map(([operation]) => operation), ["addFiles", "updateScene", "addFiles", "updateScene"]);
 });

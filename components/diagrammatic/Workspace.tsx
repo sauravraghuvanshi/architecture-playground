@@ -686,13 +686,10 @@ export function Workspace({
   const [playing, setPlaying] = useState(false);
   // Cycle global edge style: solid → dashed → flow → solid.
   const cycleEdgeStyle = useCallback(() => {
-    setEdgeStyle((prev) => {
-      const next: ArchEdgeStyle =
-        prev === "solid" ? "dashed" : prev === "dashed" ? "flow" : "solid";
-      canvasRef.current?.setAllEdgeStyle(next);
-      return next;
-    });
-  }, []);
+    const next: ArchEdgeStyle =
+      edgeStyle === "solid" ? "dashed" : edgeStyle === "dashed" ? "flow" : "solid";
+    canvasRef.current?.setAllEdgeStyle(next);
+  }, [edgeStyle]);
 
   // Route command-palette actions back to canvas / state.
   const handleCommand = useCallback(
@@ -921,6 +918,7 @@ export function Workspace({
                 value={archPayload}
                 onChange={handleArchChange}
                 onPlayingChange={setPlaying}
+                onEdgeStyleChange={setEdgeStyle}
                 onSelectionChange={setSelection}
                 canvasTheme={canvasTheme}
               />
