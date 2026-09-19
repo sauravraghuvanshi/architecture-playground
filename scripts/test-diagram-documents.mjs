@@ -227,6 +227,7 @@ for (const operation of ["manual save", "autosave"]) {
   test(`${operation} preserves comments and versions added during pending persistence`, async () => {
     const h = harness();
     await h.flush();
+    h.canvases.architecture = graph(2);
     const barrier = h.deferSave();
     const saving = operation === "manual save" ? h.current.save() : h.autosave();
     await h.flush();
@@ -366,4 +367,72 @@ test("rename completion also retains working annotations while advancing the rev
   assert.equal(h.current.documents.architecture.revision, 2);
   assert.deepEqual(structuredClone(h.current.documents.architecture.comments), [comment]);
   assert.deepEqual(structuredClone(h.current.documents.architecture.versions), [version]);
+});
+
+test("a malformed unrelated draft does not block a healthy named architecture", async () => {
+  const h = harness();
+  h.local.set("diagrammatic.draft.whiteboard", "{broken");
+  await h.flush();
+  assert.equal(h.current.ready, true);
+  assert.equal(h.current.documents.architecture.id, "original");
+  assert.equal(h.canvases.architecture.nodes.length, 1);
+  assert.equal(h.local.get("diagrammatic.draft.whiteboard"), "{broken");
+  assert.equal(h.current.blockedDrafts.whiteboard, true);
+  assert.ok(h.errors.some((message) => message.includes("Whiteboard")));
+});
+
+test("an unreadable active document does not prevent another mode or an explicit selection loading", async () => {
+  const selected = document("selected");
+  const board = document("board", { mode: "whiteboard", payload: { elements: [] } });
+  const h = harness({
+    records: [selected, board], active: { architecture: "missing", whiteboard: board.id },
+    options: { requestedId: selected.id },
+  });
+  await h.flush();
+  assert.equal(h.current.documents.architecture.id, selected.id);
+  assert.equal(h.current.documents.whiteboard.id, board.id);
+  assert.ok(h.errors.some((message) => message.includes("Architecture")));
+});
+
+test("invalid legacy architecture is rejected before creating a recovered document", async () => {
+  const h = harness({ records: [], active: {} });
+  const raw = JSON.stringify({ payload: graph(501), savedAt: 1 });
+  h.local.set("diagrammatic.draft", raw);
+  await h.flush();
+  assert.equal(h.calls.length, 0);
+  assert.equal(h.stored.size, 0);
+  assert.equal(h.local.get("diagrammatic.draft"), raw);
+  assert.equal(h.current.blockedDrafts.architecture, true);
+});
+
+test("one malformed legacy annotation does not discard the other annotation collection", async () => {
+  const h = harness({ records: [], active: {} });
+  h.local.set("diagrammatic.draft", JSON.stringify({ payload: graph(), savedAt: 1 }));
+  h.local.set("diagrammatic.comments.architecture:draft", "{broken");
+  h.local.set("diagrammatic.versions.architecture:draft", JSON.stringify([version]));
+  await h.flush();
+  assert.equal(h.current.documents.architecture.payload.nodes.length, 1);
+  assert.deepEqual(structuredClone(h.current.documents.architecture.versions), [version]);
+  assert.deepEqual(structuredClone(h.current.documents.architecture.comments), []);
+  assert.equal(h.local.get("diagrammatic.comments.architecture:draft"), "{broken");
+  assert.ok(h.errors.some((message) => message.includes("comments")));
+});
+
+test("unchanged canvas notifications do not advance the persisted revision or cause tab conflicts", async () => {
+  const h = harness();
+  await h.flush();
+  assert.equal(h.current.hasPendingChanges(), false);
+  h.configure({ revision: 1 });
+  await h.flush();
+  await h.autosave();
+  assert.equal(h.calls.length, 0);
+  assert.equal(h.current.saved, true);
+  h.canvases.architecture = graph(2);
+  assert.equal(h.current.hasPendingChanges(), true);
+  await h.current.save();
+  await h.flush();
+  assert.equal(h.current.hasPendingChanges(), false);
+  h.current.annotate({ comments: [comment] });
+  await h.flush();
+  assert.equal(h.current.hasPendingChanges(), true);
 });

@@ -244,6 +244,22 @@ edits prompts before leaving. Export remains a portable backup: clearing site da
 using private browsing, or changing browser/device can remove access to the
 local collection.
 
+Scratch canvases also checkpoint their live contents on refresh, page exit,
+browser Back, and when the tab becomes hidden, including edits not yet delivered
+by the drawing engine's next animation frame. If browser storage cannot accept
+the checkpoint, the workspace reports the failure and requests confirmation
+before unloading; cancel leaving, save a recovery copy, or export your work.
+Named documents continue to use IndexedDB and warn while changes are pending.
+Forced browser termination and clearing site data cannot be made recoverable
+without an already completed save or exported backup.
+
+Recovery is isolated by diagram mode: a damaged Whiteboard draft does not stop
+a healthy architecture from opening. The original damaged draft is not
+overwritten by a new scratch scene. A persistent recovery notice identifies the
+affected data, offers **Download recovery data**, and allows the current canvas
+to be saved as a separate recovery copy. Damaged legacy comments and versions
+are reported independently so valid annotations can still be recovered.
+
 ### Hackathon verification boundaries
 
 - The goal of reducing non-customer preparation time by 50% is a hypothesis

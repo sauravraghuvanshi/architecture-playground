@@ -1,9 +1,92 @@
 # Azure Deployment Plan
 
-> **Status:** Deployed
+> **Status:** Validated
 
 Generated: 2026-08-12
-Updated: 2026-09-16 (Asia/Kolkata)
+Updated: 2026-09-20 (Asia/Kolkata)
+
+## Priority 1: Reliable saving and recovery
+
+This section supersedes the historical release status below for the current
+application-only change. The user selected priority 1 and authorized the cycle:
+plan, implement, test, validate, deploy, verify production, then select the next
+priority. No other audit backlog item is included.
+
+- **Recipe:** Existing GitHub Actions CI/CD and App Service standalone deployment.
+- **Target:** https://architecture-playground.azurewebsites.net, existing
+  `architecture-playground` App Service in `rg-architecture-playground`.
+- **Infrastructure:** No provisioning, SKU, region, identity, network, or model
+  configuration changes. Preserve the existing application deployment target.
+- **Model policy:** GPT-6 Astra only; no live application model inference.
+- **Scope:** Protect pending scratch and named-document edits; preserve save-before-
+  navigation and conflict recovery; isolate malformed legacy drafts so valid
+  diagrams still open; keep original recovery bytes and report storage failures.
+- **Plan:** Trace persistence and canvas notifications, add failing regression
+  tests, implement the shared recovery/lifecycle fix, update directly related
+  documentation, run focused and full validation, release, and repeat targeted
+  browser verification on production.
+- **Release authorization:** Commit and push the scoped fix through the existing
+  deployment workflow after validation. Verify current remote branch state and
+  owner-scoped GitHub permissions before any write; no force push.
+- **Rollback:** Redeploy the prior known-good application revision using the
+  existing workflow. Preserve browser records and legacy data; no destructive
+  storage migration.
+
+### Priority 1 - Section 7: Validation Proof
+
+- Five new production-bound hook regressions cover isolated recovery,
+  annotation recovery, pre-save validation, and unchanged cross-tab saves.
+  The final hook suite passes 18/18; the full unit suite passes 157/157.
+- Repository ESLint, strict TypeScript, and standalone production build passed.
+- All seven new browser acceptance scenarios passed: immediate scratch refresh,
+  browser Back, Whiteboard binary reload, isolated corruption/recovery copy,
+  scratch quota/unload warning, blocked navigation on IndexedDB failure, and
+  pending named-document refresh/cancel/save.
+- Full local Chromium run: 96 passed, six conditional/disabled skips, one known
+  pre-existing Whiteboard AI-availability timing assertion outside priority 1.
+- Owner-scoped GitHub API confirms push/admin permission, the deployment
+  secret names are present, and remote `master` remains at `bd3803f`.
+- Final scoped acceptance run: 17/17 passed, including recovery-download bytes,
+  all seven new persistence scenarios, all six existing saved-document journeys,
+  and all four real IndexedDB isolation/transaction checks.
+- Final build, lint and type checks: 2026-09-20 00:16 IST; scoped browser acceptance
+  completed at approximately 00:19 IST. Commands: `npm run build`,
+  `npm run lint`, `npx tsc --noEmit --incremental false`, and
+  `npx playwright test persistence-recovery.spec.ts saved-diagrams.spec.ts diagram-library.spec.ts --workers=1`
+  against the isolated standalone production server on port 3317.
+- Validation used synthetic data and disabled model configuration. No new Azure
+  resources, customer deployment, model calls or permission changes occurred.
+- Initial new-test failures caused by comparing against pre-normalized geometry
+  and awaiting a deliberately cancelled reload were corrected without weakening
+  persistence assertions. Cross-tab conflicts from unchanged lifecycle saves
+  were fixed with canonical committed-content comparison and regression coverage.
+
+### Priority 1: All validation checks pass
+
+This existing CI/CD application-only release has no AZD, Docker, Bicep, Terraform
+or provisioning changes. Validate the actual standalone artifact and existing
+workflow rather than introducing a new infrastructure deployment recipe.
+
+- [x] Owner-scoped repository permission, production branch baseline, existing
+  workflow, and required secret names verified without reading secret values.
+- [x] Production-bound hook/unit contracts pass (157 total unit/contract tests).
+- [x] Repository ESLint and strict TypeScript pass.
+- [x] Final standalone build passes; existing middleware deprecation is a warning.
+- [x] Final scoped Chromium persistence, saved-document, and IndexedDB suites pass.
+- [x] Full regression comparison: 96 passed, 6 conditional/disabled skips, one
+  pre-existing AI-availability timing failure (audit WB-11 / future priority 13).
+  No new persistence failures. This is a scoped fix, not certification that the
+  remaining audit backlog is production ready.
+- [x] Static identity boundary: only client persistence and related tests/docs
+  change; no new data-plane calls, customer credentials, RBAC, network or resources.
+- [x] Record final scoped test evidence and validate the release diff.
+- [x] Completed azure-validate for the scoped priority 1 release after actual
+  build/static/unit/browser checks. The unchanged audit WB-11 baseline limitation
+  is documented above and is not represented as a passing full-suite result.
+
+### Priority 1 deployment result
+
+Not deployed. Historical September 16 results below are not validation of this fix.
 
 ## Final release result
 

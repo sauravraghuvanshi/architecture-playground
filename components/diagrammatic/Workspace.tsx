@@ -196,10 +196,11 @@ export function Workspace({
   const library = useDiagramDocuments({
     mode, revision: documentRevision, externalSeed, suspended: libraryOpen,
     requestedId: searchParams?.get("document"),
-    capture: (targetMode) => {
+    capture: (targetMode): unknown => {
       if (targetMode === "architecture") return mode === targetMode ? canvasRef.current?.serialize() ?? archPayload : archPayload;
       if (targetMode === mode && otherCanvasRef.current) return otherCanvasRef.current.serialize();
       if (otherPayloads[targetMode] !== undefined) return otherPayloads[targetMode];
+      if (library.blockedDrafts[targetMode]) return EMPTY_PAYLOAD_FOR[targetMode];
       const raw = localStorage.getItem(`diagrammatic.draft.${targetMode}`);
       return raw ? JSON.parse(raw).payload : MODE_REGISTRY[targetMode]?.defaultPayload;
     },
@@ -443,34 +444,91 @@ export function Workspace({
     }
   }, [router, saveCurrentDocument]);
 
+  const captureActiveCanvas = useCallback(() => {
+    const canvas = mode === "architecture" ? canvasRef.current : otherCanvasRef.current;
+    if (!canvas) throw new Error("The canvas is still loading. Wait before leaving.");
+    return canvas.serialize();
+  }, [mode]);
+
+  const persistScratchDraft = useCallback((payload: unknown) => {
+    if (library.blockedDrafts[mode]) {
+      throw new Error("The original draft needs recovery and has not been overwritten. Save a recovery copy or export your current canvas before leaving.");
+    }
+    const checked = mode === "architecture" ? parseArchitectureDocument(payload) : payload;
+    localStorage.setItem(
+      mode === "architecture" ? "diagrammatic.draft" : `diagrammatic.draft.${mode}`,
+      JSON.stringify({ mode, payload: checked, savedAt: Date.now() }),
+    );
+    setSaved(true);
+  }, [mode, library.blockedDrafts]);
+
+  const reportPersistenceFailure = useCallback((cause: unknown) => {
+    const detail = cause instanceof Error ? cause.message : "Browser storage is unavailable.";
+    const message = `Could not preserve the current diagram: ${detail} Save a recovery copy or export before leaving.`;
+    setSaved(false);
+    setDocumentSaveError(message);
+    setExportNotice({ kind: "error", message });
+  }, []);
+
+  const saveRecoveryCopy = useCallback(() => {
+    void library.saveCopy(`${currentDocument?.name ?? MODE_META[mode].label} (recovery copy)`).then(() => {
+      setDocumentSaveError(null);
+      setExportNotice({ kind: "success", message: "Saved your current work as a separate document. The original was not overwritten." });
+    }).catch(reportPersistenceFailure);
+  }, [library, currentDocument, mode, reportPersistenceFailure]);
+
   useEffect(() => {
-    if (!currentDocument || library.saved) return;
-    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+    if (!library.ready) return;
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      try {
+        if (!currentDocument) {
+          // Read the live engine, including edits not delivered by its next animation frame.
+          persistScratchDraft(captureActiveCanvas());
+          return;
+        }
+        if (!library.hasPendingChanges()) return;
+      } catch (cause) {
+        reportPersistenceFailure(cause);
+      }
       event.preventDefault();
       event.returnValue = "";
     };
-    window.addEventListener("beforeunload", warnBeforeUnload);
-    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
-  }, [currentDocument, library.saved]);
+    const flush = () => {
+      try {
+        if (!currentDocument) persistScratchDraft(captureActiveCanvas());
+        else if (!library.busy && library.hasPendingChanges()) void library.save().catch(reportPersistenceFailure);
+      } catch (cause) {
+        reportPersistenceFailure(cause);
+      }
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    window.addEventListener("pagehide", flush);
+    window.addEventListener("popstate", flush);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("beforeunload", beforeUnload);
+      window.removeEventListener("pagehide", flush);
+      window.removeEventListener("popstate", flush);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [library, currentDocument, captureActiveCanvas, persistScratchDraft, reportPersistenceFailure]);
 
   // Architecture mode now autosaves like every other mode. The debounce keeps
   // drag operations fluid while ensuring a refresh does not discard work.
   useEffect(() => {
-    if (!library.ready || currentDocument || mode !== "architecture" || initialDiagramId) return;
+    if (!library.ready || currentDocument || mode !== "architecture" || initialDiagramId || library.blockedDrafts.architecture) return;
     const timer = window.setTimeout(() => {
       try {
-        localStorage.setItem(
-          "diagrammatic.draft",
-          JSON.stringify({ mode: "architecture", payload: archPayload, savedAt: Date.now() })
-        );
-        setSaved(true);
-      } catch {
-        setSaved(false);
-        setExportNotice({ kind: "error", message: "Autosave failed. Browser storage may be full. Export your diagram to keep it." });
+        persistScratchDraft(archPayload);
+      } catch (cause) {
+        reportPersistenceFailure(cause);
       }
     }, 650);
     return () => window.clearTimeout(timer);
-  }, [archPayload, initialDiagramId, mode, library.ready, currentDocument]);
+  }, [archPayload, initialDiagramId, mode, library.ready, library.blockedDrafts.architecture, currentDocument, persistScratchDraft, reportPersistenceFailure]);
 
   // ?mode=<id> on first load — set the mode if URL specifies one. One-shot;
   // subsequent tab clicks own the mode via setMode.
@@ -596,18 +654,14 @@ export function Workspace({
       setOtherPayloads((previous) => ({ ...previous, [mode]: payload }));
       setSaved(false);
       setDocumentRevision((value) => value + 1);
-      if (currentDocument) return;
+      if (currentDocument || library.blockedDrafts[mode]) return;
       try {
-        localStorage.setItem(
-          `diagrammatic.draft.${mode}`,
-          JSON.stringify({ payload, savedAt: Date.now() })
-        );
-        setSaved(true);
-      } catch {
-        setExportNotice({ kind: "error", message: "Autosave failed. Browser storage may be full. Export your diagram to keep it." });
+        persistScratchDraft(payload);
+      } catch (cause) {
+        reportPersistenceFailure(cause);
       }
     },
-    [mode, library.ready, currentDocument]
+    [mode, library.ready, library.blockedDrafts, currentDocument, persistScratchDraft, reportPersistenceFailure]
   );
 
   const handleOtherMount = useCallback((handle: BaseCanvasHandle | null) => {
@@ -906,7 +960,7 @@ export function Workspace({
             <ModeCanvasFor
               key={`${mode}:${canvasEpochs[mode] ?? 0}`}
               mode={mode}
-              value={otherPayloads[mode]}
+              value={otherPayloads[mode] ?? (library.blockedDrafts[mode] ? EMPTY_PAYLOAD_FOR[mode] : undefined)}
               onMount={handleOtherMount}
               onChange={handleOtherChange}
               canvasTheme={canvasTheme}
@@ -926,9 +980,11 @@ export function Workspace({
                 setOtherPayloads((prev) => ({ ...prev, [mode]: empty }));
                 otherCanvasRef.current?.hydrate(empty);
                 setSaved(false);
-                try {
-                  localStorage.setItem(`diagrammatic.draft.${mode}`, JSON.stringify({ payload: empty, savedAt: Date.now() }));
-                } catch { /* ignore */ }
+                setDocumentRevision((value) => value + 1);
+                if (!currentDocument && !library.blockedDrafts[mode]) {
+                  try { persistScratchDraft(empty); }
+                  catch (cause) { reportPersistenceFailure(cause); }
+                }
               }}
             />
           )}
@@ -984,6 +1040,31 @@ export function Workspace({
         />
       </div>
 
+      {library.recoveryIssues.length > 0 && (
+        <details className="shrink-0 border-t border-amber-400/30 bg-amber-950 px-4 py-2 text-xs text-amber-100" open>
+          <summary className="cursor-pointer font-semibold">Some saved data needs recovery. Original data has been retained.</summary>
+          <div role="alert" className="max-h-28 overflow-y-auto pt-2">
+            <ul className="list-disc space-y-1 pl-4">
+              {library.recoveryIssues.map((issue, index) => <li key={`${issue.mode}:${issue.storageKey ?? index}`}>{issue.message}</li>)}
+            </ul>
+            <button type="button" className="mt-2 rounded border border-amber-200/40 px-2 py-1 underline"
+              onClick={() => {
+                try {
+                  const data = library.recoveryIssues.map((issue) => ({
+                    ...issue,
+                    ...(issue.storageKey ? { originalData: localStorage.getItem(issue.storageKey) } : {}),
+                  }));
+                  triggerDownload(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }), `diagram-recovery-${exportTimestamp()}.json`);
+                } catch (cause) { reportPersistenceFailure(cause); }
+              }}>Download recovery data</button>
+            {!currentDocument && library.blockedDrafts[mode] && (
+              <button type="button" onClick={saveRecoveryCopy}
+                className="ml-2 mt-2 rounded border border-amber-200/40 px-2 py-1 underline">Save recovery copy</button>
+            )}
+          </div>
+        </details>
+      )}
+
       <StatusBar
         nodeCount={mode === "architecture" ? archPayload.nodes?.filter((node) => node.kind !== "group").length ?? 0 : undefined}
         edgeCount={mode === "architecture" ? archPayload.edges?.length ?? 0 : undefined}
@@ -992,7 +1073,7 @@ export function Workspace({
         issuesCount={mode === "architecture" ? issues.length : undefined}
       />
 
-      {exportNotice && (
+      {exportNotice && !library.recoveryIssues.some((issue) => issue.message === exportNotice.message) && (
         <div
           role="status"
           className={`fixed bottom-10 left-1/2 z-[100] -translate-x-1/2 rounded-xl border px-4 py-2.5 text-xs font-semibold shadow-2xl backdrop-blur ${
@@ -1004,16 +1085,9 @@ export function Workspace({
           }`}
         >
           {exportNotice.message}
-          {documentSaveError && currentDocument && (
+          {documentSaveError && (currentDocument || !library.blockedDrafts[mode]) && (
             <button type="button" className="ml-3 rounded border border-current px-2 py-1 underline"
-              onClick={() => {
-                void library.saveCopy(`${currentDocument.name} (recovery copy)`).then(() => {
-                  setDocumentSaveError(null);
-                  setExportNotice({ kind: "success", message: "Saved your current work as a separate document. The original was not overwritten." });
-                }).catch((cause) => setExportNotice({
-                  kind: "error", message: cause instanceof Error ? cause.message : "The recovery copy could not be saved. Export the canvas to keep your work.",
-                }));
-              }}>Save recovery copy</button>
+              onClick={saveRecoveryCopy}>Save recovery copy</button>
           )}
         </div>
       )}

@@ -176,6 +176,14 @@ backup. The shared sign-in gate does not partition local browser data by user,
 and signing out does not erase saved work. Use separate browser profiles on
 shared machines and export backups before clearing site data.
 
+Scratch recovery checkpoints are also written on browser navigation and when
+the page is hidden. These contain the same browser-local scene and image data
+as the existing draft cache; they are not uploaded. Quota/unavailable-storage
+errors are surfaced and pending named-document changes warn before unloading.
+Per-mode recovery errors do not discard healthy documents or overwrite damaged
+draft bytes. Recovery downloads contain the affected original local data and
+should be handled with the same confidentiality as the diagrams themselves.
+
 Whiteboard conversion follows the same request-scoped policy for its rendered
 PNG. The user explicitly starts analysis and separately confirms replacement
 of the architecture canvas. PNG dimensions are limited to 8,192 per side and

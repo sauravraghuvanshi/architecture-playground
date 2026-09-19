@@ -11,6 +11,17 @@ import { MODE_META, type CanvasTheme, type DiagrammaticMode } from "./types";
 const ACTIVE_KEY = "diagrammatic.active-documents";
 const draftKey = (mode: DiagrammaticMode) => mode === "architecture" ? "diagrammatic.draft" : `diagrammatic.draft.${mode}`;
 type Documents = Partial<Record<DiagrammaticMode, DiagramDocument>>;
+type BlockedDrafts = Partial<Record<DiagrammaticMode, true>>;
+export interface DiagramRecoveryIssue {
+  mode: DiagrammaticMode;
+  message: string;
+  storageKey?: string;
+}
+interface LoadedDocuments {
+  documents: Documents;
+  blocked: BlockedDrafts;
+  issues: DiagramRecoveryIssue[];
+}
 
 interface Options {
   mode: DiagrammaticMode;
@@ -24,23 +35,38 @@ interface Options {
   onError: (message: string) => void;
 }
 
-function readAnnotations(mode: DiagrammaticMode) {
-  const comments: unknown = JSON.parse(localStorage.getItem(`diagrammatic.comments.${mode}:draft`) ?? "[]");
-  const versions: unknown = JSON.parse(localStorage.getItem(`diagrammatic.versions.${mode}:draft`) ?? "[]");
-  const checked = validateDiagramRecord({
-    schemaVersion: 1, id: "annotations", name: "Annotations", mode, payload: {}, canvasTheme: "light",
-    comments, versions, createdAt: 0, updatedAt: 0, revision: 1,
-  });
-  return {
-    comments: checked.comments,
-    versions: checked.versions,
-  };
+function readAnnotations(mode: DiagrammaticMode, onError?: (issue: DiagramRecoveryIssue) => void) {
+  const result: { comments: DiagramComment[]; versions: DiagramVersion[] } = { comments: [], versions: [] };
+  for (const field of ["comments", "versions"] as const) {
+    const storageKey = `diagrammatic.${field}.${mode}:draft`;
+    try {
+      const checked = validateDiagramRecord({
+        schemaVersion: 1, id: "annotations", name: "Annotations", mode, payload: {}, canvasTheme: "light",
+        comments: [], versions: [], [field]: JSON.parse(localStorage.getItem(storageKey) ?? "[]"),
+        createdAt: 0, updatedAt: 0, revision: 1,
+      });
+      if (field === "comments") result.comments = checked.comments;
+      else result.versions = checked.versions;
+    } catch (cause) {
+      if (!onError) throw cause;
+      onError({ mode, storageKey, message: `${MODE_META[mode].label} draft ${field} could not be recovered. The original data is unchanged.` });
+    }
+  }
+  return result;
 }
 
 function writeActive(documents: Documents) {
   localStorage.setItem(ACTIVE_KEY, JSON.stringify(Object.fromEntries(
     Object.entries(documents).map(([mode, document]) => [mode, document.id]),
   )));
+}
+
+function persistedJson(value: unknown): string | undefined {
+  return JSON.stringify(value, (_key, item: unknown) =>
+    item && typeof item === "object" && !Array.isArray(item)
+      ? Object.fromEntries(Object.entries(item).sort(([left], [right]) => left.localeCompare(right)))
+      : item,
+  );
 }
 
 export function useDiagramDocuments(options: Options) {
@@ -51,10 +77,13 @@ export function useDiagramDocuments(options: Options) {
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [savedRevision, setSavedRevision] = useState(-1);
+  const [blockedDrafts, setBlockedDrafts] = useState<BlockedDrafts>({});
+  const [recoveryIssues, setRecoveryIssues] = useState<DiagramRecoveryIssue[]>([]);
   const operation = useRef(false);
   const saveQueue = useRef<Promise<unknown>>(Promise.resolve());
   const latestRevisions = useRef(new Map<string, number>());
-  const initialization = useRef<Promise<Documents> | null>(null);
+  const committedDocuments = useRef(new Map<string, DiagramDocument>());
+  const initialization = useRef<Promise<LoadedDocuments> | null>(null);
   const annotationRevision = useRef(0);
 
   const updateDocuments = useCallback((next: Documents) => {
@@ -70,35 +99,57 @@ export function useDiagramDocuments(options: Options) {
         const active: unknown = JSON.parse(localStorage.getItem(ACTIVE_KEY) ?? "{}");
         if (!active || typeof active !== "object" || Array.isArray(active)) throw new Error("The active-diagram index is invalid.");
         const next: Documents = {};
+        const blocked: BlockedDrafts = {};
+        const issues: DiagramRecoveryIssue[] = [];
         for (const mode of Object.keys(MODE_META) as DiagrammaticMode[]) {
-          const id: unknown = Reflect.get(active, mode);
-          const found = typeof id === "string" ? existing.find((document) => document.id === id && document.mode === mode) : undefined;
-          if (found) next[mode] = await getDiagram(found.id);
-          if (id !== undefined) continue;
-          const raw = localStorage.getItem(draftKey(mode));
-          if (!raw) continue;
-          const draft = JSON.parse(raw);
-          if (draft?.payload === undefined) throw new Error(`The ${MODE_META[mode].label} draft has no diagram data.`);
-          const markerKey = `diagrammatic.recovered.${mode}`;
-          const legacyId = localStorage.getItem(markerKey);
-          const priorRecovery = existing.find((document) => document.id === legacyId);
-          const recovered = priorRecovery && priorRecovery.updatedAt >= draft.savedAt ? await getDiagram(priorRecovery.id) : await saveDiagram({
-            name: `${MODE_META[mode].label} (recovered draft)`, mode,
-            payload: draft.payload, canvasTheme: optionsRef.current.theme(mode),
-            ...readAnnotations(mode),
-          });
-          localStorage.setItem(markerKey, recovered.id);
-          next[mode] = recovered;
+          let storageKey: string | undefined;
+          try {
+            const id: unknown = Reflect.get(active, mode);
+            if (id !== undefined) {
+              const found = typeof id === "string" ? existing.find((document) => document.id === id && document.mode === mode) : undefined;
+              if (!found) throw new Error("The previously active diagram no longer exists. Choose another saved diagram or save a new copy.");
+              next[mode] = await getDiagram(found.id);
+              continue;
+            }
+            storageKey = draftKey(mode);
+            const raw = localStorage.getItem(storageKey);
+            if (!raw) continue;
+            const draft = JSON.parse(raw);
+            if (!draft?.payload || typeof draft.payload !== "object" || Array.isArray(draft.payload)) {
+              throw new Error("The draft has no valid diagram data.");
+            }
+            const payload = mode === "architecture" ? parseArchitectureDocument(draft.payload) : draft.payload;
+            const markerKey = `diagrammatic.recovered.${mode}`;
+            const legacyId = localStorage.getItem(markerKey);
+            const priorRecovery = existing.find((document) => document.id === legacyId && document.mode === mode);
+            const recovered = priorRecovery && priorRecovery.updatedAt >= draft.savedAt ? await getDiagram(priorRecovery.id) : await saveDiagram({
+              name: `${MODE_META[mode].label} (recovered draft)`, mode,
+              payload, canvasTheme: optionsRef.current.theme(mode),
+              ...readAnnotations(mode, (issue) => issues.push(issue)),
+            });
+            localStorage.setItem(markerKey, recovered.id);
+            next[mode] = recovered;
+          } catch (cause) {
+            blocked[mode] = true;
+            issues.push({
+              mode, storageKey,
+              message: `${MODE_META[mode].label} could not be recovered: ${cause instanceof Error ? cause.message : "Browser storage unavailable."} Its original data has not been changed.`,
+            });
+          }
         }
         if (optionsRef.current.externalSeed) delete next.architecture;
         if (optionsRef.current.requestedId) {
-          const selected = await getDiagram(optionsRef.current.requestedId);
-          next[selected.mode] = selected;
+          try {
+            const selected = await getDiagram(optionsRef.current.requestedId);
+            next[selected.mode] = selected;
+          } catch (cause) {
+            issues.push({ mode: optionsRef.current.mode, message: `The requested diagram could not be opened: ${cause instanceof Error ? cause.message : "Browser storage unavailable."} Other recovered diagrams are still available.` });
+          }
         }
-        return next;
+        return { documents: next, blocked, issues };
     }
     initialization.current ??= load();
-    void initialization.current.then((next) => {
+    void initialization.current.then(({ documents: next, blocked, issues }) => {
         if (cancelled) return;
         const applied: Documents = {};
         for (const document of Object.values(next)) {
@@ -106,15 +157,23 @@ export function useDiagramDocuments(options: Options) {
             optionsRef.current.apply(document, document.id === optionsRef.current.requestedId);
             applied[document.mode] = document;
             latestRevisions.current.set(document.id, document.revision);
+            committedDocuments.current.set(document.id, document);
           } catch (cause) {
-            optionsRef.current.onError(`"${document.name}" could not be opened: ${cause instanceof Error ? cause.message : "Canvas unavailable."} Its saved data has not been changed.`);
+            blocked[document.mode] = true;
+            issues.push({ mode: document.mode, message: `"${document.name}" could not be opened: ${cause instanceof Error ? cause.message : "Canvas unavailable."} Its saved data has not been changed.` });
           }
         }
+        setBlockedDrafts(blocked);
+        setRecoveryIssues(issues);
+        for (const issue of issues) optionsRef.current.onError(issue.message);
         updateDocuments(applied);
         setReady(true);
       }).catch((cause) => {
         if (!cancelled) {
-          optionsRef.current.onError(`My diagrams could not be loaded: ${cause instanceof Error ? cause.message : "Browser database unavailable."} Your existing drafts have not been deleted.`);
+          const message = `My diagrams could not be loaded: ${cause instanceof Error ? cause.message : "Browser database unavailable."} Your existing drafts have not been deleted. Export your canvas or retry saving before leaving.`;
+          setBlockedDrafts(Object.fromEntries(Object.keys(MODE_META).map((mode) => [mode, true])));
+          setRecoveryIssues([{ mode: optionsRef.current.mode, message }]);
+          optionsRef.current.onError(message);
           setReady(true);
         }
       });
@@ -130,7 +189,10 @@ export function useDiagramDocuments(options: Options) {
       ...(current ? { id: current.id, expectedRevision: current.revision } : {}),
       name: name?.trim() || current?.name || `Untitled ${MODE_META[mode].label}`,
       mode, payload, canvasTheme: optionsRef.current.theme(mode),
-      ...(current ? { comments: current.comments, versions: current.versions } : readAnnotations(mode)),
+      ...(current ? { comments: current.comments, versions: current.versions } : readAnnotations(mode, (issue) => {
+        setRecoveryIssues((previous) => previous.some((entry) => entry.storageKey === issue.storageKey) ? previous : [...previous, issue]);
+        optionsRef.current.onError(issue.message);
+      })),
     };
   }, []);
 
@@ -141,6 +203,17 @@ export function useDiagramDocuments(options: Options) {
       : saved;
   }, []);
 
+  const inputHasChanges = useCallback((input: DiagramSaveInput) => {
+    const committed = input.id ? committedDocuments.current.get(input.id) : undefined;
+    if (!committed) return true;
+    return input.name !== committed.name || input.canvasTheme !== committed.canvasTheme ||
+      persistedJson(input.payload) !== persistedJson(committed.payload) ||
+      persistedJson(input.comments) !== persistedJson(committed.comments) ||
+      persistedJson(input.versions) !== persistedJson(committed.versions);
+  }, []);
+
+  const hasPendingChanges = useCallback(() => inputHasChanges(captureDocument(optionsRef.current.mode)), [captureDocument, inputHasChanges]);
+
   const persist = useCallback(async (input: DiagramSaveInput) => {
     const pending = saveQueue.current.then(async () => {
       const saved = await saveDiagram({
@@ -148,6 +221,7 @@ export function useDiagramDocuments(options: Options) {
         ...(input.id ? { expectedRevision: latestRevisions.current.get(input.id) ?? input.expectedRevision } : {}),
       });
       latestRevisions.current.set(saved.id, saved.revision);
+      committedDocuments.current.set(saved.id, saved);
       return saved;
     });
     // A failed operation must not prevent a later explicit retry.
@@ -202,6 +276,7 @@ export function useDiagramDocuments(options: Options) {
       optionsRef.current.apply(fresh, true);
       updateDocuments({ ...documentsRef.current, [fresh.mode]: fresh });
       latestRevisions.current.set(fresh.id, fresh.revision);
+      committedDocuments.current.set(fresh.id, fresh);
       setSavedRevision(optionsRef.current.revision);
     } finally { operation.current = false; setBusy(false); }
   }, [captureDocument, persist, ready, updateDocuments, mergeWorkingAnnotations]);
@@ -234,7 +309,12 @@ export function useDiagramDocuments(options: Options) {
       if (operation.current) return;
       void Promise.resolve().then(async () => {
         const annotations = annotationRevision.current;
-        const current = mergeWorkingAnnotations(await persist(captureDocument(optionsRef.current.mode)));
+        const input = captureDocument(optionsRef.current.mode);
+        if (!inputHasChanges(input)) {
+          setSavedRevision(revision);
+          return;
+        }
+        const current = mergeWorkingAnnotations(await persist(input));
         if (documentsRef.current[current.mode]?.id === current.id) {
           const next = { ...documentsRef.current, [current.mode]: current };
           documentsRef.current = next;
@@ -244,7 +324,7 @@ export function useDiagramDocuments(options: Options) {
       }).catch((cause) => optionsRef.current.onError(`Diagram autosave failed: ${cause instanceof Error ? cause.message : "Browser database unavailable."}`));
     }, 650);
     return () => clearTimeout(timer);
-  }, [options.mode, options.revision, options.suspended, ready, busy, documents, savedRevision, captureDocument, persist, mergeWorkingAnnotations]);
+  }, [options.mode, options.revision, options.suspended, ready, busy, documents, savedRevision, captureDocument, persist, mergeWorkingAnnotations, inputHasChanges]);
 
   const annotate = useCallback((value: { comments: DiagramComment[] } | { versions: DiagramVersion[] }) => {
     const mode = optionsRef.current.mode;
@@ -268,9 +348,10 @@ export function useDiagramDocuments(options: Options) {
   const renamed = useCallback((document: DiagramDocument) => {
     if (documentsRef.current[document.mode]?.id === document.id) {
       latestRevisions.current.set(document.id, document.revision);
+      committedDocuments.current.set(document.id, document);
       updateDocuments({ ...documentsRef.current, [document.mode]: mergeWorkingAnnotations(document) });
     }
   }, [updateDocuments, mergeWorkingAnnotations]);
 
-  return { documents, ready, busy, saved: savedRevision === options.revision, save, saveCopy, open, create, annotate, deleted, renamed };
+  return { documents, ready, busy, blockedDrafts, recoveryIssues, hasPendingChanges, saved: savedRevision === options.revision, save, saveCopy, open, create, annotate, deleted, renamed };
 }
