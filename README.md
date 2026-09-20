@@ -656,12 +656,17 @@ cases across the main run and unchanged retests. The log
 preserves broader regression results, corrective retests and verification limits;
 live model inference was not invoked during this session.
 
-**Priorities 1-4 and 11 are deployed.** The user-selected four-fix release
+**Priorities 1-5 and 11 are deployed.** The user-selected four-fix release
 `94e1abc` includes canvas-aware images, literal-color Whiteboard rendering,
 canonical conversion icons and nested cloud boundaries. Verification: 212
 unit/contract tests, 8 PowerShell safety tests, 32 scoped local browser cases and
 all 74 distinct hosted cases across the main run and readiness rechecks.
-Next is priority 5, then the remaining numbered backlog sequentially.
+Priority 5 release `98e130c` adds canonical provider-safe identities throughout
+scaffolding, search and both Azure exporters, plus explicit unsupported coverage.
+It passed 222 unit/contract tests, 8 preview safety tests and 37/37 local plus
+37/37 hosted affected-surface browser cases. Traced catalog SVG requests fell
+from 3,085 to four in the conversion journey after hidden images were deferred.
+Next is priority 6, then the remaining numbered backlog sequentially.
 Competitor-inspired additions are explicitly deferred until afterward. See the
 [deployment plan](.azure/deployment-plan.md) for its validation and release state.
 The [Implementation roadmap](docs/implementation-roadmap.md) retains

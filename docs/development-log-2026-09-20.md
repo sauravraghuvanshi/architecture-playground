@@ -344,3 +344,36 @@ the deployment target. Engineering and delegated work used GPT-6 Astra.
 - The user authorizes autonomous sequential progress without asking for the
   next number. Do not rush, skip validation, or promise the whole backlog inside
   a time limit. Priority 11 is covered by this release; priority 5 is next.
+
+## Delivered priority 5 - Canonical service and provider identity
+
+- Application release `98e130caf43060641f3b9dbf8d7f0be87cf69d83`.
+- [Actions run 35515116214](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35515116214)
+  succeeded in 2 minutes 57 seconds. Hosted affected-surface acceptance:
+  **37/37 passed in one run**, including all 16 bundled template imports.
+- Replaced fuzzy cross-cloud matching and arbitrary unknown fallbacks with a
+  shared finite alias resolver. App Service search/scaffolding selects the real
+  Application Service asset once, not feature/file icons in multiple tiers.
+- Both pickers respect provider filters; prompt diagnostics explicitly show
+  unmatched recognized requirements and proposed choices. Named variants are
+  not collapsed into base products; unrecognized prose/configuration still needs
+  review rather than a false complete-requirements claim.
+- Native and legacy Azure resource kinds are resolved from canonical identity,
+  not editable labels. Tests cover all 303 non-Azure catalog entries and
+  adversarial renaming. Unsupported variants and zero mappings do not expose
+  a misleading deployment artifact.
+- Legacy AI application rejects unresolved identities atomically and reports an
+  error without replacing the current graph or claiming it was applied.
+- An initial browser regression exposed an eager catalog-image flood: 3,085
+  cloud-icon SVG requests across a conversion/reload journey. Hidden palette
+  images now load lazily; repeated corrected traces record four such requests.
+  The existing reload checks pass without timeout relaxation.
+- Final evidence: 222/222 unit/contract tests, 8/8 mocked PowerShell safety tests,
+  lint, strict TypeScript, standalone build and 37/37 local production browser
+  cases passed. Final hosted acceptance also passed 37/37.
+- No live model inference, customer infrastructure execution, identity or role
+  change. Temporary authenticated test state was removed and owned server stopped.
+- Competitor work is preserved, not deployed, at immutable checkpoint
+  `c4b91a44d33066e9aceb011a086d57f445a95d0f` and
+  `refs/checkpoints/deferred-competitor-a7e748c4`. It resumes only in stage 3.
+- Completed numbered priorities: 1-5 and 11. **Priority 6 is next.**

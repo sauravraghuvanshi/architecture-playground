@@ -1,6 +1,6 @@
 # Azure Deployment Plan
 
-> **Status:** Validated
+> **Status:** Deployed
 
 Generated: 2026-08-12
 Updated: 2026-09-20 (Asia/Kolkata)
@@ -20,7 +20,7 @@ Updated: 2026-09-20 (Asia/Kolkata)
   remaining identity defects; implement a shared deterministic identity contract;
   add exact regression cases; validate/build/deploy through the existing
   application-only pipeline and verify production.
-- **State:** Implementation in progress on the clean production baseline.
+- **State:** Implemented, deployed and hosted-verified as `98e130c`.
   Deferred competitor WIP is isolated at
   `c4b91a44d33066e9aceb011a086d57f445a95d0f`, pinned by
   `refs/checkpoints/deferred-competitor-a7e748c4`. It is not part of this release.
@@ -87,12 +87,30 @@ Updated: 2026-09-20 (Asia/Kolkata)
 - [x] Infrastructure What-If/Policy/Docker checks are not applicable to this
   code-only standalone zip release.
 - [x] Complete azure-validate using actual recorded proof.
-- [ ] Deploy and verify the exact hosted release.
+- [x] Deploy and verify the exact hosted release.
+
+### Priority 5 deployment result
+
+- Application: `98e130caf43060641f3b9dbf8d7f0be87cf69d83`.
+- [Actions run 35515116214](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35515116214)
+  succeeded in 2 minutes 57 seconds, including authenticated API/browser smoke.
+- Production: https://architecture-playground.azurewebsites.net.
+- Hosted affected-surface acceptance: **37/37 passed in one run** (2.5 minutes).
+  The exact identity, asset-search/request-bound, generator, conversion,
+  persistence, export and template behavior is verified on the deployed app.
+- Local final gate also passed 37/37; full contracts 222/222, mocked preview
+  safety 8/8, lint/types/build passed. No live model calls or customer resources.
+- Temporary hosted authentication state removed and owned local server stopped.
+  No infrastructure/roles were provisioned, so new-resource live RBAC checks
+  are not applicable.
+- Next: priority 6, per the user's autonomous sequential instruction. The
+  compiler/naming/configuration backlog is not implied fixed by this release.
 
 ## Delivery order - latest user instruction
 
 1. The four screenshot-backed fixes are complete, deployed and hosted-verified.
-2. Continue the remaining numbered priorities sequentially, starting at 5.
+2. Continue the remaining numbered priorities sequentially from the roadmap's
+   next item (now 6).
 3. Resume competitor-inspired product additions only after that backlog.
 
 Competitor additions started locally are deferred and will be preserved in a

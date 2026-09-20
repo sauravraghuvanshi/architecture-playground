@@ -2,8 +2,8 @@
 
 Last updated: 2026-09-20, Asia/Kolkata.
 
-**Priorities 1-4 and 11 are deployed and verified. The four-fix interruption is
-complete. Next: priority 5, followed by the remaining numbered priorities in
+**Priorities 1-5 and 11 are deployed and verified. The four-fix interruption is
+complete. Next: priority 6, followed by the remaining numbered priorities in
 order. Competitor-inspired additions come after the numbered backlog.**
 
 ## User-selected interruption - 20 September 2026
@@ -16,8 +16,9 @@ The release passed 212 unit/contract tests, 8 PowerShell safety tests, 32 scoped
 local browser cases and all 74 distinct hosted cases across the main run and
 targeted readiness rechecks. Detailed broader local limitations remain recorded.
 
-This completes priority 11 and portions of 5, 7, 12, 13 and 14. Broader scope
-remains pending. Local Outline/collapse/mapping-editor/engineering-packet work
+That release completed priority 11 and portions of 5, 7, 12, 13 and 14.
+Priority 5 was completed subsequently as `98e130c`; other broader scope remains
+pending. Local Outline/collapse/mapping-editor/engineering-packet work
 started after the research is deferred, not deployed, under the latest order.
 
 This is the persistent copy of the 33-item implementation order agreed in the
@@ -27,7 +28,7 @@ They are not the 47 finding IDs in the original local HTML audit.
 - [Session summary and test evidence](development-log-2026-09-20.md)
 - [Deployment history and current release](../.azure/deployment-plan.md)
 - Live app: https://architecture-playground.azurewebsites.net
-- Current deployed application: `94e1abc32c8181e8e463a47d584211f59f062b74`
+- Current deployed application: `98e130caf43060641f3b9dbf8d7f0be87cf69d83`
 - Original audit: local `Audit Report/index.html`, intentionally Git-excluded.
   Do not add the HTML report or test authentication files to a commit.
 
@@ -59,9 +60,10 @@ They are not the 47 finding IDs in the original local HTML audit.
 | 2 | Complete Undo/Redo for both canvases | **Deployed - `d2c21fe`.** Immediate Whiteboard insertion history, binary-preserving Redo, architecture resize/bulk-style/deletion history, toolbar restoration, and correct redo branching. |
 | 3 | Lossless architecture save/import/export | **Deployed - `64f1c48`.** Connection sides, explicit geometry, grouping, identity and stages survive round-trips; invalid input is rejected before mutation; legacy hierarchy/stage limits are consistent. |
 | 4 | Truly read-only deployment previews | **Deployed - `d70340c`.** Offline `preview.ps1` uses the dedicated What-If result API with preflight, explicit matching subscription and an existing group; matching Bicep download and provenance guidance. No resource-write or execution mode. |
+| 5 | Correct cloud service and provider identification | **Deployed - `98e130c`.** Shared canonical alias resolution, exact provider-locked picks, one service per identity in heuristic drafts, visible coverage/assumptions, canonical picker search, label-independent native/legacy Azure resource kinds, atomic rejection of unresolved legacy AI and zero-artifact guards. Hidden palette images load lazily. |
 | 11 | Correct Whiteboard colors and image proportions | **Deployed - `94e1abc`.** Literal-color rendering/export, canvas-aware image context, decoded aspect ratios, adaptive owned neutral foregrounds and legacy bundled-icon readability, verified with displayed/exported pixels. Custom and ambiguous legacy white text remains user-controlled. |
 
-These releases are cumulative. Current production includes all five numbered
+These releases are cumulative. Current production includes all six numbered
 items plus the explicitly requested nested-boundary and conversion improvements.
 
 ## Remaining implementation priorities
@@ -72,8 +74,7 @@ Descriptions are acceptance guidance, not claims of deployed functionality.
 
 | Priority Number | Feature / Fix to Implement | Description |
 | ---: | --- | --- |
-| **5 - next** | **Correct cloud service and provider identification** | Use canonical service/provider identities instead of ambiguous editable labels. Fix duplicate/wrong App Service scaffolds and cross-cloud substitutions; report unmet prompt requirements explicitly. |
-| 6 | Repair offline infrastructure-code generation | Fix invalid Terraform syntax, repeated declarations, resource-name collisions, invalid Bicep symbols, missing Function prerequisites, and configuration divergence across output formats. Add language/tool-backed validation. |
+| **6 - next** | **Repair offline infrastructure-code generation** | Fix invalid Terraform syntax, repeated declarations, resource-name collisions, invalid Bicep symbols, missing Function prerequisites, and configuration divergence across output formats. Add language/tool-backed validation. |
 | 7 | Shared typed architecture model | Define one versioned model for services, providers, regions/SKUs, environments, relationships, boundaries, requirements and evidence. Use explicit migrations and preserve intent across canvas, AI, conversion and code. |
 | 8 | Validated AI-generated engineering handoff | Check syntax, resource types, diagram mappings, prerequisites and code/ARM consistency. Show supported, partial and excluded components; never imply deployability from a nonempty string or mapped-node count. |
 | 9 | Strict AI evidence and response contracts | Stop silent review truncation; require complete findings, unique IDs, valid evidence references and remediation. Consistently reject invalid images and oversized inputs before provider invocation. |
@@ -143,26 +144,25 @@ hosted cases across the main run and unchanged retests. Broader local timing
 failures are disclosed in the deployment plan. No real What-If or customer
 resource creation was performed.
 
-## Next task: priority 5 handoff
+## Next task: priority 6 handoff
 
-Build the detailed plan after the user's selection. Focus on canonical cloud
-service/provider identity rather than editable labels or fuzzy cross-cloud
-substitution. Related audit findings: AI-02, CA-03 and CA-12.
+Continue autonomously under the latest user instruction. Repair the generated
+artifacts, not merely their formatting or preview labels.
 
-- Starting points: [heuristic scaffold](../lib/prompt-to-arch.ts),
-  [offline codegen](../components/diagrammatic/csa/architecture-codegen.ts),
-  [legacy icon resolution](../components/playground/lib/resolve-icons.ts),
-  [service registry](../components/playground/lib/service-registry.ts), and
-  [Studio template adapter](../components/diagrammatic/Workspace.tsx).
-- Cover canonical App Service aliases, cross-tier duplicates, ambiguous labels,
-  provider-locked matching, unknown-service reporting, and all bundled templates.
-- Relabeling a resource must not change its provider/type. Unsupported nodes
-  should remain explicitly unmapped rather than silently substituted.
-- Preserve preview safety, graph fidelity, Undo/Redo and recovery. Do not
-  accidentally absorb priority 6's entire IaC compiler/naming backlog or invoke
-  live non-Astra models.
-- Plan -> implement -> test -> validate -> deploy the app -> hosted verification
-  -> ask for the next priority. No infrastructure provisioning is authorized.
+- Starting points: [native generators](../components/diagrammatic/csa/architecture-codegen.ts)
+  and [legacy exporters](../components/playground/lib/export-iac.ts).
+- Reproduce parser/compiler failures, repeated declarations, invalid symbols,
+  resource-name collisions, missing Function prerequisites and cross-format
+  configuration differences. Use actual language/tool validation where possible.
+- Preserve [canonical identity](../lib/service-identity.ts), explicit unsupported
+  coverage and the no-resource-write PowerShell preview contract.
+- Generated drafts remain distinct from permission to deploy customer resources.
+  No generated customer IaC is to be executed against Azure during testing.
+- Plan -> implement -> test -> validate -> deploy the application -> hosted
+  verification, then proceed to the next numbered priority without asking.
+- Deferred competitor work remains pinned at
+  `refs/checkpoints/deferred-competitor-a7e748c4` (stash `c4b91a44`); do not apply
+  it during the numbered backlog.
 
 ## Useful regression surfaces
 
@@ -173,6 +173,7 @@ substitution. Related audit findings: AI-02, CA-03 and CA-12.
 | Priority 3 graph fidelity | [architecture-roundtrip.spec.ts](../e2e/architecture-roundtrip.spec.ts), [test-graph-roundtrip.mjs](../scripts/test-graph-roundtrip.mjs), [test-hackathon.mjs](../scripts/test-hackathon.mjs) |
 | Shared template/import behavior | [template-imports.spec.ts](../e2e/template-imports.spec.ts), [hackathon-workflows.spec.ts](../e2e/hackathon-workflows.spec.ts) |
 | Priority 4 preview safety | [test-powershell-preview.mjs](../scripts/test-powershell-preview.mjs), [mock PowerShell harness](../scripts/test-preview-powershell.ps1), [deployment-assistance.spec.ts](../e2e/deployment-assistance.spec.ts) |
+| Priority 5 canonical identity | [test-service-identity.mjs](../scripts/test-service-identity.mjs), [service-identity.spec.ts](../e2e/service-identity.spec.ts), [audited template identities](../scripts/fixtures/template-icon-identities.json) |
 
 ## Next-session operational reminders
 
