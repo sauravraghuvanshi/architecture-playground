@@ -4,8 +4,8 @@ Reporting timezone: Asia/Kolkata. This session started on September 19 and
 continued until approximately 02:33 IST on September 20, 2026.
 
 **Overnight close-out:** priorities 1-3 were deployed and verified when work was
-paused. **Resumed at the user's request later on September 20 for priority 4;**
-see the continuation section at the end and the current deployment plan.
+paused. **Priority 4 was subsequently implemented, deployed and verified** at
+the user's request; see the continuation section and current deployment plan.
 
 ## Executive summary
 
@@ -169,12 +169,12 @@ release outcomes with `[skip ci]`; they did not redeploy the application.
 
 ## Important remaining issues
 
-The authoritative pending list is priorities 4-33 in the
+The authoritative pending list is now priorities 5-33 in the
 [implementation roadmap](implementation-roadmap.md). Notable unresolved items:
 
-- Offline PowerShell described as a safe What-If preview still performs a
-  resource-group write before template preflight. **This is priority 4, not
-  fixed today. Do not execute that generated script against Azure for testing.**
+- The audited offline PowerShell write-before-preview defect was fixed during
+  the priority 4 continuation below. Older downloaded scripts remain unsafe to
+  assume read-only; use the new preview-only export and review all prerequisites.
 - Heuristic/provider/service identity, offline IaC validity and semantic mapping,
   AI evidence/contract/grounding, and privacy-default issues remain.
 - Whiteboard theme inversion and non-square image sizing remain; fixing history
@@ -197,7 +197,7 @@ The authoritative pending list is priorities 4-33 in the
 1. Read this log and [Implementation roadmap](implementation-roadmap.md).
 2. Inspect the worktree before changing anything. These closing Markdown updates
    are local and may still be uncommitted; preserve them.
-3. Confirm that the user's next selection is **priority 4**, or use another
+3. Confirm that the user's next selection is **priority 5**, or use another
    priority number they explicitly choose. Do not start multiple priorities.
 4. Use **GPT-6 Astra only**. Do not infer authorization to use the application's
    differently configured live models.
@@ -216,7 +216,7 @@ No implementation work on priority 4 or later was started in this closing turn.
 
 The user resumed and selected truly read-only deployment previews. The earlier
 close-out section is preserved as a historical record. Its local Markdown
-changes are retained and will be published with this application release.
+changes were retained and published with this application release.
 
 - Replaced the offline PowerShell deployment wrapper with preview-only
   `preview.ps1`, using the dedicated What-If result cmdlet and an existing group.
@@ -233,4 +233,18 @@ changes are retained and will be published with this application release.
 - No live AI inference, customer resource creation, identity changes, or
   unrelated audit-priority implementation.
 
-Release and hosted-verification results will be recorded after deployment.
+- Release `d70340cf0f72c39248e2d898e88ddee99c19936f` deployed through
+  [workflow 35496961686](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35496961686),
+  which succeeded in 2 minutes 33 seconds.
+- Hosted verification: 36/37 initially passed. An existing cross-tab test's
+  initial save-confirmation wait timed out; the screenshot already showed the
+  saved result, and the unchanged complete scenario passed two isolated repeats.
+  All 37 distinct hosted cases were verified across the run and retests, including
+  all eight preview/deployment cases and prior-priority regressions.
+- Hosted offline downloads matched the generator exactly. No real Azure
+  What-If, customer script execution, AI inference or template publication was
+  performed; model/publication responses in browser tests remained fixtures.
+- Credentials/state were removed and the local validation server stopped.
+  Next: **priority 5**, not started. The roadmap now records 4 completed and
+  29 pending priorities. This final record is documentation-only, not a new app
+  deployment.

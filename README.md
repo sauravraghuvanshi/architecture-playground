@@ -575,12 +575,15 @@ Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) and
 See [Development log - 2026-09-19/20](docs/development-log-2026-09-20.md) for the
 Cloud Architecture, Whiteboard and AI audit, followed by three deployed fixes:
 reliable saving/recovery, complete Undo/Redo, and lossless architecture JSON
-round-trips. Current production is application release `64f1c48`, with 180
-passing unit/contract tests and 32/32 final hosted acceptance cases. The log
+round-trips. The subsequent priority 4 release `d70340c` adds preview-only offline
+PowerShell and a matching Bicep download. Validation includes 180 unit/contract
+tests, eight command-mocked PowerShell tests, and 37 distinct hosted acceptance
+cases across the main run and unchanged retests. The log
 preserves broader regression results, corrective retests and verification limits;
 live model inference was not invoked during this session.
 
-**Resumed with priority 4 - truly read-only deployment previews.** See the
+**Priorities 1-4 are deployed. Next: priority 5 - correct cloud service and
+provider identification.** See the
 [deployment plan](.azure/deployment-plan.md) for its validation and release state.
 The [Implementation roadmap](docs/implementation-roadmap.md) retains
 all 33 priority numbers, completed items, the full remaining backlog, and the

@@ -2,9 +2,8 @@
 
 Last updated: 2026-09-20, Asia/Kolkata.
 
-**Resumed on September 20. Priorities 1-3 are deployed and verified.
-Priority 4 is in progress following the user's selection; priorities 5-33
-remain pending.**
+**Priorities 1-4 are deployed and verified. Priorities 5-33 are pending.
+Next: priority 5, after the user's selection. No next-priority work has started.**
 
 This is the persistent copy of the 33-item implementation order agreed in the
 session. Keep these numbers stable so the user can select work by number.
@@ -13,7 +12,7 @@ They are not the 47 finding IDs in the original local HTML audit.
 - [Session summary and test evidence](development-log-2026-09-20.md)
 - [Deployment history and current release](../.azure/deployment-plan.md)
 - Live app: https://architecture-playground.azurewebsites.net
-- Current deployed application: `64f1c4807acc25be7918195266cb896bdccb1f85`
+- Current deployed application: `d70340cf0f72c39248e2d898e88ddee99c19936f`
 - Original audit: local `Audit Report/index.html`, intentionally Git-excluded.
   Do not add the HTML report or test authentication files to a commit.
 
@@ -39,18 +38,18 @@ They are not the 47 finding IDs in the original local HTML audit.
 | 1 | Reliable saving and recovery | **Deployed - `79e353b`.** Live scratch checkpoints, corruption isolation, recovery downloads/copies, storage-failure protection, and conflict-safe dirty tracking. |
 | 2 | Complete Undo/Redo for both canvases | **Deployed - `d2c21fe`.** Immediate Whiteboard insertion history, binary-preserving Redo, architecture resize/bulk-style/deletion history, toolbar restoration, and correct redo branching. |
 | 3 | Lossless architecture save/import/export | **Deployed - `64f1c48`.** Connection sides, explicit geometry, grouping, identity and stages survive round-trips; invalid input is rejected before mutation; legacy hierarchy/stage limits are consistent. |
+| 4 | Truly read-only deployment previews | **Deployed - `d70340c`.** Offline `preview.ps1` uses the dedicated What-If result API with preflight, explicit matching subscription and an existing group; matching Bicep download and provenance guidance. No resource-write or execution mode. |
 
-These releases are cumulative. Current production includes all three.
+These releases are cumulative. Current production includes all four.
 
 ## Remaining implementation priorities
 
-Priority 4 is **in progress**; all later entries are **Pending / not started**.
-Descriptions are scope and acceptance guidance, not claims of deployed functionality.
+All entries below are **Pending / not started**. Descriptions are scope and
+acceptance guidance, not claims of deployed functionality.
 
 | Priority Number | Feature / Fix to Implement | Description |
 | ---: | --- | --- |
-| **4 - in progress** | **Truly read-only deployment previews** | Remove resource writes from the offline PowerShell What-If preview path. Perform preflight first, require an existing resource group for preview where appropriate, and separate explicitly approved execution. Prove missing-template and preview paths invoke no resource-write commands. |
-| 5 | Correct cloud service and provider identification | Use canonical service/provider identities instead of ambiguous editable labels. Fix duplicate/wrong App Service scaffolds and cross-cloud substitutions; report unmet prompt requirements explicitly. |
+| **5 - next** | **Correct cloud service and provider identification** | Use canonical service/provider identities instead of ambiguous editable labels. Fix duplicate/wrong App Service scaffolds and cross-cloud substitutions; report unmet prompt requirements explicitly. |
 | 6 | Repair offline infrastructure-code generation | Fix invalid Terraform syntax, repeated declarations, resource-name collisions, invalid Bicep symbols, missing Function prerequisites, and configuration divergence across output formats. Add language/tool-backed validation. |
 | 7 | Shared typed architecture model | Define one versioned model for services, providers, regions/SKUs, environments, relationships, boundaries, requirements and evidence. Use explicit migrations and preserve intent across canvas, AI, conversion and code. |
 | 8 | Validated AI-generated engineering handoff | Check syntax, resource types, diagram mappings, prerequisites and code/ARM consistency. Show supported, partial and excluded components; never imply deployability from a nonempty string or mapped-node count. |
@@ -80,17 +79,18 @@ Descriptions are scope and acceptance guidance, not claims of deployed functiona
 | 32 | Cost, latency and resilience comparison | Compare alternatives using explicit traffic, region, SKU, pricing and recovery assumptions, including AI costs. Show sources, dates and uncertainty; estimates are not quotes or verified guarantees. |
 | 33 | Collaborative workshops and design approvals | Add presence, follow-presenter, voting, assigned comments, approvals and conflict-safe editing after identity, authorization, durable state and offline/recovery behavior are established. |
 
-## Next task: priority 4 handoff
+## Completed priority 4: preview safety contract
 
-### Confirmed issue
+### Fixed issue
 
-The audit finding `CA-05` identifies an offline PowerShell generator that invokes
+The audit finding `CA-05` identified an offline PowerShell generator that invoked
 `New-AzResourceGroup ... -Force` before checking for the referenced Bicep file.
-Only the subsequent deployment command has What-If behavior. The whole script
-therefore is not a guaranteed read-only preview.
+Only the subsequent deployment command had What-If behavior. Release `d70340c`
+replaces that wrapper with a preview-only command and no deployment path.
 
-Do not run the current generated script against a real subscription to reproduce
-this. Use source inspection, parsing and mocked command execution.
+The fix was tested with the actual generated script in PowerShell against mocks,
+not a customer subscription. The unchanged generated Bicep and model-generated
+drafts retain the validation limitations assigned to later priorities.
 
 ### Starting points
 
@@ -101,7 +101,7 @@ this. Use source inspection, parsing and mocked command execution.
 - [Deployment contract tests](../scripts/test-foundry-deployment.mjs)
 - [Deployment browser tests](../e2e/deployment-assistance.spec.ts)
 
-### Minimum acceptance
+### Verified acceptance and continuing regression requirements
 
 1. Preview performs no Azure resource writes, including resource-group creation.
 2. Required files, inputs and dependencies are checked before potentially
@@ -115,8 +115,32 @@ this. Use source inspection, parsing and mocked command execution.
 6. After the application release, verify the hosted generated preview/download
    without executing customer infrastructure deployment.
 
-This is a resume guide, not a completed implementation plan or authorization to
-provision resources. Build the detailed plan after the user resumes.
+Verification: 180 existing unit/contract checks, eight PowerShell mock tests
+(23 generated-script invocations), all eight deployment UI cases, and 37 distinct
+hosted cases across the main run and unchanged retests. Broader local timing
+failures are disclosed in the deployment plan. No real What-If or customer
+resource creation was performed.
+
+## Next task: priority 5 handoff
+
+Build the detailed plan after the user's selection. Focus on canonical cloud
+service/provider identity rather than editable labels or fuzzy cross-cloud
+substitution. Related audit findings: AI-02, CA-03 and CA-12.
+
+- Starting points: [heuristic scaffold](../lib/prompt-to-arch.ts),
+  [offline codegen](../components/diagrammatic/csa/architecture-codegen.ts),
+  [legacy icon resolution](../components/playground/lib/resolve-icons.ts),
+  [service registry](../components/playground/lib/service-registry.ts), and
+  [Studio template adapter](../components/diagrammatic/Workspace.tsx).
+- Cover canonical App Service aliases, cross-tier duplicates, ambiguous labels,
+  provider-locked matching, unknown-service reporting, and all bundled templates.
+- Relabeling a resource must not change its provider/type. Unsupported nodes
+  should remain explicitly unmapped rather than silently substituted.
+- Preserve preview safety, graph fidelity, Undo/Redo and recovery. Do not
+  accidentally absorb priority 6's entire IaC compiler/naming backlog or invoke
+  live non-Astra models.
+- Plan -> implement -> test -> validate -> deploy the app -> hosted verification
+  -> ask for the next priority. No infrastructure provisioning is authorized.
 
 ## Useful regression surfaces
 
@@ -126,11 +150,13 @@ provision resources. Build the detailed plan after the user resumes.
 | Priority 2 native history | [undo-redo.spec.ts](../e2e/undo-redo.spec.ts), [test-architecture-canvas.mjs](../scripts/test-architecture-canvas.mjs), [test-whiteboard-canvas.mjs](../scripts/test-whiteboard-canvas.mjs) |
 | Priority 3 graph fidelity | [architecture-roundtrip.spec.ts](../e2e/architecture-roundtrip.spec.ts), [test-graph-roundtrip.mjs](../scripts/test-graph-roundtrip.mjs), [test-hackathon.mjs](../scripts/test-hackathon.mjs) |
 | Shared template/import behavior | [template-imports.spec.ts](../e2e/template-imports.spec.ts), [hackathon-workflows.spec.ts](../e2e/hackathon-workflows.spec.ts) |
+| Priority 4 preview safety | [test-powershell-preview.mjs](../scripts/test-powershell-preview.mjs), [mock PowerShell harness](../scripts/test-preview-powershell.ps1), [deployment-assistance.spec.ts](../e2e/deployment-assistance.spec.ts) |
 
 ## Next-session operational reminders
 
 - Read the current Git status and remote branch before editing or releasing.
-  Closing Markdown changes may be uncommitted; do not discard them.
+  The overnight closing Markdown was preserved and published with priority 4;
+  do not discard any newer local changes.
 - Application source is already released on `master` and the working branch.
   Do not redeploy merely to publish documentation.
 - Use the existing App Service/GitHub Actions recipe; no new environment,

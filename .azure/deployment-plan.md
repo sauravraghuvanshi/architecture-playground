@@ -1,6 +1,6 @@
 # Azure Deployment Plan
 
-> **Status:** Validated
+> **Status:** Deployed
 
 Generated: 2026-08-12
 Updated: 2026-09-20 (Asia/Kolkata)
@@ -87,12 +87,35 @@ role configuration is introduced.
 - [x] Completed azure-validate for the scoped preview fix after the actual
   parser/mock/UI/build checks. Existing intermittent save/export/readiness
   limitations remain disclosed; this is not a whole-product readiness claim.
-- [ ] Deploy and verify the real hosted artifact downloads without running
+- [x] Deploy and verify the real hosted artifact downloads without running
   customer IaC.
 
 ### Priority 4 deployment result
 
-Not deployed.
+- Application release: `d70340cf0f72c39248e2d898e88ddee99c19936f`
+  (`fix(deploy): make offline PowerShell previews read-only`).
+- [GitHub Actions run 35496961686](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35496961686)
+  succeeded in 2 minutes 33 seconds, including authenticated API/browser smoke.
+- Production: https://architecture-playground.azurewebsites.net.
+- Post-deployment browser run: 36/37 passed initially. The unchanged cross-tab
+  test hit its five-second initial save-confirmation wait; the failure screenshot
+  already showed the saved confirmation. The complete unchanged scenario then
+  passed two consecutive isolated repeats, including revision-conflict recovery.
+- All 37 distinct hosted acceptance cases were verified across that run and
+  retests: eight deployment/preview cases, eight round-trip cases, six history
+  cases, seven recovery cases, six named-document cases and two auth/navigation.
+- The hosted offline script and companion Bicep downloads exactly match their
+  local generator output. Preview/download does not invoke AI or publication,
+  reset/dismissal clears artifacts, and Foundry PowerShell drafts do not inherit
+  the offline safety label. Actual Portal publication in browser tests is mocked.
+- No generated customer script was executed against Azure. PowerShell execution
+  tests used command mocks only; no live What-If, AI inference, customer resource
+  deployment, infrastructure or permission changes were performed.
+- Temporary hosted authentication state is removed and the owned validation
+  server is stopped. Previous session Markdown was preserved and published;
+  the original Audit Report remains locally Git-excluded.
+- This completion record is documentation-only and does not redeploy the app.
+  Next priority: 5, only after the user selects it.
 
 ## Session close - 2026-09-20 02:33 IST
 
