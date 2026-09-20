@@ -428,6 +428,40 @@ can prevent Portal from downloading it. In that case, download `azuredeploy.json
 open **Deploy a custom template** in Azure Portal, choose **Build your own template
 in the editor** then **Load file**, and review before approving deployment.
 
+## Offline PowerShell preview
+
+In **Code & deploy**, select **PowerShell** and explicitly choose **Use offline
+starter export (no AI)**. Download `preview.ps1` and **Download companion Bicep**
+(`main.bicep`) from the same preview into one folder, then review both files.
+The script uses `Get-AzResourceGroupDeploymentWhatIfResult`, not a deployment
+command. It never creates a resource group, signs in, switches subscription,
+installs dependencies, or falls back to deployment.
+
+Before running the script in your own approved environment:
+
+- Install Az.Accounts, Az.Resources and the Bicep CLI separately; sign in and
+  select the intended subscription separately.
+- Set `AZURE_SUBSCRIPTION_ID` to that subscription's GUID,
+  `AZURE_RESOURCE_GROUP` to an **existing** group, and `AZURE_SUFFIX` to a stable
+  1-24 character alphanumeric/hyphen value starting with a letter or digit.
+- Optionally set `AZURE_LOCATION`; otherwise the existing group's location is
+  used. SQL mappings additionally require a valid `SQL_ADMIN_OBJECT_ID` and
+  optionally `SQL_ADMIN_LOGIN`; API Management requires `APIM_PUBLISHER_EMAIL`.
+- Running `preview.ps1` requests Azure What-If after local preflight. Using the
+  script's `-WhatIf` switch skips resource lookup and the remote preview request.
+  `-Confirm` asks only whether to run a preview; it never enables deployment.
+
+What-If contacts Azure and requires appropriate permissions; it does not grant
+access or prove that every resource can be fully evaluated. Review diagnostics,
+policy, cost and generated-code limitations. Actual resource creation remains
+a **separate approved deployment workflow or Azure Portal action**. No execution
+mode is included in this script. The guarantee applies only to this deterministic
+offline PowerShell export, not to Azure CLI output or model-generated drafts.
+The ARM Portal artifact is separate; code/ARM equivalence remains unverified.
+
+See Microsoft's [What-If guidance](https://learn.microsoft.com/azure/azure-resource-manager/bicep/deploy-what-if)
+and [PowerShell What-If result cmdlet](https://learn.microsoft.com/powershell/module/az.resources/get-azresourcegroupdeploymentwhatifresult).
+
 ## Test
 
 ```powershell
@@ -437,6 +471,11 @@ npm run test:playground
 npm run test:e2e
 npm run build
 ```
+
+Run `npm run test:powershell-preview` with PowerShell 7 (`pwsh`) installed to
+parse and execute generated scripts against **local command mocks only**. This
+test suite requires no Azure credentials, Az modules, Bicep installation or cloud
+access and refuses unexpected commands. Temporary script fixtures are removed.
 
 The regression suites cover:
 
@@ -533,16 +572,25 @@ Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) and
 
 ## Latest engineering log
 
-See [Development log - 2026-09-16](docs/development-log-2026-09-16.md) for the
-hackathon release: named diagrams, personalized Foundry review, WAF comparisons,
-Whiteboard conversion, deployment handoff, and local/live verification results.
-The release is deployed and verified: 152 unit tests, 95 browser checks across
-full/targeted runs, real model calls for every supported AI feature, and all 36
-advertised static/text export combinations. See the log for mocked-versus-live
-coverage, the single disabled legacy test, and generated-IaC limitations.
-The session-close note records the final branch/release state and optional
-future improvements; no implementation or release blockers remain from this
-session.
+See [Development log - 2026-09-19/20](docs/development-log-2026-09-20.md) for the
+Cloud Architecture, Whiteboard and AI audit, followed by three deployed fixes:
+reliable saving/recovery, complete Undo/Redo, and lossless architecture JSON
+round-trips. Current production is application release `64f1c48`, with 180
+passing unit/contract tests and 32/32 final hosted acceptance cases. The log
+preserves broader regression results, corrective retests and verification limits;
+live model inference was not invoked during this session.
+
+**Resumed with priority 4 - truly read-only deployment previews.** See the
+[deployment plan](.azure/deployment-plan.md) for its validation and release state.
+The [Implementation roadmap](docs/implementation-roadmap.md) retains
+all 33 priority numbers, completed items, the full remaining backlog, and the
+one-priority-at-a-time plan/test/deploy/verify workflow. Remaining audit findings
+are not implied to be fixed by the completed releases.
+
+The [September 16 log](docs/development-log-2026-09-16.md) records the earlier
+hackathon release and its historical real-model, export and deployment checks.
+Those results should not be confused with the current session's fixture-based
+AI interaction testing.
 
 See [Development log — 2026-08-12](docs/development-log-2026-08-12.md) for the earlier
 Microsoft CSA workspace, Whiteboard ownership, canvas themes, multimodal

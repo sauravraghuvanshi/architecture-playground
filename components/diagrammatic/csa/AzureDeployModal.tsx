@@ -21,6 +21,8 @@ interface Preview {
   armTemplate?: ArmTemplate;
   warnings: string[];
   assumptions: string[];
+  filename?: string;
+  companionBicep?: string;
 }
 
 const FORMATS = [
@@ -101,18 +103,21 @@ function DeploymentSession({ payload, onClose, intent = "deploy" }: Omit<Props, 
     }
     setPreview({
       source: "offline", format, code: code.output, armTemplate, warnings,
+      filename: code.filename,
+      ...(format === "powershell" ? { companionBicep: generateArchitectureCode(selected.payload, "bicep").output } : {}),
       assumptions: ["Explicitly selected deterministic offline starter mappings. No Foundry agent was called; this is not runtime AI generation."],
     });
   };
 
   const text = showArm && preview?.armTemplate ? JSON.stringify(preview.armTemplate, null, 2) : preview?.code ?? "";
-  const download = (arm = false) => {
+  const download = (arm = false, companion = false) => {
     if (!preview || (arm && !preview.armTemplate)) return;
-    const content = arm ? JSON.stringify(preview.armTemplate, null, 2) : preview.code;
+    if (companion && !preview.companionBicep) return;
+    const content = companion ? preview.companionBicep! : arm ? JSON.stringify(preview.armTemplate, null, 2) : preview.code;
     const url = URL.createObjectURL(new Blob([content], { type: arm ? "application/json" : "text/plain;charset=utf-8" }));
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = arm ? "azuredeploy.json" : FORMATS.find((item) => item.id === preview.format)!.filename;
+    anchor.download = companion ? "main.bicep" : arm ? "azuredeploy.json" : preview.filename ?? FORMATS.find((item) => item.id === preview.format)!.filename;
     anchor.click();
     URL.revokeObjectURL(url);
   };
@@ -196,6 +201,13 @@ function DeploymentSession({ payload, onClose, intent = "deploy" }: Omit<Props, 
             <section aria-label="Deployment preview" className="space-y-3 border-t border-slate-700 pt-4">
               <h2 className="text-sm font-semibold">{preview.source === "foundry-agent" ? "Runtime Foundry agent draft" : "Offline deterministic starter - not AI"}</h2>
               <p className="text-xs text-amber-200">{DEPLOYMENT_DISCLAIMER}</p>
+              {preview.source === "offline" && preview.format === "powershell" && (
+                <p role="note" className="rounded-lg border border-sky-400/30 bg-sky-400/10 p-3 text-xs">
+                  Offline PowerShell preview only. Download preview.ps1 and its companion main.bicep into the same folder and review both.
+                  Use an existing resource group and explicitly matching subscription. This script cannot deploy resources;
+                  -Confirm authorizes only preview, not deployment. Other formats and Foundry scripts remain unverified drafts.
+                </p>
+              )}
               <div className="flex gap-2">
                 <button type="button" aria-pressed={!showArm} onClick={() => setShowArm(false)} className="rounded border border-slate-600 px-3 py-1 text-xs">Generated code</button>
                 <button type="button" aria-pressed={showArm} onClick={() => setShowArm(true)} disabled={!preview.armTemplate} className="rounded border border-slate-600 px-3 py-1 text-xs disabled:opacity-50">ARM template for Portal</button>
@@ -208,6 +220,7 @@ function DeploymentSession({ payload, onClose, intent = "deploy" }: Omit<Props, 
               </div>
               <div className="flex flex-wrap gap-3">
                 <button type="button" onClick={() => download()} className="flex items-center gap-1 rounded border border-slate-600 px-3 py-2 text-xs"><Download className="h-3 w-3" />Download code</button>
+                {preview.companionBicep && <button type="button" onClick={() => download(false, true)} className="rounded border border-slate-600 px-3 py-2 text-xs">Download companion Bicep</button>}
                 <button type="button" onClick={() => download(true)} disabled={!preview.armTemplate} className="rounded border border-slate-600 px-3 py-2 text-xs disabled:opacity-50">Download ARM template</button>
               </div>
             </section>

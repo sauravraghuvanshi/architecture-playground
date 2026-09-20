@@ -63,7 +63,9 @@ test("CSA codegen emits Terraform, CLI, and What-If PowerShell", () => {
   const powershell = generateArchitectureCode(payload, "powershell");
   assert.match(terraform.output, /azuread_authentication_only = true/);
   assert.match(cli.output, /--enable-ad-only-auth/);
-  assert.match(powershell.output, /-WhatIf/);
+  assert.match(powershell.output, /Get-AzResourceGroupDeploymentWhatIfResult/);
+  assert.doesNotMatch(powershell.output, /New-AzResourceGroup|Connect-AzAccount/);
+  assert.equal(powershell.filename, "preview.ps1");
   assert.doesNotMatch(`${terraform.output}${cli.output}${powershell.output}`, /password\s*=/i);
 });
 

@@ -1,9 +1,115 @@
 # Azure Deployment Plan
 
-> **Status:** Deployed
+> **Status:** Validated
 
 Generated: 2026-08-12
 Updated: 2026-09-20 (Asia/Kolkata)
+
+## Priority 4: Truly read-only deployment previews
+
+Current application-only change selected by the user on September 20. Preserve
+the session-close Markdown and all completed priority 1-3 behavior below.
+
+- **Target/recipe:** Existing standalone App Service application at
+  https://architecture-playground.azurewebsites.net through the current GitHub
+  Actions workflow. No new infrastructure, roles, model calls or customer IaC
+  execution.
+- **Scope:** Remove writes from offline PowerShell preview, run prerequisite
+  checks before preview, align download/UI warnings, and prove preview and
+  failure paths with mocked PowerShell execution.
+- **Baseline:** `d7c0912621ad711a0e79a265dd986fd82ff268a5`; application `64f1c48`.
+  The previous close-out README/plan edits and two new session Markdown files
+  were already local changes and are preserved for publication with this release.
+- **Plan:** Inspect generator/callers and existing contracts; add failing tests;
+  implement a read-only preview against an existing resource group; validate
+  local unit/browser/build checks; deploy the app and verify hosted downloads
+  without deploying any generated infrastructure.
+- **Validation and rollback:** Record actual results before release. Redeploy
+  the previous app if needed; never run the generated script against a customer
+  subscription as an audit or acceptance test.
+
+### Priority 4 - Section 7: Validation Proof
+
+- Official Microsoft What-If documentation confirms that the dedicated
+  `Get-AzResourceGroupDeploymentWhatIfResult` API predicts changes without
+  resource deployment. What-If still contacts Azure and requires permissions;
+  the UI must not claim live validation or generic Reader-only access.
+- The prior generator from Git HEAD was executed under the corrected local
+  PowerShell mock harness without `main.bicep`: it attempted resource-group
+  creation before preflight; the throwing mock blocked the write.
+- The new script has no resource-writing, sign-in, context-selection, install
+  or deployment command. It uses an explicit subscription GUID, existing group,
+  stable suffix, pinned context, incremental What-If and no parameter prompting.
+- Initial harness failures came from disabled built-in module autoload and
+  script-scope mock variables; the harness was corrected before using its
+  results as evidence. No Azure module or external command was invoked.
+- Final PowerShell suite: 8/8 tests passed, exercising 23 generated-script
+  invocations across success, missing files/dependencies, malformed inputs,
+  missing/mismatched context, unavailable groups, denied access, failed provider
+  results, dry-run cancellation and unanswered confirmation. All Azure commands
+  are mocks, with autoload disabled; no Azure resource or provider was contacted.
+- Full existing unit/contract suite: 180/180 passed. Repository ESLint, standalone
+  production build and strict TypeScript passed after correcting the new browser
+  fixture's explicit architecture type.
+- Scoped deployment browser suite: 8/8 passed, including all three new preview,
+  paired-download, cancellation/reset and source-provenance cases. The UI was
+  also rendered and visually inspected on the local production candidate.
+- Broader regression: 44/46 passed. Unchanged snapshot and resize tests hit
+  save/export or scratch-read timeouts; each then passed one unchanged isolated
+  repeat and failed one. These are retained as intermittent prior-workflow
+  limitations, not represented as a clean full-suite result or fixed by task 4.
+  No persistence/history/serialization source was changed by this release.
+- Known syntax/naming/mapping limitations of generated IaC remain in later
+  priorities. This release guarantees a non-deploying offline preview workflow,
+  not correctness of arbitrary Bicep/ARM, real Azure What-If success, or safety of
+  model-generated scripts.
+- Commands: `npm run test:powershell-preview`, `npm run test:playground`,
+  `npm run lint`, `npx tsc --noEmit --incremental false`, `npm run build`,
+  and the existing/extended deployment Playwright suite against the standalone
+  candidate. The broader regression and unchanged repeat results are recorded
+  above as limitations, not silently counted as passes.
+- Evidence checkpoint: 2026-09-20 12:54 IST. The built standalone candidate
+  responds on port 3317; required repository permissions and existing production
+  branch were rechecked without inspecting deployment secret values.
+
+### Priority 4: All validation checks pass
+
+Existing CI/CD app-only recipe. No new infrastructure, containers, model or
+role configuration is introduced.
+
+- [x] Native PowerShell parser and command-mocked preview execution checks pass.
+- [x] Existing unit/contract suite, lint, strict types and production build pass.
+- [x] All eight scoped preview/deployment UI tests pass with no live inference
+  or actual publication; broader intermittent results are disclosed above.
+- [x] Existing target and owner-scoped repository push/admin permission verified;
+  production baseline remains `d7c0912`.
+- [x] Static role boundary: no authentication, cloud identity, API or workflow changes.
+- [x] Completed azure-validate for the scoped preview fix after the actual
+  parser/mock/UI/build checks. Existing intermittent save/export/readiness
+  limitations remain disclosed; this is not a whole-product readiness claim.
+- [ ] Deploy and verify the real hosted artifact downloads without running
+  customer IaC.
+
+### Priority 4 deployment result
+
+Not deployed.
+
+## Session close - 2026-09-20 02:33 IST
+
+The user paused work for the day. Priorities 1-3 are implemented, deployed and
+production-verified. Application release `64f1c48` remains live; the latest
+release-verification documentation commit is `d7c0912`.
+
+- [Session summary](../docs/development-log-2026-09-20.md) records the audit,
+  three releases, actual verification counts, known limitations and cleanup.
+- [Implementation roadmap](../docs/implementation-roadmap.md) preserves the
+  original 33-item order. **Priority 4 is next; priorities 4-33 are not started.**
+- Resume only on the user's next instruction, using GPT-6 Astra and the agreed
+  one-priority-at-a-time plan/implement/test/deploy/verify cycle.
+- This close-out changes Markdown only. It does not deploy, commit or push a new
+  application revision; preserve these local documentation edits next session.
+- Temporary hosted authentication files have been removed and the owned local
+  validation server has stopped. Do not assume either is available tomorrow.
 
 ## Priority 3: Lossless architecture save/import/export
 

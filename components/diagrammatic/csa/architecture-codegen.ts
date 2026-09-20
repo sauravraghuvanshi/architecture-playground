@@ -52,7 +52,7 @@ const FORMAT_META: Record<
   bicep: { filename: "main.bicep", language: "bicep" },
   terraform: { filename: "main.tf", language: "hcl" },
   "azure-cli": { filename: "deploy.sh", language: "bash" },
-  powershell: { filename: "deploy.ps1", language: "powershell" },
+  powershell: { filename: "preview.ps1", language: "powershell" },
 };
 
 const RESOURCE_MATCHERS: Array<[ResourceKind, RegExp]> = [
@@ -914,51 +914,90 @@ az sql db create --name "${name}" --server "${name}-sql-$SUFFIX" --resource-grou
 
 function emitPowerShell(resources: DetectedResource[]): string {
   const lines = [
+    "# Preview only: no resource creation, update, deletion, sign-in or context switching.",
+    "# Review main.bicep from this same offline export before running this script.",
+    "# Requires Az.Accounts, Az.Resources and Bicep CLI installed separately.",
+    "# -WhatIf skips the Azure request; -Confirm asks only about running the preview.",
+    "[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]",
+    "param()",
+    "",
     "Set-StrictMode -Version Latest",
     "$ErrorActionPreference = 'Stop'",
     "",
-    "$Location = if ($env:AZURE_LOCATION) { $env:AZURE_LOCATION } else { 'centralindia' }",
-    "$ResourceGroup = if ($env:AZURE_RESOURCE_GROUP) { $env:AZURE_RESOURCE_GROUP } else { 'rg-csa-architecture' }",
-    "$Suffix = if ($env:AZURE_SUFFIX) { $env:AZURE_SUFFIX } else { (Get-Random -Minimum 1000 -Maximum 9999).ToString() }",
-    "",
-    "if (-not (Get-AzContext)) { Connect-AzAccount | Out-Null }",
-    "New-AzResourceGroup -Name $ResourceGroup -Location $Location -Force | Out-Null",
-    "",
-    "# Deploy the canonical, reviewed Bicep generated for this architecture.",
-    "# This preserves identical resource settings across PowerShell and Azure CLI workflows.",
-    "$TemplateFile = Join-Path $PSScriptRoot 'main.bicep'",
-    "if (-not (Test-Path $TemplateFile)) {",
-    "  throw 'main.bicep was not found. Download the Bicep output beside this script.'",
-    "}",
-    "",
-    "$Parameters = @{",
-    "  location = $Location",
-    "  environmentName = \"csa-$Suffix\"",
-    "}",
   ];
+  if (resources.length === 0) {
+    return [...lines, "throw 'No supported Azure services were found. Nothing was previewed or deployed.'", ""].join("\n");
+  }
+  lines.push(
+    "$TemplateFile = Join-Path $PSScriptRoot 'main.bicep'",
+    "if (-not (Test-Path -LiteralPath $TemplateFile -PathType Leaf) -or (Get-Item -LiteralPath $TemplateFile).Length -eq 0) {",
+    "  throw 'A nonempty main.bicep is required. Download and review the companion Bicep beside this script.'",
+    "}",
+    "$SubscriptionId = [guid]::Empty",
+    "if (-not [guid]::TryParse($env:AZURE_SUBSCRIPTION_ID, [ref]$SubscriptionId) -or $SubscriptionId -eq [guid]::Empty) {",
+    "  throw 'Set AZURE_SUBSCRIPTION_ID to the intended subscription GUID.'",
+    "}",
+    "if ([string]::IsNullOrWhiteSpace($env:AZURE_RESOURCE_GROUP)) {",
+    "  throw 'Set AZURE_RESOURCE_GROUP to an existing resource group. This script will not create it.'",
+    "}",
+    "$ResourceGroupName = $env:AZURE_RESOURCE_GROUP.Trim()",
+    "if ($env:AZURE_SUFFIX -notmatch '^[a-zA-Z0-9][a-zA-Z0-9-]{0,23}$') {",
+    "  throw 'Set AZURE_SUFFIX to a stable 1-24 character letter/digit/hyphen suffix starting with a letter or digit.'",
+    "}",
+    "$Parameters = @{ environmentName = \"csa-$env:AZURE_SUFFIX\" }",
+  );
   if (resources.some((resource) => resource.kind === "sql")) {
     lines.push(
-      "if (-not $env:SQL_ADMIN_OBJECT_ID) { throw 'Set SQL_ADMIN_OBJECT_ID to a Microsoft Entra group object ID.' }",
-      "$Parameters.sqlAdminObjectId = $env:SQL_ADMIN_OBJECT_ID",
-      "$Parameters.sqlAdminLogin = if ($env:SQL_ADMIN_LOGIN) { $env:SQL_ADMIN_LOGIN } else { 'Azure SQL Administrators' }"
+      "$SqlAdminId = [guid]::Empty",
+      "if (-not [guid]::TryParse($env:SQL_ADMIN_OBJECT_ID, [ref]$SqlAdminId) -or $SqlAdminId -eq [guid]::Empty) {",
+      "  throw 'Set SQL_ADMIN_OBJECT_ID to a Microsoft Entra group object ID.'",
+      "}",
+      "$Parameters.sqlAdminObjectId = $SqlAdminId.ToString()",
+      "$Parameters.sqlAdminLogin = if ([string]::IsNullOrWhiteSpace($env:SQL_ADMIN_LOGIN)) { 'Azure SQL Administrators' } else { $env:SQL_ADMIN_LOGIN.Trim() }",
     );
   }
   if (resources.some((resource) => resource.kind === "apim")) {
     lines.push(
-      "if (-not $env:APIM_PUBLISHER_EMAIL) { throw 'Set APIM_PUBLISHER_EMAIL.' }",
-      "$Parameters.publisherEmail = $env:APIM_PUBLISHER_EMAIL"
+      "if ([string]::IsNullOrWhiteSpace($env:APIM_PUBLISHER_EMAIL)) { throw 'Set APIM_PUBLISHER_EMAIL to a valid email address.' }",
+      "try { $Publisher = [System.Net.Mail.MailAddress]::new($env:APIM_PUBLISHER_EMAIL) }",
+      "catch { throw 'Set APIM_PUBLISHER_EMAIL to a valid email address.' }",
+      "if ($Publisher.Address -ne $env:APIM_PUBLISHER_EMAIL -or $Publisher.Host -notlike '*.*') { throw 'Set APIM_PUBLISHER_EMAIL to a valid email address.' }",
+      "$Parameters.publisherEmail = $Publisher.Address",
     );
   }
   lines.push(
     "",
-    "New-AzResourceGroupDeployment `",
-    "  -Name \"csa-architecture-$Suffix\" `",
-    "  -ResourceGroupName $ResourceGroup `",
+    "# Preflight dependencies and local sign-in context; never install or sign in automatically.",
+    "Get-Command -Name Get-AzContext, Get-AzResourceGroup, Get-AzResourceGroupDeploymentWhatIfResult -ErrorAction Stop | Out-Null",
+    "Get-Command -Name bicep -CommandType Application -ErrorAction Stop | Out-Null",
+    "$Context = Get-AzContext -ErrorAction Stop",
+    "if ($null -eq $Context -or $null -eq $Context.Subscription) {",
+    "  throw 'Sign in and select the intended subscription separately before previewing.'",
+    "}",
+    "if ([guid]$Context.Subscription.Id -ne $SubscriptionId) {",
+    "  throw 'The current Azure context does not match AZURE_SUBSCRIPTION_ID. Select the intended subscription separately.'",
+    "}",
+    "if (-not $PSCmdlet.ShouldProcess(\"$SubscriptionId/$ResourceGroupName\", 'Request What-If preview only (no resource changes)')) {",
+    "  Write-Host 'Preview cancelled. No Azure resource lookup or What-If request was sent.'",
+    "  return",
+    "}",
+    "",
+    "$ResourceGroup = Get-AzResourceGroup -Name $ResourceGroupName -DefaultProfile $Context -ErrorAction Stop",
+    "if ($null -eq $ResourceGroup) { throw 'The resource group does not exist. This preview will not create it.' }",
+    "$Parameters.location = if ([string]::IsNullOrWhiteSpace($env:AZURE_LOCATION)) { $ResourceGroup.Location } else { $env:AZURE_LOCATION.Trim() }",
+    "",
+    "$Result = Get-AzResourceGroupDeploymentWhatIfResult `",
+    "  -ResourceGroupName $ResourceGroupName `",
     "  -TemplateFile $TemplateFile `",
     "  -TemplateParameterObject $Parameters `",
-    "  -WhatIf",
+    "  -Mode Incremental `",
+    "  -SkipTemplateParameterPrompt `",
+    "  -DefaultProfile $Context `",
+    "  -ErrorAction Stop",
+    "$Result",
+    "if ($null -eq $Result -or $Result.Status -ne 'Succeeded') { throw 'Azure What-If did not succeed. Review diagnostics; no deployment was attempted.' }",
     "",
-    "Write-Host 'Review the What-If result, then rerun with -Confirm before deployment.'"
+    "Write-Host 'Preview complete. No resources were deployed. Review limitations, policy and cost; actual deployment requires a separate approved workflow or Azure Portal action.'"
   );
   return lines.join("\n") + "\n";
 }
@@ -983,7 +1022,8 @@ export function generateArchitectureCode(
     case "powershell":
       output = emitPowerShell(resources);
       if (resources.length > 0) {
-        warnings.push("PowerShell performs a safe What-If deployment of the generated main.bicep file.");
+        warnings.push("Offline PowerShell is preview-only: download the companion main.bicep, review both files, and set AZURE_SUBSCRIPTION_ID, AZURE_RESOURCE_GROUP (existing), and a stable AZURE_SUFFIX. Install Az.Accounts, Az.Resources and Bicep CLI separately. No resources are created; the script will not sign in or switch subscriptions.");
+        warnings.push("What-If contacts Azure and checks permissions; it is not a deployment or a guarantee of completeness. -WhatIf skips the remote request; -Confirm confirms only preview. Actual deployment remains a separate approved workflow or Azure Portal action. Other formats and Foundry drafts are not covered by this preview-only guarantee.");
       }
       break;
   }

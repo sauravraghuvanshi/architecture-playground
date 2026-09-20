@@ -1,6 +1,8 @@
 import { expect, test, type BrowserContext, type Download, type Page } from "@playwright/test";
+import { generateArchitectureCode } from "../components/diagrammatic/csa/architecture-codegen";
+import type { ArchPayload } from "../components/diagrammatic/modes/architecture/ArchitectureCanvas";
 
-const architecture = {
+const architecture: ArchPayload = {
   nodes: [{
     kind: "icon", id: "app", label: "Customer web app",
     iconId: "azure/application/app-service-api",
@@ -93,6 +95,66 @@ async function downloadText(download: Download) {
 }
 
 test.describe("Deployment assistance with mocked named-agent responses", () => {
+  test("offline PowerShell downloads only a preview and the matching Bicep without publishing or invoking AI", async ({ page, context }) => {
+    const { modal, requests } = await openDeployment(page, context);
+    await modal.getByRole("button", { name: "PowerShell", exact: true }).click();
+    await modal.getByRole("button", { name: "Use offline starter export (no AI)", exact: true }).click();
+    await expect(modal.getByRole("note")).toContainText("Offline PowerShell preview only");
+    await expect(modal.getByTestId("generated-code")).toContainText("Get-AzResourceGroupDeploymentWhatIfResult");
+    await expect(modal.getByTestId("generated-code")).not.toContainText("New-AzResourceGroup");
+    await expect(modal.getByRole("button", { name: "Open Azure Review + Create" })).toBeDisabled();
+    const [previewDownload] = await Promise.all([
+      page.waitForEvent("download"), modal.getByRole("button", { name: "Download code", exact: true }).click(),
+    ]);
+    expect(previewDownload.suggestedFilename()).toBe("preview.ps1");
+    expect(await downloadText(previewDownload)).toBe(generateArchitectureCode(architecture, "powershell").output);
+    const [bicepDownload] = await Promise.all([
+      page.waitForEvent("download"), modal.getByRole("button", { name: "Download companion Bicep", exact: true }).click(),
+    ]);
+    expect(bicepDownload.suggestedFilename()).toBe("main.bicep");
+    expect(await downloadText(bicepDownload)).toBe(generateArchitectureCode(architecture, "bicep").output);
+    await modal.getByRole("button", { name: "ARM template for Portal", exact: true }).click();
+    await expect(modal.getByTestId("generated-arm-template")).toContainText("Microsoft.Web/sites");
+    expect(requests.generation).toEqual([]);
+    expect(requests.publication).toEqual([]);
+    expect(requests.unexpected).toEqual([]);
+  });
+
+  test("changing or dismissing an offline preview clears companion artifacts and never publishes", async ({ page, context }) => {
+    const { modal, requests } = await openDeployment(page, context);
+    let downloads = 0;
+    page.on("download", () => { downloads++; });
+    await modal.getByRole("button", { name: "PowerShell", exact: true }).click();
+    await modal.getByRole("button", { name: "Use offline starter export (no AI)", exact: true }).click();
+    await expect(modal.getByRole("button", { name: "Download companion Bicep" })).toBeVisible();
+    await modal.getByLabel("Deployment constraints").fill("Changed assumptions");
+    await expect(modal.getByRole("button", { name: "Download companion Bicep" })).toHaveCount(0);
+    await modal.getByRole("button", { name: "Use offline starter export (no AI)", exact: true }).click();
+    await modal.getByRole("button", { name: "Bicep", exact: true }).click();
+    await expect(modal.getByTestId("generated-code")).toHaveCount(0);
+    await modal.getByRole("button", { name: "Close Azure deployment", exact: true }).click();
+    await expect(modal).toHaveCount(0);
+    expect(downloads).toBe(0);
+    expect(requests.generation).toEqual([]);
+    expect(requests.publication).toEqual([]);
+  });
+
+  test("Foundry PowerShell remains an unverified draft and never inherits the offline preview guarantee", async ({ page, context }) => {
+    const draft = { ...agentDraft, format: "powershell", code: "# Synthetic agent script - not executed.\nWrite-Host 'Review me'\n" };
+    const { modal, requests } = await openDeployment(page, context, { generationBody: draft });
+    await modal.getByRole("button", { name: "PowerShell", exact: true }).click();
+    await modal.getByRole("button", { name: "Generate with Foundry agent" }).click();
+    await expect(modal.getByText("Runtime Foundry agent draft", { exact: true })).toBeVisible();
+    await expect(modal.getByRole("note")).toHaveCount(0);
+    await expect(modal.getByRole("button", { name: "Download companion Bicep" })).toHaveCount(0);
+    const [download] = await Promise.all([
+      page.waitForEvent("download"), modal.getByRole("button", { name: "Download code", exact: true }).click(),
+    ]);
+    expect(download.suggestedFilename()).toBe("deploy.ps1");
+    expect(await downloadText(download)).toBe(draft.code.trim());
+    expect(requests.publication).toEqual([]);
+  });
+
   test("generates, previews and downloads code/ARM, then publishes only after explicit consent", async ({ page, context }) => {
     const { modal, requests } = await openDeployment(page, context);
     await expect(modal.getByTestId("generated-code")).toHaveCount(0);

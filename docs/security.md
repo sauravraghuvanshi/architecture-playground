@@ -138,6 +138,20 @@ features, and Azure diagnostics still apply. Do not include secrets.
 
 ## Azure Portal handoff
 
+The deterministic offline PowerShell export is a preview-only `preview.ps1`
+with a companion `main.bicep` from the same input. It checks local files,
+parameters and dependencies first, requires a separately selected matching
+subscription and an existing resource group, and invokes only the resource-group
+lookup and What-If result APIs against that checked context. It does not create
+groups, switch context, sign in or execute deployments. Cancellation through
+`-WhatIf` skips the remote request; `-Confirm` confirms preview only.
+
+This guarantee does not extend to arbitrary Foundry-generated scripts, Azure
+CLI exports, or user-modified files. Those remain unverified drafts. Azure
+What-If requires permissions and has evaluation limitations; preview does not
+imply authorization to create resources. Portal publication and final deployment
+approval remain separate from preview/download.
+
 Generated code and ARM templates are unverified drafts. The application validates
 bounded template structure, evidence mappings, and a restricted handoff subset;
 it is not an ARM compiler, policy evaluator, or proof of deployability. It rejects
