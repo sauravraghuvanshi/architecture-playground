@@ -1,6 +1,6 @@
 # Azure Deployment Plan
 
-> **Status:** Validated
+> **Status:** Deployed and Verified
 
 Generated: 2026-08-12
 Updated: 2026-09-21 (Asia/Kolkata; continuation of the September 20 session)
@@ -22,8 +22,8 @@ Updated: 2026-09-21 (Asia/Kolkata; continuation of the September 20 session)
   Structural parsing alone must not be labelled compiler/provider verification.
 - **Recipe:** Existing application-only GitHub Actions/App Service pipeline.
   No customer infrastructure or model endpoint/identity changes.
-- **State:** Implemented and validated; ready for the existing application-only
-  deployment pipeline and its native-Linux/hosted parser gates.
+- **State:** Deployed and verified. Feature `9c9e498` plus rollout correction
+  `86cde202b25da1c2c69a78ca7ffdc5ccdc73de44`; final hosted acceptance 77/77.
 - **Latest user cutoff:** finish this priority, deploy and verify it, update
   today's Markdown summary/lessons/backlog, then stop. Do not start priority 9
   or competitor work today.
@@ -186,6 +186,29 @@ and deferred competitor work remains pinned at `c4b91a44`.
 - [x] New deploy-operation tests and full contract/static regression.
 - [x] Existing unchanged application build proof and hosted parser smoke.
 - [x] Rollout-fix validation workflow completion.
+
+### Priority 8 - Final release and stopping point
+
+- [Run 35538732835](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35538732835)
+  deployed `86cde202b25da1c2c69a78ca7ffdc5ccdc73de44` successfully in **4m22s**.
+  Native Linux helper smoke, completed SCM rollout, authenticated API smoke,
+  the new real parser-backed hosted smoke and live browser smoke all passed.
+- **77/77 hosted acceptance cases passed in one run** in 4.7 minutes. This
+  includes real Bicep/HCL validation, all five reproduced rejection cases,
+  controlled Bash parsing, explicit PowerShell non-verification, report UI/
+  downloads, complete artifact binding, and previous core-workspace regressions.
+- Final source evidence: **249/249 application contracts**, **17/17 parser/policy
+  cases**, native Go tests, **88/88 prior script-safety cases**, lint, strict types,
+  locked helper packaging and standalone build. Local browser gate: 77/77.
+- Temporary hosted authentication state was removed. Owned local servers are
+  stopped. No real model inference, customer IaC execution, infrastructure or
+  role change occurred. Local audit HTML and competitor checkpoint remain intact.
+- Task 8 is complete within the documented bounded static profile. PowerShell
+  syntax, script effects, full compiler/provider semantics and Azure environment
+  checks are not silently certified.
+- **Stopped per user instruction. Do not start task 9 or competitor work.**
+  Next-session context is in [session summary](../docs/session-summary-2026-09-21.md)
+  and [implementation roadmap](../docs/implementation-roadmap.md).
 
 ## Priority 7 - Shared typed and versioned architecture model
 

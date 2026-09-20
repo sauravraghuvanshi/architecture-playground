@@ -1,10 +1,10 @@
 # Implementation roadmap
 
-Last updated: 2026-09-20, Asia/Kolkata.
+Last updated: 2026-09-21, Asia/Kolkata (September 20 session close-out).
 
-**Priorities 1-7 and 11 are deployed and verified within their stated scopes. The four-fix interruption is
-complete. Next: priority 8, followed by the remaining numbered priorities in
-order. Competitor-inspired additions come after the numbered backlog.**
+**Priorities 1-8 and 11 are deployed and verified within their stated scopes.
+Stopped after task 8 as requested. Next session starts with priority 9 only when
+requested. Competitor-inspired additions remain after the numbered backlog.**
 
 ## User-selected interruption - 20 September 2026
 
@@ -17,7 +17,7 @@ local browser cases and all 74 distinct hosted cases across the main run and
 targeted readiness rechecks. Detailed broader local limitations remain recorded.
 
 That release completed priority 11 and portions of 5, 7, 12, 13 and 14.
-Priorities 5-7 were completed subsequently; broader Whiteboard and accessibility
+Priorities 5-8 were completed subsequently; broader Whiteboard and accessibility
 scope remains pending. Local Outline/collapse/mapping-editor/engineering-packet work
 started after the research is deferred, not deployed, under the latest order.
 
@@ -28,7 +28,8 @@ They are not the 47 finding IDs in the original local HTML audit.
 - [Session summary and test evidence](development-log-2026-09-20.md)
 - [Deployment history and current release](../.azure/deployment-plan.md)
 - Live app: https://architecture-playground.azurewebsites.net
-- Current deployed application: `bd095946e0c78005cdc5e6c2f161e11d0f8af266`
+- Current deployed application: `86cde202b25da1c2c69a78ca7ffdc5ccdc73de44`
+- [Today's summary, lessons and next-session handoff](session-summary-2026-09-21.md)
 - Original audit: local `Audit Report/index.html`, intentionally Git-excluded.
   Do not add the HTML report or test authentication files to a commit.
 
@@ -64,9 +65,10 @@ They are not the 47 finding IDs in the original local HTML audit.
 | 5 | Correct cloud service and provider identification | **Deployed - `98e130c`.** Shared canonical alias resolution, exact provider-locked picks, one service per identity in heuristic drafts, visible coverage/assumptions, canonical picker search, label-independent native/legacy Azure resource kinds, atomic rejection of unresolved legacy AI and zero-artifact guards. Hidden palette images load lazily. |
 | 6 | Reliable offline infrastructure drafts | **Deployed - `c271483`.** Shared native/legacy generation, collision-safe bounded names, explicit common namespace/existing group, valid Terraform, keyless Function host prerequisites, workspace/subnet dependencies and matching CLI Bicep companion. Verified with real compilers, executable mocks and hosted downloads; customer deployability remains unproven. |
 | 7 | Shared typed and versioned architecture model | **Deployed - `bd09594`.** Shared schemas/types, explicit safe migration, declared configuration/environments/relationships, requirement/evidence provenance and original intent across editing/history/persistence/conversion/AI. Inspector context, future-version overwrite protection and explicit offline-code limitations. Full context definition authoring remains JSON-based. |
+| 8 | Independently validated AI engineering handoff | **Deployed - `9c9e498`, rollout gate `86cde20`.** Official Bicep/HCL parser-only checks, controlled Bash syntax checks, canonical coverage, selected prerequisites/correspondence, visible unverified states and validation-report download. Complete artifact/evidence sets are revalidated before publication. PowerShell and unsupported/dynamic cases remain review-only; no generated infrastructure is executed. |
 | 11 | Correct Whiteboard colors and image proportions | **Deployed - `94e1abc`.** Literal-color rendering/export, canvas-aware image context, decoded aspect ratios, adaptive owned neutral foregrounds and legacy bundled-icon readability, verified with displayed/exported pixels. Custom and ambiguous legacy white text remains user-controlled. |
 
-These releases are cumulative. Current production includes all eight numbered
+These releases are cumulative. Current production includes all nine numbered
 items plus the explicitly requested nested-boundary and conversion improvements.
 
 ## Remaining implementation priorities
@@ -77,8 +79,7 @@ Descriptions are acceptance guidance, not claims of deployed functionality.
 
 | Priority Number | Feature / Fix to Implement | Description |
 | ---: | --- | --- |
-| **8 - next** | **Validated AI-generated engineering handoff** | Check syntax, resource types, diagram mappings, prerequisites and code/ARM consistency. Show supported, partial and excluded components; never imply deployability from a nonempty string or mapped-node count. |
-| 9 | Strict AI evidence and response contracts | Stop silent review truncation; require complete findings, unique IDs, valid evidence references and remediation. Consistently reject invalid images and oversized inputs before provider invocation. |
+| **9 - next session** | **Strict AI evidence and response contracts** | Reproduce remaining current gaps; require complete findings, unique IDs, valid evidence references and remediation. Consistently reject invalid images and oversized inputs before provider invocation. Preserve the stricter versioned evidence and artifact checks already shipped. |
 | 10 | Explicit AI destination and privacy controls | Remove implicit public-demo proxying in development. Require deliberate destinations, disclose prompt/image egress, and provide clear history deletion and retention controls. |
 | 12 | Safe Whiteboard conversion and restoration | Define cancellable analysis versus committed application; prevent late application after dismissal. Validate scene elements, geometry, bindings and binaries, and clarify new-document versus replacement behavior. Priority 3 protects the shared restore boundary but does not complete these Whiteboard-specific contracts. |
 | 13 | Reliable AI loading, streaming and cancellation | Show disabled/checking state until readiness is known. Fix SSE framing and pending-read cancellation, support one insertable image-result contract, and distinguish timeout, throttle, refusal and truncated output. |
@@ -145,25 +146,24 @@ hosted cases across the main run and unchanged retests. Broader local timing
 failures are disclosed in the deployment plan. No real What-If or customer
 resource creation was performed.
 
-## Next task: priority 8 handoff
+## Next session: priority 9 handoff
 
-Complete priority 8 under the latest user instruction, then stop for today.
-Validate AI-generated engineering artifacts without executing untrusted customer
-code or infrastructure. Priority 9 and later work are for tomorrow, not this run.
+Task 8 is complete. The user explicitly requested stopping here. Do not start
+priority 9 or any competitor work until the next requested session.
 
-- Starting points: [deployment contracts](../lib/deployment-assistance.ts),
-  [generation route](../app/api/ai/deploy/route.ts), the deployment preview UI,
-  and priority 6 compiler tools/tests.
-- Consume the [shared architecture model](architecture-model.md). Validate
-  supported mappings, prerequisites, syntax and code/ARM consistency, and
-  explicitly distinguish passed, failed and unavailable checks. Do not turn
-  structural parsing or mapped-node counts into a deployability guarantee.
+- Starting points: [review contracts](../lib/architecture-review.ts),
+  review/image/generation/conversion request boundaries and their production-imported
+  tests. Inspect current code before assuming every original audit gap persists.
+- Preserve the [shared model](architecture-model.md) and the
+  [engineering-validation boundary](engineering-validation.md). Tighten remaining
+  evidence/response contracts without running model-authored code or silently
+  truncating results.
 - Preserve [canonical identity](../lib/service-identity.ts), explicit unsupported
   coverage and the no-resource-write PowerShell preview contract.
 - Generated drafts remain distinct from permission to deploy customer resources.
   No generated customer IaC is to be executed against Azure during testing.
-- Plan -> implement -> test -> validate -> deploy the application -> hosted
-  verification, then document today's work and stop after priority 8.
+- In the next authorized session: plan -> implement -> test -> validate ->
+  deploy the application -> hosted verification. Today's execution is stopped.
 - Deferred competitor work remains pinned at
   `refs/checkpoints/deferred-competitor-a7e748c4` (stash `c4b91a44`); do not apply
   it during the numbered backlog.
@@ -180,6 +180,8 @@ code or infrastructure. Priority 9 and later work are for tomorrow, not this run
 | Priority 5 canonical identity | [test-service-identity.mjs](../scripts/test-service-identity.mjs), [service-identity.spec.ts](../e2e/service-identity.spec.ts), [audited template identities](../scripts/fixtures/template-icon-identities.json) |
 | Priority 6 IaC correctness | [test-iac-codegen.mjs](../scripts/test-iac-codegen.mjs), [compiler validation](../scripts/validate-iac.mjs), [CLI safety](../scripts/test-azure-cli-draft.mjs), [deployment-assistance.spec.ts](../e2e/deployment-assistance.spec.ts) |
 | Priority 7 model/migrations | [test-architecture-model.mjs](../scripts/test-architecture-model.mjs), [architecture-model.spec.ts](../e2e/architecture-model.spec.ts), [model contract](architecture-model.md), shared canvas/document and legacy graph tests |
+| Priority 8 artifact validation | [test-artifact-parser.mjs](../scripts/test-artifact-parser.mjs), [test-engineering-validation.mjs](../scripts/test-engineering-validation.mjs), [engineering-validation.spec.ts](../e2e/engineering-validation.spec.ts), [contract](engineering-validation.md) |
+| Async rollout completion | [deploy-zip.mjs](../scripts/deploy-zip.mjs), [test-deploy-zip.mjs](../scripts/test-deploy-zip.mjs), hosted validation smoke |
 
 ## Next-session operational reminders
 
@@ -207,5 +209,8 @@ code or infrastructure. Priority 9 and later work are for tomorrow, not this run
   The subsequent priority 7 release passed its full 71-case hosted suite in one
   run; that is new release evidence, not proof that intermittent/cross-browser
   issues have been permanently fixed.
+  Priority 8 also passed 77/77 hosted in one run. Broader Node 20 lifecycle,
+  cross-browser, performance and release-gate work remains in the numbered backlog;
+  fixing the coupled async-upload race does not mark all of priority 16 complete.
 - The original HTML audit stays out of Git. Keep source changes, release evidence
   and this backlog separate from the immutable audit snapshot.

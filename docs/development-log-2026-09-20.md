@@ -1,4 +1,9 @@
-# Development log - 2026-09-19/20
+# Development log - 2026-09-19/20/21
+
+**Latest close-out:** task 8 is deployed and hosted-verified; execution stopped
+as requested. Read the [September 21 session summary](session-summary-2026-09-21.md)
+for the final state, today's deliveries, lessons and tomorrow's backlog. Older
+close-out tables below are historical checkpoints, not the current release.
 
 Reporting timezone: Asia/Kolkata. This session started on September 19 and
 continued until approximately 02:33 IST on September 20, 2026.
@@ -495,3 +500,26 @@ Implemented and locally verified; deployment and hosted acceptance pending:
 - Latest user boundary: **finish task 8, deploy and verify it, update today's
   summary/lessons/backlog, then stop**. Priority 9 is for the next requested
   session, not tonight. Work has continued into September 21 IST.
+
+### Priority 8 release close-out and final stop
+
+- Feature commit `9c9e4988682b13a9bf6d7a682a31bf7090de72e7`.
+- The first rollout's new smoke encountered 404 while the old app was still
+  healthy. Native Linux build and the app package were valid; the old pipeline
+  treated asynchronous upload acceptance as deployment completion.
+- Correction `86cde202b25da1c2c69a78ca7ffdc5ccdc73de44` waits on the returned
+  trusted SCM deployment operation, then verifies the new endpoint. Failure,
+  unknown operation states, foreign URLs and bounded timeout are explicit errors.
+- [Corrected deployment 35538732835](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35538732835)
+  passed in **4m22s**, including native Linux helpers and real hosted validation.
+- **77/77 hosted tests passed in one run** (4.7 minutes). Final contracts are
+  **249/249**, real parser/policy integration **17/17**, prior script safety
+  **88/88**, plus native Go tests and lint/types/build.
+- PowerShell remains explicitly unverified in the AI validator because its
+  public parser can perform loading/resolution. Bounded static checks are not
+  compiler/provider validation or deployment equivalence; the UI states that.
+- Owned local servers stopped; temporary hosted auth removed. No live model
+  inference, customer infrastructure execution, resource or permission change.
+- Markdown now records deliveries, learning and the full pending roadmap.
+  **Completed: 1-8 and 11. Next requested session: 9. No new priority started.**
+- Deferred competitor work and local Git-excluded HTML audits remain unchanged.

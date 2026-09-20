@@ -600,9 +600,9 @@ offline emitter tests.
 ```powershell
 npm run lint
 npx tsc --noEmit
+npm run build:validators
 npm run test:playground
 npm run test:e2e
-npm run build:validators
 npm run test:artifact-parsers
 npm run build
 ```
