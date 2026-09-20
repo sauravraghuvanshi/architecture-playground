@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { waitForWorkspace } from "./wait-for-workspace";
 
 // Deterministic, CRC-valid blue PNG fixture, not live model output.
 const ONE_PIXEL_PNG =
@@ -24,13 +25,14 @@ test.describe("Whiteboard AI", () => {
     expect(typeof status.imageConfigured).toBe("boolean");
     expect(["local", "development-proxy", null]).toContain(status.imageSource);
 
-    await page.goto("/diagrammatic?mode=whiteboard");
-    if (status.imageConfigured) await expect(page.getByRole("button", { name: "AI Assist" })).toBeEnabled();
-    else await expect(page.getByRole("button", { name: "AI Assist" })).toBeDisabled();
-
-    await page.goto("/diagrammatic?mode=c4");
-    if (status.diagramConfigured) await expect(page.getByRole("button", { name: "AI Assist" })).toBeEnabled();
-    else await expect(page.getByRole("button", { name: "AI Assist" })).toBeDisabled();
+    for (const [mode, configured] of [["whiteboard", status.imageConfigured], ["c4", status.diagramConfigured]] as const) {
+      const browserStatus = page.waitForResponse((response) => response.url().endsWith("/api/ai/status"));
+      await page.goto(`/diagrammatic?mode=${mode}`);
+      expect(await (await browserStatus).finished()).toBeNull();
+      await waitForWorkspace(page);
+      if (configured) await expect(page.getByRole("button", { name: "AI Assist" })).toBeEnabled();
+      else await expect(page.getByRole("button", { name: "AI Assist" })).toBeDisabled();
+    }
   });
 
   test("generates and inserts an AI image into the Whiteboard", async ({ page }) => {

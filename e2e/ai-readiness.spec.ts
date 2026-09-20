@@ -24,7 +24,9 @@ for (const scenario of ["unavailable", "malformed"] as const) {
         ? { status: 503, body: "PRIVATE_PROVIDER_DETAIL_MUST_NOT_BE_EXPOSED" }
         : { json: { configured: true, imageConfigured: "true", diagramConfigured: false } },
     ));
+    const statusResponse = page.waitForResponse((response) => response.url().endsWith("/api/ai/status"));
     await page.goto("/diagrammatic?mode=whiteboard");
+    expect(await (await statusResponse).finished()).toBeNull();
     await waitForWorkspace(page);
     const button = page.getByRole("button", { name: "AI Assist", exact: true });
     await expect(button).toBeDisabled();

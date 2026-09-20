@@ -631,9 +631,13 @@ cases across the main run and unchanged retests. The log
 preserves broader regression results, corrective retests and verification limits;
 live model inference was not invoked during this session.
 
-**Priorities 1-4 are deployed.** The user selected a Whiteboard fidelity,
-conversion-icon and nested-boundary detour before resuming priority 5. That
-combined candidate is under production validation. See the
+**Priorities 1-4 and 11 are deployed.** The user-selected four-fix release
+`94e1abc` includes canvas-aware images, literal-color Whiteboard rendering,
+canonical conversion icons and nested cloud boundaries. Verification: 212
+unit/contract tests, 8 PowerShell safety tests, 32 scoped local browser cases and
+all 74 distinct hosted cases across the main run and readiness rechecks.
+Next is priority 5, then the remaining numbered backlog sequentially.
+Competitor-inspired additions are explicitly deferred until afterward. See the
 [deployment plan](.azure/deployment-plan.md) for its validation and release state.
 The [Implementation roadmap](docs/implementation-roadmap.md) retains
 all 33 priority numbers, completed items, the full remaining backlog, and the

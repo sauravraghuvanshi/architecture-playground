@@ -2,21 +2,23 @@
 
 Last updated: 2026-09-20, Asia/Kolkata.
 
-**Priorities 1-4 are deployed and verified. Priorities 5-33 are pending.
-The user has selected the Whiteboard fidelity / conversion / nested-boundary
-detour below before resuming the numbered backlog.**
+**Priorities 1-4 and 11 are deployed and verified. The four-fix interruption is
+complete. Next: priority 5, followed by the remaining numbered priorities in
+order. Competitor-inspired additions come after the numbered backlog.**
 
 ## User-selected interruption - 20 September 2026
 
-The current candidate addresses canvas-aware AI image prompts, readable
+Deployed release `94e1abc` addresses canvas-aware AI image prompts, readable
 Whiteboard theme behavior, canonical service icons during conversion, and real
 nested cloud boundaries. It also includes a local, Git-excluded Cloudairy/Lucid
 research supplement in `Audit Report/competition-and-canvas-fidelity.html`.
-Combined production validation and release verification are in progress; do
-not treat candidate functionality as deployed until the release record is added.
+The release passed 212 unit/contract tests, 8 PowerShell safety tests, 32 scoped
+local browser cases and all 74 distinct hosted cases across the main run and
+targeted readiness rechecks. Detailed broader local limitations remain recorded.
 
-This overlaps parts of priorities 5, 7, 11, 12 and 14 without completing their
-entire scope. Preserve the stable numbers and remaining acceptance criteria.
+This completes priority 11 and portions of 5, 7, 12, 13 and 14. Broader scope
+remains pending. Local Outline/collapse/mapping-editor/engineering-packet work
+started after the research is deferred, not deployed, under the latest order.
 
 This is the persistent copy of the 33-item implementation order agreed in the
 session. Keep these numbers stable so the user can select work by number.
@@ -25,18 +27,23 @@ They are not the 47 finding IDs in the original local HTML audit.
 - [Session summary and test evidence](development-log-2026-09-20.md)
 - [Deployment history and current release](../.azure/deployment-plan.md)
 - Live app: https://architecture-playground.azurewebsites.net
-- Current deployed application: `d70340cf0f72c39248e2d898e88ddee99c19936f`
+- Current deployed application: `94e1abc32c8181e8e463a47d584211f59f062b74`
 - Original audit: local `Audit Report/index.html`, intentionally Git-excluded.
   Do not add the HTML report or test authentication files to a commit.
 
 ## Working agreement
 
 - Use **GPT-6 Astra only**, including any explicitly delegated work.
-- Handle **one user-selected priority at a time**.
+- Handle **one numbered priority at a time**.
 - Plan, implement, test, complete readiness checks, deploy through the existing
   application workflow, then verify the deployed behavior.
-- Ask the user for the next priority after finishing. If they are unavailable,
-  wait; do not automatically implement the rest of this backlog.
+- The latest user instruction authorizes autonomous continuation through the
+  remaining numbered priorities after each implementation is tested, deployed
+  and verified. Do not pause for a new number while that authorization stands.
+- Competitor-audit product additions are stage 3, after the numbered backlog.
+  Preserve their local WIP without mixing it into earlier priority releases.
+- Do not sacrifice verification to a time estimate; accurately record blockers
+  and remaining work rather than promising the entire backlog by a deadline.
 - Favor Cloud Architecture, Whiteboard, and AI outcomes. Preserve earlier fixes
   with regression tests, and do not fold unrelated audit items into a release.
 - A configured AI flag, mocked response, or historical test is not a current
@@ -52,8 +59,10 @@ They are not the 47 finding IDs in the original local HTML audit.
 | 2 | Complete Undo/Redo for both canvases | **Deployed - `d2c21fe`.** Immediate Whiteboard insertion history, binary-preserving Redo, architecture resize/bulk-style/deletion history, toolbar restoration, and correct redo branching. |
 | 3 | Lossless architecture save/import/export | **Deployed - `64f1c48`.** Connection sides, explicit geometry, grouping, identity and stages survive round-trips; invalid input is rejected before mutation; legacy hierarchy/stage limits are consistent. |
 | 4 | Truly read-only deployment previews | **Deployed - `d70340c`.** Offline `preview.ps1` uses the dedicated What-If result API with preflight, explicit matching subscription and an existing group; matching Bicep download and provenance guidance. No resource-write or execution mode. |
+| 11 | Correct Whiteboard colors and image proportions | **Deployed - `94e1abc`.** Literal-color rendering/export, canvas-aware image context, decoded aspect ratios, adaptive owned neutral foregrounds and legacy bundled-icon readability, verified with displayed/exported pixels. Custom and ambiguous legacy white text remains user-controlled. |
 
-These releases are cumulative. Current production includes all four.
+These releases are cumulative. Current production includes all five numbered
+items plus the explicitly requested nested-boundary and conversion improvements.
 
 ## Remaining implementation priorities
 
@@ -69,7 +78,6 @@ Descriptions are acceptance guidance, not claims of deployed functionality.
 | 8 | Validated AI-generated engineering handoff | Check syntax, resource types, diagram mappings, prerequisites and code/ARM consistency. Show supported, partial and excluded components; never imply deployability from a nonempty string or mapped-node count. |
 | 9 | Strict AI evidence and response contracts | Stop silent review truncation; require complete findings, unique IDs, valid evidence references and remediation. Consistently reject invalid images and oversized inputs before provider invocation. |
 | 10 | Explicit AI destination and privacy controls | Remove implicit public-demo proxying in development. Require deliberate destinations, disclose prompt/image egress, and provide clear history deletion and retention controls. |
-| 11 | Correct Whiteboard colors and image proportions | Fix actual dark/light canvas inversion and preserve decoded image aspect ratios. Verify displayed and exported pixels, not only theme-state strings or requested image sizes. |
 | 12 | Safe Whiteboard conversion and restoration | Define cancellable analysis versus committed application; prevent late application after dismissal. Validate scene elements, geometry, bindings and binaries, and clarify new-document versus replacement behavior. Priority 3 protects the shared restore boundary but does not complete these Whiteboard-specific contracts. |
 | 13 | Reliable AI loading, streaming and cancellation | Show disabled/checking state until readiness is known. Fix SSE framing and pending-read cancellation, support one insertable image-result contract, and distinguish timeout, throttle, refusal and truncated output. |
 | 14 | Responsive and keyboard-accessible editing | Provide smaller-screen Inspector and Whiteboard asset drawers. Make menus keyboard-operable and all dialogs manage initial focus, focus trapping, Escape and focus restoration. |

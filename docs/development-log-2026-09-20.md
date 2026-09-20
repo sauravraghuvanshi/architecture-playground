@@ -6,6 +6,8 @@ continued until approximately 02:33 IST on September 20, 2026.
 **Overnight close-out:** priorities 1-3 were deployed and verified when work was
 paused. **Priority 4 was subsequently implemented, deployed and verified** at
 the user's request; see the continuation section and current deployment plan.
+The later four-fix release `94e1abc` is also deployed and hosted-verified.
+The latest delivery order and continuation authority are recorded at the end.
 
 ## Executive summary
 
@@ -252,8 +254,8 @@ changes were retained and published with this application release.
 ## User-selected interruption - Whiteboard fidelity and cloud boundaries
 
 The user paused the numbered queue to address four screenshot-backed issues.
-The implementation is complete locally; final release verification is pending
-at this checkpoint. The existing application-only App Service pipeline remains
+The implementation is deployed and hosted-verified as `94e1abc`; earlier
+candidate checkpoints below retain their original limitations. The existing application-only App Service pipeline remains
 the deployment target. Engineering and delegated work used GPT-6 Astra.
 
 ### Delivered in the candidate
@@ -320,3 +322,25 @@ the deployment target. Engineering and delegated work used GPT-6 Astra.
 - Native group nesting and fidelity are not equivalent to Lucid/Cloudairy
   feature parity. Enterprise collaboration, drift, cost analysis, source-linked
   AI diffs and stronger engineering handoffs remain on the roadmap.
+
+### Release verification and revised delivery order
+
+- Application commit: `94e1abc32c8181e8e463a47d584211f59f062b74`.
+- [Deployment run 35505636125](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35505636125)
+  completed successfully in 2 minutes 21 seconds.
+- Live: https://architecture-playground.azurewebsites.net.
+- Final local changed-feature gate: 32/32 passed. Final artifact hierarchy
+  smoke: 2/2 passed. Unit/contract suite: 212/212; preview safety: 8/8.
+- Hosted run: 72/74 initially passed. Two readiness checks asserted before the
+  corresponding status response had completed. After explicitly awaiting that
+  response, both complete scenarios passed two consecutive hosted repeats.
+  All 74 distinct hosted cases are verified, including the prior snapshot case.
+- The temporary authenticated test-state file was removed. Existing local
+  snapshot timing caveats remain documented; no live model inference occurred.
+- The user clarified the order: first finish these four fixes (done), then
+  remaining numbered priorities, then competitor-audit product additions.
+  Competitor additions had started locally; preserve and defer them without
+  deployment. They must not be mixed into priority 5 or subsequent releases.
+- The user authorizes autonomous sequential progress without asking for the
+  next number. Do not rush, skip validation, or promise the whole backlog inside
+  a time limit. Priority 11 is covered by this release; priority 5 is next.

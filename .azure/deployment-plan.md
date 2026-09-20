@@ -1,9 +1,45 @@
 # Azure Deployment Plan
 
-> **Status:** Validated
+> **Status:** Deployed
 
 Generated: 2026-08-12
 Updated: 2026-09-20 (Asia/Kolkata)
+
+## Delivery order - latest user instruction
+
+1. The four screenshot-backed fixes are complete, deployed and hosted-verified.
+2. Continue the remaining numbered priorities sequentially, starting at 5.
+3. Resume competitor-inspired product additions only after that backlog.
+
+Competitor additions started locally are deferred and will be preserved in a
+local WIP checkpoint, not included in priority releases. The user authorizes
+autonomous sequential work but explicitly prioritizes correctness over rushing.
+
+## Deferred research-to-product upgrade
+
+The user clarified that competitor research must drive shipped capabilities,
+not stop at a comparison report. Existing deployed baseline: `94e1abc`,
+Actions run `35505636125`. Preserve the four fixes and their evidence below.
+
+- **Implement:** Searchable, keyboard-usable architecture Outline; reveal/focus
+  and explicit hierarchy actions; non-destructive boundary collapse/expand and
+  remove-boundary/keep-contents with Undo; editable canonical service mappings
+  before Whiteboard conversion is applied; a real architecture engineering
+  packet export with diagram, complete JSON, inventory, connections and mapping
+  coverage/provenance.
+- **Model contract:** Optional bounded mapping provenance and collapsed view
+  state, preserved through native history/persistence/JSON. View projection must
+  never rewrite real edge endpoints or delete hidden nodes.
+- **Boundaries:** No speculative cloud pricing, automatic provisioning, new
+  identities or real-time collaboration backend. Do not claim complete parity
+  with Lucid/Cloudairy. Ship concrete improvements to the core architect workflow.
+- **Validation:** Pure helper and UI contracts, view/provenance round-trips,
+  collapse/restore/ungroup safety, mapping correction, package escaping and
+  offline use, then local production build and hosted acceptance.
+- **Deployment:** Existing application-only GitHub Actions/App Service recipe.
+  GPT-6 Astra only for engineering. AI testing remains deterministic fixtures.
+- **State:** Deferred by the user's latest ordering instruction. Local work is
+  not deployed; it must be resumed and revalidated only in stage 3.
 
 ## Whiteboard fidelity and nested cloud boundaries - user-selected interruption
 
@@ -166,6 +202,27 @@ GitHub Actions/App Service recipe, with no new infrastructure or role changes.
 - Scope limitation: untagged legacy custom white text is preserved; previously
   generated opaque images are not rewritten; model palette compliance is best
   effort. This gate does not certify competitor parity or all-browser support.
+
+### Four-fix release and hosted verification
+
+- Application: `94e1abc32c8181e8e463a47d584211f59f062b74`.
+- [Actions run 35505636125](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35505636125)
+  succeeded in 2 minutes 21 seconds, including authenticated API/browser smoke.
+- Production: https://architecture-playground.azurewebsites.net.
+- Hosted acceptance: 72/74 passed initially. Two readiness assertions began
+  before their HTTP status response had completed; tests now anchor those
+  assertions to response completion. Each complete scenario passed two
+  consecutive hosted repeats. All 74 distinct cases were verified.
+- These checks include image/theme pixels and proportions, pre-release icon
+  readability, canonical conversion, bound-arrow/GIF/history, nested editing,
+  save/reload/import/export, all 16 templates and prior release regressions.
+- No live AI inference, customer IaC, real template publication, provisioning
+  or identity changes were performed. No roles were provisioned, so live checks
+  of newly provisioned RBAC are not applicable.
+- Temporary hosted authentication state has been removed. Local competitor WIP
+  is being paused separately and is not part of this deployed application.
+- The unrelated local snapshot timing limitation and deliberate model/catalog
+  limits above remain disclosed; this is not a whole-product parity claim.
 
 ## Priority 4: Truly read-only deployment previews
 
