@@ -2,8 +2,8 @@
 
 Last updated: 2026-09-20, Asia/Kolkata.
 
-**Priorities 1-5 and 11 are deployed and verified. The four-fix interruption is
-complete. Next: priority 6, followed by the remaining numbered priorities in
+**Priorities 1-6 and 11 are deployed and verified within their stated scopes. The four-fix interruption is
+complete. Next: priority 7, followed by the remaining numbered priorities in
 order. Competitor-inspired additions come after the numbered backlog.**
 
 ## User-selected interruption - 20 September 2026
@@ -28,7 +28,7 @@ They are not the 47 finding IDs in the original local HTML audit.
 - [Session summary and test evidence](development-log-2026-09-20.md)
 - [Deployment history and current release](../.azure/deployment-plan.md)
 - Live app: https://architecture-playground.azurewebsites.net
-- Current deployed application: `98e130caf43060641f3b9dbf8d7f0be87cf69d83`
+- Current deployed application: `c2714836180d7dca9403c75976d4bc067f4905de`
 - Original audit: local `Audit Report/index.html`, intentionally Git-excluded.
   Do not add the HTML report or test authentication files to a commit.
 
@@ -61,9 +61,10 @@ They are not the 47 finding IDs in the original local HTML audit.
 | 3 | Lossless architecture save/import/export | **Deployed - `64f1c48`.** Connection sides, explicit geometry, grouping, identity and stages survive round-trips; invalid input is rejected before mutation; legacy hierarchy/stage limits are consistent. |
 | 4 | Truly read-only deployment previews | **Deployed - `d70340c`.** Offline `preview.ps1` uses the dedicated What-If result API with preflight, explicit matching subscription and an existing group; matching Bicep download and provenance guidance. No resource-write or execution mode. |
 | 5 | Correct cloud service and provider identification | **Deployed - `98e130c`.** Shared canonical alias resolution, exact provider-locked picks, one service per identity in heuristic drafts, visible coverage/assumptions, canonical picker search, label-independent native/legacy Azure resource kinds, atomic rejection of unresolved legacy AI and zero-artifact guards. Hidden palette images load lazily. |
+| 6 | Reliable offline infrastructure drafts | **Deployed - `c271483`.** Shared native/legacy generation, collision-safe bounded names, explicit common namespace/existing group, valid Terraform, keyless Function host prerequisites, workspace/subnet dependencies and matching CLI Bicep companion. Verified with real compilers, executable mocks and hosted downloads; customer deployability remains unproven. |
 | 11 | Correct Whiteboard colors and image proportions | **Deployed - `94e1abc`.** Literal-color rendering/export, canvas-aware image context, decoded aspect ratios, adaptive owned neutral foregrounds and legacy bundled-icon readability, verified with displayed/exported pixels. Custom and ambiguous legacy white text remains user-controlled. |
 
-These releases are cumulative. Current production includes all six numbered
+These releases are cumulative. Current production includes all seven numbered
 items plus the explicitly requested nested-boundary and conversion improvements.
 
 ## Remaining implementation priorities
@@ -74,8 +75,7 @@ Descriptions are acceptance guidance, not claims of deployed functionality.
 
 | Priority Number | Feature / Fix to Implement | Description |
 | ---: | --- | --- |
-| **6 - next** | **Repair offline infrastructure-code generation** | Fix invalid Terraform syntax, repeated declarations, resource-name collisions, invalid Bicep symbols, missing Function prerequisites, and configuration divergence across output formats. Add language/tool-backed validation. |
-| 7 | Shared typed architecture model | Define one versioned model for services, providers, regions/SKUs, environments, relationships, boundaries, requirements and evidence. Use explicit migrations and preserve intent across canvas, AI, conversion and code. |
+| **7 - next** | **Shared typed architecture model** | Define one versioned model for services, providers, regions/SKUs, environments, relationships, boundaries, requirements and evidence. Use explicit migrations and preserve intent across canvas, AI, conversion and code. |
 | 8 | Validated AI-generated engineering handoff | Check syntax, resource types, diagram mappings, prerequisites and code/ARM consistency. Show supported, partial and excluded components; never imply deployability from a nonempty string or mapped-node count. |
 | 9 | Strict AI evidence and response contracts | Stop silent review truncation; require complete findings, unique IDs, valid evidence references and remediation. Consistently reject invalid images and oversized inputs before provider invocation. |
 | 10 | Explicit AI destination and privacy controls | Remove implicit public-demo proxying in development. Require deliberate destinations, disclose prompt/image egress, and provide clear history deletion and retention controls. |
@@ -144,16 +144,16 @@ hosted cases across the main run and unchanged retests. Broader local timing
 failures are disclosed in the deployment plan. No real What-If or customer
 resource creation was performed.
 
-## Next task: priority 6 handoff
+## Next task: priority 7 handoff
 
-Continue autonomously under the latest user instruction. Repair the generated
-artifacts, not merely their formatting or preview labels.
+Continue autonomously under the latest user instruction. Establish one versioned
+architecture contract and explicit migrations without breaking existing diagrams.
 
-- Starting points: [native generators](../components/diagrammatic/csa/architecture-codegen.ts)
-  and [legacy exporters](../components/playground/lib/export-iac.ts).
-- Reproduce parser/compiler failures, repeated declarations, invalid symbols,
-  resource-name collisions, missing Function prerequisites and cross-format
-  configuration differences. Use actual language/tool validation where possible.
+- Starting points: [architecture document parsing](../lib/architecture-document.ts),
+  native canvas types, diagram persistence, legacy graph adapters and AI contracts.
+- Trace existing representations before defining shared service/provider,
+  configuration, boundary, requirement and evidence fields. Preserve metadata
+  across save/load, conversion, AI handoff and code input; do not invent values.
 - Preserve [canonical identity](../lib/service-identity.ts), explicit unsupported
   coverage and the no-resource-write PowerShell preview contract.
 - Generated drafts remain distinct from permission to deploy customer resources.
@@ -174,6 +174,7 @@ artifacts, not merely their formatting or preview labels.
 | Shared template/import behavior | [template-imports.spec.ts](../e2e/template-imports.spec.ts), [hackathon-workflows.spec.ts](../e2e/hackathon-workflows.spec.ts) |
 | Priority 4 preview safety | [test-powershell-preview.mjs](../scripts/test-powershell-preview.mjs), [mock PowerShell harness](../scripts/test-preview-powershell.ps1), [deployment-assistance.spec.ts](../e2e/deployment-assistance.spec.ts) |
 | Priority 5 canonical identity | [test-service-identity.mjs](../scripts/test-service-identity.mjs), [service-identity.spec.ts](../e2e/service-identity.spec.ts), [audited template identities](../scripts/fixtures/template-icon-identities.json) |
+| Priority 6 IaC correctness | [test-iac-codegen.mjs](../scripts/test-iac-codegen.mjs), [compiler validation](../scripts/validate-iac.mjs), [CLI safety](../scripts/test-azure-cli-draft.mjs), [deployment-assistance.spec.ts](../e2e/deployment-assistance.spec.ts) |
 
 ## Next-session operational reminders
 
@@ -194,5 +195,9 @@ artifacts, not merely their formatting or preview labels.
   verified model identity. Honor the GPT-6 Astra-only restriction.
 - Existing local test results contain readiness/timing failures and known
   non-Chromium issues; distinguish baseline limitations from new regressions.
+  Priority 6 hosted artifacts passed; broader acceptance was 36/39 plus 9/10
+  serial rechecks. Initial connection failures passed both repeats, while one
+  GIF completion exceeded 90 seconds. Preserve this intermittent issue for
+  priorities 15/20/21; do not describe the whole suite as uniformly green.
 - The original HTML audit stays out of Git. Keep source changes, release evidence
   and this backlog separate from the immutable audit snapshot.

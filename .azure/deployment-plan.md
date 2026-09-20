@@ -1,6 +1,6 @@
 # Azure Deployment Plan
 
-> **Status:** Validated
+> **Status:** Deployed and Verified
 
 Generated: 2026-08-12
 Updated: 2026-09-20 (Asia/Kolkata)
@@ -21,8 +21,9 @@ Updated: 2026-09-20 (Asia/Kolkata)
   Entra-only SQL and the PowerShell preview-only contract.
 - **Recipe:** Existing application-only GitHub Actions/App Service pipeline.
   No application infrastructure, role or model configuration changes.
-- **State:** Implemented and validated. Approved application-only release is
-  ready for the existing pipeline; hosted verification follows deployment.
+- **State:** Deployed as `c2714836180d7dca9403c75976d4bc067f4905de`.
+  Priority 6 hosted artifact/consent acceptance passed. Broader browser timing
+  limitations are recorded below rather than represented as an all-green run.
 
 ### Priority 6 reproduced failures and implementation decisions
 
@@ -108,6 +109,31 @@ all ten deployment-assistance browser cases passed again against that build.
 An initial concurrent lint scan raced temporary mock-directory cleanup; scratch
 roots now live under ignored `node_modules/.cache`. The 62-case CLI suite and
 concurrent full lint then passed without the race. Strict types and build passed.
+
+### Priority 6 - Deployment and hosted verification
+
+- [Actions run 35521466617](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35521466617)
+  deployed exactly `c2714836180d7dca9403c75976d4bc067f4905de` successfully
+  in 2 minutes 26 seconds, including authenticated API/browser smoke.
+- Hosted affected-surface run: 36/39 passed. All ten deployment-assistance cases
+  passed, including exact downloaded CLI/Bicep/Terraform/ARM content, repeated
+  Function prerequisites, preview-only PowerShell and no automatic publication.
+- The initial broader run had one Chromium context-creation timeout before
+  navigation and two connection-selection timeouts. All three passed on each
+  of two serial rechecks without assertion/timeout changes.
+- The complete enterprise recheck was 9/10: one GIF completion event exceeded
+  its 90-second wait; that journey passed in the initial run and the other
+  repeat. Screenshot showed "GIF export downloaded" by failure capture time.
+  This remains an intermittent export/timing limitation for priorities 15/20/21,
+  not a claim of universally reliable graphics export. No export/canvas runtime
+  code changed in this release. All 39 distinct selected cases passed at least
+  once; the broader suite was not uniformly green.
+- No real model inference, customer IaC execution, Azure provisioning or role
+  modification. Both temporary hosted auth files were removed, and owned local
+  servers stopped. Deferred competitor checkpoint remains untouched.
+- GitHub noted Node 20 action deprecation and a future Ubuntu runner migration;
+  pipeline modernization/release gates remain priority 16, not silently changed.
+- Priority 6 is complete within its offline-artifact scope. Priority 7 is next.
 
 ## Priority 5 - Canonical service and provider identification
 

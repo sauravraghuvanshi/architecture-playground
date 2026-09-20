@@ -380,7 +380,7 @@ the deployment target. Engineering and delegated work used GPT-6 Astra.
 
 ## Priority 6 continuation - offline IaC correctness
 
-Candidate implementation (not yet deployed):
+Released as `c2714836180d7dca9403c75976d4bc067f4905de`:
 
 - Reproduced actual Terraform parsing failures, invalid leading-digit Bicep
   symbols and duplicate ARM resource names. Installed checksum-verified portable
@@ -404,6 +404,28 @@ Candidate implementation (not yet deployed):
   Script safety subsequently passed 62/62 Bash and 26/26 PowerShell cases.
   A trailing-newline namespace bug found by actual PowerShell execution was
   fixed using absolute regex anchors. The final rebuild and all ten deployment
-  browser cases passed again. Release/hosted verification is still pending.
+  browser cases passed again.
 - Deferred competitor work remains untouched. Priority 7 follows only after
   priority 6 is released and verified.
+
+### Priority 6 release close-out
+
+- [Deployment run 35521466617](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35521466617)
+  succeeded in 2m26s with authenticated hosted API and browser smoke.
+- Hosted affected-surface acceptance: 36/39 passed, including every one of the
+  ten deployment-assistance cases and exact artifact-content comparisons.
+  The three initial failures were one browser-context startup timeout and two
+  connection interaction timeouts, not code-generation failures.
+- Two serial enterprise-suite repeats passed those three cases both times.
+  Overall repeat result was 9/10: one GIF completion wait exceeded 90 seconds;
+  the same graphics-export case passed initially and in the second repeat.
+  Screenshot at failure capture showed "GIF export downloaded". This intermittent
+  graphics/timing issue remains tracked in priorities 15/20/21; no timeout or
+  assertion was weakened, and no graphics-export code changed in this release.
+- All 39 distinct selected hosted cases passed at least once, but the broader
+  suite was not uniformly green. Offline-IaC functionality is verified within
+  its scope; universal production/workload readiness is not claimed.
+- Owned local servers stopped and both temporary auth files removed. No live
+  inference, generated customer infrastructure execution or role changes.
+- Priorities **1-6 and 11 complete**; **7 next**, then the remaining numbered
+  backlog. Competitor work stays deferred until stage 3.
