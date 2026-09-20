@@ -57,13 +57,7 @@ jobs:
         env:
           DEPLOY_USER: ${{ secrets.AZURE_DEPLOY_USER }}
           DEPLOY_PASS: ${{ secrets.AZURE_DEPLOY_PASSWORD }}
-        run: |
-          curl -s -o /dev/null -w "%{http_code}" \
-            -X POST \
-            -u "${DEPLOY_USER}:${DEPLOY_PASS}" \
-            --data-binary @deploy.zip \
-            -H "Content-Type: application/zip" \
-            "https://architecture-playground.scm.azurewebsites.net/api/zipdeploy?isAsync=true"
+        run: node scripts/deploy-zip.mjs
 
       - name: Verify deployment
         run: |

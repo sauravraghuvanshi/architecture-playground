@@ -160,6 +160,33 @@ and the 88-case script-safety regression passed. Remote master remained
 `07c9c3a233cef93e4ce0a08d962ac8c3540d19fb`; the local HTML audits remain ignored,
 and deferred competitor work remains pinned at `c4b91a44`.
 
+### Priority 8 - Rollout gate correction
+
+- Initial application release `9c9e498` built and native-smoke-tested Linux
+  helpers successfully in [run 35537875276](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35537875276).
+  Its new hosted smoke initially received 404 because the existing pipeline
+  accepted asynchronous ZIP upload and checked the still-healthy old app after
+  a fixed 30-second wait. The larger parser package made that race visible.
+- A subsequent authenticated probe returned the new endpoint with
+  `azure-bicep-parser 0.47.16`, and the complete Bicep/HCL/Bash/PowerShell-limit
+  hosted smoke passed without any model, publication or infrastructure call.
+- The coupled pipeline fix now follows the upload's trusted same-origin SCM
+  operation URL until completed, rejects failure/unknown states/foreign URLs,
+  and bounds the wait. Initial new-endpoint readiness tolerates only transient
+  404/502/503 startup responses; validation assertions are unchanged.
+- Two new mocked deployment-operation tests and lint passed. No generated-code
+  validation rules, application roles or infrastructure changed in this fix.
+  A clean workflow run and full hosted acceptance are still required before
+  task 8 is marked complete.
+- Gate-fix revalidation: 249/249 full contracts, lint and strict types passed.
+  The application/parser source is unchanged from the locally built, 77-case
+  verified release and successful Linux build/native smoke. The actual hosted
+  validator now passes the complete new static smoke.
+- [x] Same application-only target; no Docker, infrastructure or role changes.
+- [x] New deploy-operation tests and full contract/static regression.
+- [x] Existing unchanged application build proof and hosted parser smoke.
+- [x] Rollout-fix validation workflow completion.
+
 ## Priority 7 - Shared typed and versioned architecture model
 
 - **Baseline:** Application `c271483`, priority 6 deployed and verified within

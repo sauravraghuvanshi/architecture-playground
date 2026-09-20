@@ -56,8 +56,13 @@ try {
     [{ ...artifact, format: "azure-cli", code: "printf 'not executed'\n" }, "needs-review"],
     [{ ...artifact, format: "powershell", code: "using module '/never-load-this'\n" }, "needs-review"],
   ];
-  for (const [candidate, expected] of checks) {
-    const response = await call("/api/deploy/validate", { payload: SMOKE_ARCHITECTURE, artifact: candidate }, cookie);
+  for (const [index, [candidate, expected]] of checks.entries()) {
+    let response;
+    for (let attempt = 0; attempt < 12; attempt++) {
+      response = await call("/api/deploy/validate", { payload: SMOKE_ARCHITECTURE, artifact: candidate }, cookie);
+      if (index !== 0 || ![404, 502, 503].includes(response.status) || attempt === 11) break;
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+    }
     if (!response.ok) throw new Error(`Hosted ${candidate.format} static validation failed (${response.status}).`);
     const result = await response.json();
     if (result.validation?.status !== expected) throw new Error(`Hosted ${candidate.format} validation returned unexpected status.`);
