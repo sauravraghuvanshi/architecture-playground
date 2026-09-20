@@ -2,8 +2,8 @@
 
 Last updated: 2026-09-20, Asia/Kolkata.
 
-**Priorities 1-6 and 11 are deployed and verified within their stated scopes. The four-fix interruption is
-complete. Next: priority 7, followed by the remaining numbered priorities in
+**Priorities 1-7 and 11 are deployed and verified within their stated scopes. The four-fix interruption is
+complete. Next: priority 8, followed by the remaining numbered priorities in
 order. Competitor-inspired additions come after the numbered backlog.**
 
 ## User-selected interruption - 20 September 2026
@@ -17,8 +17,8 @@ local browser cases and all 74 distinct hosted cases across the main run and
 targeted readiness rechecks. Detailed broader local limitations remain recorded.
 
 That release completed priority 11 and portions of 5, 7, 12, 13 and 14.
-Priority 5 was completed subsequently as `98e130c`; other broader scope remains
-pending. Local Outline/collapse/mapping-editor/engineering-packet work
+Priorities 5-7 were completed subsequently; broader Whiteboard and accessibility
+scope remains pending. Local Outline/collapse/mapping-editor/engineering-packet work
 started after the research is deferred, not deployed, under the latest order.
 
 This is the persistent copy of the 33-item implementation order agreed in the
@@ -28,7 +28,7 @@ They are not the 47 finding IDs in the original local HTML audit.
 - [Session summary and test evidence](development-log-2026-09-20.md)
 - [Deployment history and current release](../.azure/deployment-plan.md)
 - Live app: https://architecture-playground.azurewebsites.net
-- Current deployed application: `c2714836180d7dca9403c75976d4bc067f4905de`
+- Current deployed application: `bd095946e0c78005cdc5e6c2f161e11d0f8af266`
 - Original audit: local `Audit Report/index.html`, intentionally Git-excluded.
   Do not add the HTML report or test authentication files to a commit.
 
@@ -62,9 +62,10 @@ They are not the 47 finding IDs in the original local HTML audit.
 | 4 | Truly read-only deployment previews | **Deployed - `d70340c`.** Offline `preview.ps1` uses the dedicated What-If result API with preflight, explicit matching subscription and an existing group; matching Bicep download and provenance guidance. No resource-write or execution mode. |
 | 5 | Correct cloud service and provider identification | **Deployed - `98e130c`.** Shared canonical alias resolution, exact provider-locked picks, one service per identity in heuristic drafts, visible coverage/assumptions, canonical picker search, label-independent native/legacy Azure resource kinds, atomic rejection of unresolved legacy AI and zero-artifact guards. Hidden palette images load lazily. |
 | 6 | Reliable offline infrastructure drafts | **Deployed - `c271483`.** Shared native/legacy generation, collision-safe bounded names, explicit common namespace/existing group, valid Terraform, keyless Function host prerequisites, workspace/subnet dependencies and matching CLI Bicep companion. Verified with real compilers, executable mocks and hosted downloads; customer deployability remains unproven. |
+| 7 | Shared typed and versioned architecture model | **Deployed - `bd09594`.** Shared schemas/types, explicit safe migration, declared configuration/environments/relationships, requirement/evidence provenance and original intent across editing/history/persistence/conversion/AI. Inspector context, future-version overwrite protection and explicit offline-code limitations. Full context definition authoring remains JSON-based. |
 | 11 | Correct Whiteboard colors and image proportions | **Deployed - `94e1abc`.** Literal-color rendering/export, canvas-aware image context, decoded aspect ratios, adaptive owned neutral foregrounds and legacy bundled-icon readability, verified with displayed/exported pixels. Custom and ambiguous legacy white text remains user-controlled. |
 
-These releases are cumulative. Current production includes all seven numbered
+These releases are cumulative. Current production includes all eight numbered
 items plus the explicitly requested nested-boundary and conversion improvements.
 
 ## Remaining implementation priorities
@@ -75,8 +76,7 @@ Descriptions are acceptance guidance, not claims of deployed functionality.
 
 | Priority Number | Feature / Fix to Implement | Description |
 | ---: | --- | --- |
-| **7 - next** | **Shared typed architecture model** | Define one versioned model for services, providers, regions/SKUs, environments, relationships, boundaries, requirements and evidence. Use explicit migrations and preserve intent across canvas, AI, conversion and code. |
-| 8 | Validated AI-generated engineering handoff | Check syntax, resource types, diagram mappings, prerequisites and code/ARM consistency. Show supported, partial and excluded components; never imply deployability from a nonempty string or mapped-node count. |
+| **8 - next** | **Validated AI-generated engineering handoff** | Check syntax, resource types, diagram mappings, prerequisites and code/ARM consistency. Show supported, partial and excluded components; never imply deployability from a nonempty string or mapped-node count. |
 | 9 | Strict AI evidence and response contracts | Stop silent review truncation; require complete findings, unique IDs, valid evidence references and remediation. Consistently reject invalid images and oversized inputs before provider invocation. |
 | 10 | Explicit AI destination and privacy controls | Remove implicit public-demo proxying in development. Require deliberate destinations, disclose prompt/image egress, and provide clear history deletion and retention controls. |
 | 12 | Safe Whiteboard conversion and restoration | Define cancellable analysis versus committed application; prevent late application after dismissal. Validate scene elements, geometry, bindings and binaries, and clarify new-document versus replacement behavior. Priority 3 protects the shared restore boundary but does not complete these Whiteboard-specific contracts. |
@@ -144,16 +144,18 @@ hosted cases across the main run and unchanged retests. Broader local timing
 failures are disclosed in the deployment plan. No real What-If or customer
 resource creation was performed.
 
-## Next task: priority 7 handoff
+## Next task: priority 8 handoff
 
-Continue autonomously under the latest user instruction. Establish one versioned
-architecture contract and explicit migrations without breaking existing diagrams.
+Continue autonomously under the latest user instruction. Validate AI-generated
+engineering artifacts without executing untrusted customer code or infrastructure.
 
-- Starting points: [architecture document parsing](../lib/architecture-document.ts),
-  native canvas types, diagram persistence, legacy graph adapters and AI contracts.
-- Trace existing representations before defining shared service/provider,
-  configuration, boundary, requirement and evidence fields. Preserve metadata
-  across save/load, conversion, AI handoff and code input; do not invent values.
+- Starting points: [deployment contracts](../lib/deployment-assistance.ts),
+  [generation route](../app/api/ai/deploy/route.ts), the deployment preview UI,
+  and priority 6 compiler tools/tests.
+- Consume the [shared architecture model](architecture-model.md). Validate
+  supported mappings, prerequisites, syntax and code/ARM consistency, and
+  explicitly distinguish passed, failed and unavailable checks. Do not turn
+  structural parsing or mapped-node counts into a deployability guarantee.
 - Preserve [canonical identity](../lib/service-identity.ts), explicit unsupported
   coverage and the no-resource-write PowerShell preview contract.
 - Generated drafts remain distinct from permission to deploy customer resources.
@@ -175,6 +177,7 @@ architecture contract and explicit migrations without breaking existing diagrams
 | Priority 4 preview safety | [test-powershell-preview.mjs](../scripts/test-powershell-preview.mjs), [mock PowerShell harness](../scripts/test-preview-powershell.ps1), [deployment-assistance.spec.ts](../e2e/deployment-assistance.spec.ts) |
 | Priority 5 canonical identity | [test-service-identity.mjs](../scripts/test-service-identity.mjs), [service-identity.spec.ts](../e2e/service-identity.spec.ts), [audited template identities](../scripts/fixtures/template-icon-identities.json) |
 | Priority 6 IaC correctness | [test-iac-codegen.mjs](../scripts/test-iac-codegen.mjs), [compiler validation](../scripts/validate-iac.mjs), [CLI safety](../scripts/test-azure-cli-draft.mjs), [deployment-assistance.spec.ts](../e2e/deployment-assistance.spec.ts) |
+| Priority 7 model/migrations | [test-architecture-model.mjs](../scripts/test-architecture-model.mjs), [architecture-model.spec.ts](../e2e/architecture-model.spec.ts), [model contract](architecture-model.md), shared canvas/document and legacy graph tests |
 
 ## Next-session operational reminders
 
@@ -199,5 +202,8 @@ architecture contract and explicit migrations without breaking existing diagrams
   serial rechecks. Initial connection failures passed both repeats, while one
   GIF completion exceeded 90 seconds. Preserve this intermittent issue for
   priorities 15/20/21; do not describe the whole suite as uniformly green.
+  The subsequent priority 7 release passed its full 71-case hosted suite in one
+  run; that is new release evidence, not proof that intermittent/cross-browser
+  issues have been permanently fixed.
 - The original HTML audit stays out of Git. Keep source changes, release evidence
   and this backlog separate from the immutable audit snapshot.

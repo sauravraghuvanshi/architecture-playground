@@ -1,6 +1,6 @@
 # Azure Deployment Plan
 
-> **Status:** Validated
+> **Status:** Deployed and Verified
 
 Generated: 2026-08-12
 Updated: 2026-09-20 (Asia/Kolkata)
@@ -21,8 +21,8 @@ Updated: 2026-09-20 (Asia/Kolkata)
   Do not invent region/SKU/requirements or claim semantic evidence from layout.
   No live model inference, customer IaC execution or new application resources.
 - **Recipe:** Existing application-only GitHub Actions/App Service release.
-- **State:** Implemented and validated; ready for the existing application-only
-  deployment pipeline. Hosted verification follows release.
+- **State:** Deployed and verified as
+  `bd095946e0c78005cdc5e6c2f161e11d0f8af266`; hosted acceptance passed 71/71.
 
 ### Priority 7 trace and implementation decisions
 
@@ -82,8 +82,8 @@ Updated: 2026-09-20 (Asia/Kolkata)
 - PowerShell harness scratch roots now use ignored `node_modules/.cache`,
   matching CLI tests. The changed harness passed 26/26 alongside concurrent
   full lint without the cleanup race. No production files changed in that step.
-- Remaining gate: Azure validation, application release and hosted verification.
-  Not deployed.
+- Azure validation, application release and hosted verification subsequently
+  completed; exact release proof follows.
 
 ### Priority 7 - All validation checks pass
 
@@ -115,6 +115,28 @@ Final harness handoff was rechecked with both executable suites (88/88) running
 alongside full ESLint and strict TypeScript. All passed. Remote master remained
 `7119fb021eaaa6fcb388e66ecf9759986bcba497`; the deferred competitor checkpoint
 remained `c4b91a44d33066e9aceb011a086d57f445a95d0f`.
+
+### Priority 7 - Deployment and hosted verification
+
+- Released `bd095946e0c78005cdc5e6c2f161e11d0f8af266` through
+  [Actions run 35527006724](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35527006724).
+  The pipeline succeeded in 2m25s, including authenticated API/browser smoke.
+- **71/71 hosted browser cases passed in one run** (3.8 minutes), matching the
+  final local suite. This includes all five new native/legacy model cases:
+  metadata edit/history/save/reload, failed future imports, AI context handoff,
+  preserving future-version autosaves while editing, and legacy envelope checks.
+- Existing artifact downloads, all templates, nested boundaries, persistence,
+  Undo/Redo, Whiteboard conversion and graphics exports passed in that run.
+  This does not erase the separately recorded intermittent export/browser
+  limitations or certify other browsers.
+- Temporary hosted authentication state was removed. No owned local server
+  remains running. No live model inference, customer IaC execution, provisioning,
+  permission or AI endpoint/model configuration changes.
+- Shared contract documentation: [architecture model](../docs/architecture-model.md).
+  Metadata remains declared context, not verified deployment configuration;
+  complete context authoring is available through JSON, and offline IaC warns
+  about configuration it does not implement.
+- Priority 7 is complete. Continue with priority 8 before competitor stage 3.
 
 ## Priority 6 - Repair offline infrastructure-code generation
 

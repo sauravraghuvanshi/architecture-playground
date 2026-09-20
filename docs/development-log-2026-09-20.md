@@ -432,7 +432,7 @@ Released as `c2714836180d7dca9403c75976d4bc067f4905de`:
 
 ## Priority 7 continuation - shared architecture semantics
 
-Implemented locally, not yet released:
+Released as `bd095946e0c78005cdc5e6c2f161e11d0f8af266`:
 
 - Introduced one UI-independent runtime/type contract with native payload
   version 1, explicit migration of older unversioned data, canonical provider-safe
@@ -455,5 +455,21 @@ Implemented locally, not yet released:
 - Final current proof: **244/244 contracts**, lint/types/standalone build,
   **71/71 production-build browser cases**. IaC regression also passed 88
   executable safety cases and 17 real compiler/provider fixtures.
-- Production remains `c271483`. Azure validation/deployment and hosted model
-  verification are next after the test-harness cleanup handoff.
+- The PowerShell harness cleanup was completed and passed 26/26 with concurrent
+  lint; both final executable suites then passed 88/88 alongside lint/types.
+
+### Priority 7 release close-out
+
+- [Actions run 35527006724](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35527006724)
+  deployed the exact release successfully in 2m25s, with authenticated smoke.
+- **71/71 hosted browser tests passed in one run**, in 3.8 minutes. The five new
+  model cases and existing persistence/history, native/legacy import, boundary,
+  conversion, template and export workflows are verified on this release.
+- Temporary hosted auth was removed and owned local servers stopped. No live
+  inference or generated customer infrastructure execution occurred.
+- The model contract is documented in [architecture-model.md](architecture-model.md).
+  Declared intent is not independent verification, and offline code still warns
+  about per-service settings it does not implement. Full environment/evidence
+  definition authoring is JSON-based.
+- Completed priorities: **1-7 and 11**. **Priority 8 is next**. The deferred
+  competitor checkpoint remains untouched until stage 3.
