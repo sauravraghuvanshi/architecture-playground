@@ -91,6 +91,10 @@ function DeploymentSession({ payload, onClose, intent = "deploy" }: Omit<Props, 
     reset();
     const selected = azureOnlyDeploymentPayload(payload);
     const code = generateArchitectureCode(selected.payload, format);
+    if (code.supportedNodes === 0) {
+      setError(["No supported Azure service identities were found. No draft or deployment artifact was generated.", ...selected.warnings, ...code.warnings].join(" "));
+      return;
+    }
     const generated = generateArmTemplate(selected.payload);
     let armTemplate: ArmTemplate | undefined;
     const warnings = [...selected.warnings, ...code.warnings, ...generated.warnings];

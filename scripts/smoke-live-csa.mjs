@@ -3,8 +3,8 @@ import { pathToFileURL } from "node:url";
 export const SMOKE_ARCHITECTURE = {
   nodes: [{
     id: "live-smoke-web", kind: "icon", label: "Live Smoke Web App",
-    iconId: "azure/application/app-service-api",
-    iconPath: "/cloud-icons/azure/application/app-service-api.svg",
+    iconId: "azure/application/application-service",
+    iconPath: "/cloud-icons/azure/application/application-service.svg",
     x: 0, y: 0,
   }],
   edges: [],

@@ -38,7 +38,7 @@ import { CommandPalette } from "./shared/CommandPalette";
 import { Inspector, deriveArchIssues } from "./shared/Inspector";
 import { StatusBar } from "./shared/StatusBar";
 import { KeyboardHints } from "./shared/KeyboardHints";
-import { promptToArchitecture } from "@/lib/prompt-to-arch";
+import { buildPromptArchitecture, type PromptDiagnostics } from "@/lib/prompt-to-arch";
 import { parseArchitectureDocument } from "@/lib/architecture-document";
 import { parentFirst } from "@/lib/architecture-hierarchy";
 import { generatedArchitectureSchema } from "@/lib/ai-mode-prompts";
@@ -183,6 +183,7 @@ export function Workspace({
   >({});
   const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
   const [aiStatusError, setAiStatusError] = useState<string | null>(null);
+  const [promptDiagnostics, setPromptDiagnostics] = useState<(PromptDiagnostics & { hasDraft: boolean }) | null>(null);
   const [edgeStyle, setEdgeStyle] = useState<ArchEdgeStyle>("flow");
   const [selection, setSelection] = useState<ArchitectureSelection | null>(null);
   const [exportNotice, setExportNotice] = useState<{
@@ -210,6 +211,7 @@ export function Workspace({
     },
     theme: (targetMode) => canvasThemes[targetMode] ?? defaultCanvasTheme(targetMode),
     apply: (document, activate) => {
+      setPromptDiagnostics(null);
       if (document.mode === "architecture") setArchPayload(parseArchitectureDocument(document.payload));
       else setOtherPayloads((previous) => ({ ...previous, [document.mode]: document.payload }));
       setCanvasThemes((previous) => ({ ...previous, [document.mode]: document.canvasTheme }));
@@ -339,14 +341,18 @@ export function Workspace({
     const prompt = searchParams?.get("prompt");
     const templateId = searchParams?.get("template");
     const seed = prompt ?? (templateId ? HUB_TEMPLATE_PROMPTS[templateId] ?? templateId.replace(/-/g, " ") : null);
-    if (!seed) return;
-    const generated = promptToArchitecture(seed, icons, { animateEdges: true });
-    if (generated && generated.nodes.length) {
-      promptApplied.current = true;
-      requestAnimationFrame(() => {
-        setArchPayload(generated);
+    if (!seed || !icons.length) return;
+    const result = buildPromptArchitecture(seed, icons, { animateEdges: true });
+    promptApplied.current = true;
+    requestAnimationFrame(() => {
+      setPromptDiagnostics({
+        ...(result.payload || result.diagnostics.unmatched.length ? result.diagnostics : {
+          unmatched: ["No supported service names were recognized. Specify a provider and product, or add components manually."], assumptions: [],
+        }),
+        hasDraft: !!result.payload,
       });
-    }
+      if (result.payload?.nodes.length) setArchPayload(result.payload);
+    });
   }, [searchParams, icons]);
 
   // Templates Gallery handoff: parameterized template resolved into a
@@ -811,6 +817,7 @@ export function Workspace({
             const payload = parseArchitectureDocument(JSON.parse(await file.text()));
             if (archPayload.nodes.length && !window.confirm("Replace the current architecture with this imported diagram?")) return;
             setArchPayload(payload);
+            setPromptDiagnostics(null);
             canvasRef.current?.hydrate(payload);
             setSelection(null);
             setSaved(false);
@@ -913,6 +920,27 @@ export function Workspace({
           );
         })}
       </nav>
+
+      {mode === "architecture" && promptDiagnostics && (
+        <section aria-label="Prompt coverage" className="max-h-40 shrink-0 overflow-y-auto border-b border-amber-800/50 bg-amber-950/25 px-4 py-2 text-xs text-amber-100">
+          <div className="flex items-start justify-between gap-4">
+            <p><strong>{promptDiagnostics.hasDraft ? "Heuristic draft:" : "No draft generated:"}</strong> one instance per recognized service. Review unrecognized requirements, counts, configuration and topology; this is not a complete requirements validation.</p>
+            <button type="button" aria-label="Dismiss prompt coverage" onClick={() => setPromptDiagnostics(null)} className="shrink-0 rounded border border-amber-700 px-2 py-1 hover:bg-amber-900">Dismiss</button>
+          </div>
+          {promptDiagnostics.unmatched.length > 0 && (
+            <details open className="mt-2">
+              <summary className="cursor-pointer font-semibold">{promptDiagnostics.unmatched.length} unmatched recognized requirements</summary>
+              <ul className="mt-1 list-disc space-y-1 pl-5">{promptDiagnostics.unmatched.map((warning) => <li key={warning}>{warning}</li>)}</ul>
+            </details>
+          )}
+          {promptDiagnostics.assumptions.length > 0 && (
+            <details className="mt-2">
+              <summary className="cursor-pointer font-semibold">{promptDiagnostics.assumptions.length} proposed service choices</summary>
+              <ul className="mt-1 list-disc space-y-1 pl-5">{promptDiagnostics.assumptions.map((warning) => <li key={warning}>{warning}</li>)}</ul>
+            </details>
+          )}
+        </section>
+      )}
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {mode === "architecture" && <Palette icons={icons} />}
@@ -1151,6 +1179,7 @@ export function Workspace({
             await library.create(mode, `AI ${meta.label}`, graph);
           }
           setSaved(false);
+          setPromptDiagnostics(null);
         }}
         getImageCanvasContext={() => {
           const handle = otherCanvasRef.current as WhiteboardCanvasHandle | null;

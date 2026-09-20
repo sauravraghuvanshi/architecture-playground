@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readSavedDiagram } from "./read-saved-diagram";
 import { readCanvasPayload } from "./read-canvas-payload";
+import { waitForWorkspace } from "./wait-for-workspace";
 
 const original = {
   nodes: [{ kind: "shape", id: "existing", label: "Existing architecture", shape: "rectangle", x: 0, y: 0 }],
@@ -123,6 +124,8 @@ test("official Azure conversion identities render and survive library reload wit
   }
   await expect.poll(readPersistedPayload, { timeout: 15_000 }).toEqual(normalizedPayload);
   await page.goto("/diagrammatic?mode=architecture");
+  await page.bringToFront();
+  await waitForWorkspace(page);
   await expect(page.locator(".react-flow__node")).toHaveCount(3, { timeout: 30_000 });
   await expect(page.locator('.react-flow__node[data-id="app"]')).toContainText("Checkout API");
   await expect(page.locator(`.react-flow__node[data-id="app"] img[src="${payload.nodes[0].iconPath}"]`)).toBeVisible();

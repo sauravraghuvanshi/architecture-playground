@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import type { IconLite } from "./types";
 import type { ArchShape } from "../modes/architecture/ArchitectureCanvas";
+import { searchServiceIcons } from "@/lib/service-identity";
 
 interface Props {
   icons: IconLite[];
@@ -57,18 +58,7 @@ export function Palette({ icons }: Props) {
   const [q, setQ] = useState("");
   const [cloud, setCloud] = useState<string>("all");
 
-  const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    return icons.filter((i) => {
-      if (cloud !== "all" && i.cloud !== cloud) return false;
-      if (!needle) return true;
-      return (
-        i.label.toLowerCase().includes(needle) ||
-        i.category.toLowerCase().includes(needle) ||
-        i.id.toLowerCase().includes(needle)
-      );
-    });
-  }, [icons, q, cloud]);
+  const filtered = useMemo(() => searchServiceIcons(icons, q, cloud === "all" ? undefined : cloud), [icons, q, cloud]);
 
   const grouped = useMemo(() => {
     const m = new Map<string, IconLite[]>();
@@ -215,6 +205,10 @@ export function Palette({ icons }: Props) {
                   <img
                     src={icon.path}
                     alt=""
+                    width={32}
+                    height={32}
+                    loading="lazy"
+                    decoding="async"
                     className="h-8 w-8 object-contain transition-transform group-hover/btn:scale-110"
                     draggable={false}
                   />

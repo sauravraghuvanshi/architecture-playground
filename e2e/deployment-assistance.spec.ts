@@ -5,8 +5,8 @@ import type { ArchPayload } from "../components/diagrammatic/modes/architecture/
 const architecture: ArchPayload = {
   nodes: [{
     kind: "icon", id: "app", label: "Customer web app",
-    iconId: "azure/application/app-service-api",
-    iconPath: "/cloud-icons/azure/application/app-service-api.svg",
+    iconId: "azure/application/application-service",
+    iconPath: "/cloud-icons/azure/application/application-service.svg",
     x: 80, y: 80,
   }],
   edges: [],

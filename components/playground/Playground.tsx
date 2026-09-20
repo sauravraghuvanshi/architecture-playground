@@ -324,7 +324,11 @@ function PlaygroundShell({ icons, templates }: Props) {
 
   const handleApplyAiGraph = useCallback((g: PlaygroundGraph) => {
     const normalized = normalizeGraph(g);
-    resolveGraphIcons(normalized, icons, iconsById);
+    const identityErrors = resolveGraphIcons(normalized, icons, iconsById);
+    if (identityErrors.length) {
+      ui.announce("AI diagram was not applied because service identities need correction.");
+      throw new Error(`The AI diagram contains unresolved service identities. Your current diagram is unchanged.\n\n${identityErrors.join("\n")}`);
+    }
     setFlow(graphToFlow(normalized, iconsById));
     setGraphExtras({ layers: normalized.layers, metadata: normalized.metadata });
     dispatchHistory({ type: "push", snapshot: snapshotGraph(normalized) });

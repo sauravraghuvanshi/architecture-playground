@@ -67,12 +67,14 @@ export function IacExportModal({ graph, open, onClose }: Props) {
           <div className="flex items-center gap-2">
             <button
               onClick={copy}
+              disabled={!result.output}
               className="rounded border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
             >
               Copy
             </button>
             <button
               onClick={download}
+              disabled={!result.output}
               className="rounded bg-indigo-600 px-2 py-1 text-xs font-medium text-white hover:bg-indigo-500"
             >
               Download {filename}
@@ -85,9 +87,10 @@ export function IacExportModal({ graph, open, onClose }: Props) {
 
         {result.warnings.length > 0 && (
           <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
-            <strong>{result.warnings.length} warning(s):</strong>{" "}
-            {result.warnings.slice(0, 3).join(" · ")}
-            {result.warnings.length > 3 ? ` …and ${result.warnings.length - 3} more` : ""}
+            <details open={!result.output || result.warnings.length <= 3} className="max-h-40 overflow-y-auto">
+              <summary className="cursor-pointer font-semibold">{result.warnings.length} mapping warning(s)</summary>
+              <ul className="mt-1 list-disc pl-5">{result.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>
+            </details>
           </div>
         )}
 

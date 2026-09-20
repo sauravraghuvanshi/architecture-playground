@@ -1,3 +1,5 @@
+import { azureResourceKind, type AzureResourceKind } from "../../../lib/service-identity.ts";
+
 export type ArchitectureCodeFormat = "bicep" | "terraform" | "azure-cli" | "powershell";
 
 interface ArchitectureNode {
@@ -5,6 +7,7 @@ interface ArchitectureNode {
   kind?: "icon" | "group" | "shape";
   label: string;
   iconId?: string;
+  cloud?: string;
 }
 
 interface ArchitecturePayload {
@@ -12,21 +15,7 @@ interface ArchitecturePayload {
   edges: Array<{ id: string; source: string; target: string; label?: string }>;
 }
 
-type ResourceKind =
-  | "app-service"
-  | "sql"
-  | "storage"
-  | "apim"
-  | "openai"
-  | "key-vault"
-  | "front-door"
-  | "service-bus"
-  | "cosmos"
-  | "functions"
-  | "aks"
-  | "vnet"
-  | "log-analytics"
-  | "app-insights";
+type ResourceKind = AzureResourceKind;
 
 interface DetectedResource {
   id: string;
@@ -55,23 +44,6 @@ const FORMAT_META: Record<
   powershell: { filename: "preview.ps1", language: "powershell" },
 };
 
-const RESOURCE_MATCHERS: Array<[ResourceKind, RegExp]> = [
-  ["front-door", /(front.?door|cdn)/i],
-  ["apim", /(api.?management|apim)/i],
-  ["functions", /(function.?app|azure.?functions|functions)/i],
-  ["app-service", /(app.?service|application.?service|web.?app|webapp)/i],
-  ["sql", /(sql.?database|sql.?server|azure.?sql)/i],
-  ["storage", /(storage.?account|blob.?storage|data.?lake)/i],
-  ["service-bus", /(service.?bus)/i],
-  ["cosmos", /(cosmos)/i],
-  ["key-vault", /(key.?vault)/i],
-  ["openai", /(openai|ai.?foundry|cognitive.?services)/i],
-  ["aks", /(kubernetes|aks)/i],
-  ["vnet", /(virtual.?network|vnet)/i],
-  ["log-analytics", /(log.?analytics)/i],
-  ["app-insights", /(application.?insights|app.?insights)/i],
-];
-
 function safeIdentifier(value: string, index: number): string {
   const normalized = value.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 20);
   return `${normalized || "resource"}${index + 1}`;
@@ -86,8 +58,7 @@ function safeResourceName(value: string): string {
 }
 
 function detectKind(node: ArchitectureNode): ResourceKind | null {
-  const searchable = `${node.iconId ?? ""} ${node.label}`;
-  return RESOURCE_MATCHERS.find(([, pattern]) => pattern.test(searchable))?.[0] ?? null;
+  return node.iconId ? azureResourceKind(node.iconId, node.cloud) ?? null : null;
 }
 
 function detectResources(payload: ArchitecturePayload): {
@@ -1029,6 +1000,7 @@ export function generateArchitectureCode(
   }
   if (resources.length === 0) {
     warnings.unshift("No supported Azure service nodes were found. Add Azure services before deployment.");
+    if (format !== "powershell") output = "";
   }
   return {
     format,

@@ -14,6 +14,7 @@ import { Search, Box, StickyNote, ChevronDown, ChevronRight, Layers } from "luci
 import { motion, AnimatePresence } from "motion/react";
 import type { CloudId, IconManifestEntry } from "./lib/types";
 import { usePlaygroundUI } from "./PlaygroundUIContext";
+import { searchServiceIcons } from "../../lib/service-identity";
 
 type FilterCloud = CloudId | "all";
 
@@ -44,20 +45,7 @@ export function Palette({ icons }: Props) {
   const listRef = useRef<HTMLDivElement>(null);
 
   // Filter icons by cloud tab + search query
-  const filtered = useMemo(() => {
-    let pool = icons;
-    if (cloud !== "all") pool = pool.filter((i) => i.cloud === cloud);
-
-    if (!query.trim()) return pool;
-    const q = query.toLowerCase();
-    return pool.filter(
-      (i) =>
-        i.label.toLowerCase().includes(q) ||
-        i.slug.toLowerCase().includes(q) ||
-        i.categoryLabel.toLowerCase().includes(q) ||
-        i.cloudLabel.toLowerCase().includes(q)
-    );
-  }, [icons, cloud, query]);
+  const filtered = useMemo(() => searchServiceIcons(icons, query, cloud === "all" ? undefined : cloud), [icons, cloud, query]);
 
   // Group by cloud → category
   const groups = useMemo(() => {

@@ -239,6 +239,31 @@ Load Balancing and Azure Business Process Tracking currently remain labeled
 generic components because their specific icons are absent from the bundled
 catalog. They are not represented by unrelated provider icons.
 
+### Service identity and heuristic coverage
+
+Both asset pickers prioritize exact product aliases: searching for **App Service**
+finds the actual Application Service asset rather than only API/file/operation
+icons. Provider filters remain strict. Automated identity resolution does not
+use partial-token similarity or a default cloud icon for unknown services.
+
+The free prompt scaffold creates one instance per recognized canonical service.
+Its coverage panel lists recognized requirements that could not be mapped,
+provider conflicts and proposed service choices. Counts, unrecognized prose,
+topology and configuration still require review; this is not a complete natural
+language requirements parser. Separate products and named variants remain
+separate identities, not replacements for similarly named services.
+
+Native and legacy Azure exporters derive supported resource kinds from canonical
+identity, never the editable display label. AWS/GCP identities, App Service
+feature icons, Managed HSM and database-engine variants cannot masquerade as
+unrelated Azure resources. Unsupported mappings are explicit; zero mapped
+resources do not expose a deployable download. Legacy AI application fails
+atomically on unresolved identity and retains the current diagram.
+
+Display labels still influence suggested resource names. Inspect generated
+names and changes before use. Correct identity mapping is not compiler validation,
+complete configuration, deployment approval or evidence of an existing resource.
+
 ### Presentation-quality export
 
 - High-resolution full-diagram PNG

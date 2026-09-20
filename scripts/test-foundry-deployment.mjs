@@ -37,7 +37,7 @@ const env = {
   NEXT_PUBLIC_SITE_URL: "https://diagram.example",
 };
 const payload = {
-  nodes: [{ kind: "icon", id: "app", label: "Customer app", iconId: "azure/application/app-service-api", iconPath: "/cloud-icons/azure/application/app-service-api.svg", x: 0, y: 0 }],
+  nodes: [{ kind: "icon", id: "app", label: "Customer app", iconId: "azure/application/application-service", iconPath: "/cloud-icons/azure/application/application-service.svg", x: 0, y: 0 }],
   edges: [],
 };
 const arm = () => ({

@@ -15,6 +15,7 @@
  *     consumer signature.
  */
 import type { IconLite } from "@/components/diagrammatic/shared/types";
+import { resolveServiceIcon, type ServiceProvider } from "./service-identity.ts";
 import type {
   ArchPayload,
   ArchNode,
@@ -29,8 +30,8 @@ const TIER_ORDER: Tier[] = ["edge", "frontend", "gateway", "compute", "messaging
 /**
  * Keyword → tier and preferred icon-label fragment. The fragment is matched
  * case-insensitively against `IconLite.label` (and `id` as fallback). The
- * first manifest icon to match wins; we de-dupe by tier+iconId so we don't
- * spawn the same service twice.
+ * Product IDs and provider-specific proposals below resolve these requirements;
+ * catalog fragments never choose feature icons or change cloud providers.
  */
 const KEYWORDS: { tier: Tier; needles: string[]; match: string }[] = [
   // edge / cdn
@@ -49,10 +50,10 @@ const KEYWORDS: { tier: Tier; needles: string[]; match: string }[] = [
   { tier: "gateway", needles: ["ingress", "nginx"], match: "load balancer" },
 
   // compute
-  { tier: "compute", needles: ["lambda", "function", "functions", "serverless"], match: "function" },
-  { tier: "compute", needles: ["container app", "aca", "container apps"], match: "container apps" },
+  { tier: "compute", needles: ["azure functions", "function app", "lambda", "function", "functions", "serverless"], match: "function" },
+  { tier: "compute", needles: ["container app environment", "container apps environment", "container app", "aca", "container apps"], match: "container apps" },
   { tier: "compute", needles: ["kubernetes", "aks", "eks", "gke", "k8s"], match: "kubernetes" },
-  { tier: "compute", needles: ["app service", "web app"], match: "app service" },
+  { tier: "compute", needles: ["app service plans", "app service plan", "app service", "web app"], match: "app service" },
   { tier: "compute", needles: ["vm", "virtual machine", "ec2", "compute engine"], match: "virtual machine" },
   { tier: "compute", needles: ["fargate", "ecs"], match: "container" },
   { tier: "compute", needles: ["cloud run"], match: "cloud run" },
@@ -60,12 +61,12 @@ const KEYWORDS: { tier: Tier; needles: string[]; match: string }[] = [
 
   // messaging
   { tier: "messaging", needles: ["kafka", "event hub", "eventhub", "event hubs"], match: "event hubs" },
-  { tier: "messaging", needles: ["service bus", "sqs", "queue"], match: "service bus" },
+  { tier: "messaging", needles: ["service bus queue", "service bus topic", "service bus", "sqs", "queue"], match: "service bus" },
   { tier: "messaging", needles: ["event grid", "eventbridge", "pub/sub", "pubsub"], match: "event grid" },
   { tier: "messaging", needles: ["webhook", "signalr", "websocket"], match: "signalr" },
 
   // data
-  { tier: "data", needles: ["postgres", "mysql", "sql", "rds", "azure sql", "cloud sql"], match: "sql database" },
+  { tier: "data", needles: ["postgresql", "postgres", "mysql", "azure sql server", "sql server", "sql database", "sql", "rds", "azure sql", "cloud sql"], match: "sql database" },
   { tier: "data", needles: ["cosmos", "dynamodb", "firestore", "nosql"], match: "cosmos" },
   { tier: "data", needles: ["redis", "cache", "memcache", "elasticache"], match: "redis" },
   { tier: "data", needles: ["s3", "blob", "object storage", "gcs"], match: "blob storage" },
@@ -80,7 +81,7 @@ const KEYWORDS: { tier: Tier; needles: string[]; match: string }[] = [
   // ops
   { tier: "ops", needles: ["monitor", "app insights", "application insights", "cloudwatch", "stackdriver"], match: "monitor" },
   { tier: "ops", needles: ["log analytics", "loki"], match: "log" },
-  { tier: "ops", needles: ["key vault", "secrets manager", "secret manager"], match: "key vault" },
+  { tier: "ops", needles: ["key vault managed hsm", "managed hsm", "key vault", "secrets manager", "secret manager"], match: "key vault" },
   { tier: "ops", needles: ["identity", "entra", "azure active directory", "active directory", "iam", "cognito"], match: "azure active directory" },
 ];
 
@@ -89,66 +90,186 @@ interface Picked {
   icon: IconLite;
 }
 
+export interface PromptDiagnostics {
+  unmatched: string[];
+  assumptions: string[];
+}
+
+const PRODUCTS: Record<string, { cloud: ServiceProvider; id: string }> = {
+  "front door": { cloud: "azure", id: "azure/networking/azure-front-door" },
+  frontdoor: { cloud: "azure", id: "azure/networking/azure-front-door" },
+  cloudfront: { cloud: "aws", id: "aws/networking/cloudfront" },
+  route53: { cloud: "aws", id: "aws/networking/route-53" },
+  "route 53": { cloud: "aws", id: "aws/networking/route-53" },
+  "app service": { cloud: "azure", id: "azure/application/application-service" },
+  "app service plan": { cloud: "azure", id: "azure/application/app-service-plan" },
+  "app service plans": { cloud: "azure", id: "azure/application/app-service-plan" },
+  "api management": { cloud: "azure", id: "azure/management/api-management-service" },
+  apim: { cloud: "azure", id: "azure/management/api-management-service" },
+  "container app": { cloud: "azure", id: "azure/application/container-app" },
+  "container apps": { cloud: "azure", id: "azure/application/container-app" },
+  "container app environment": { cloud: "azure", id: "azure/application/container-app-environment" },
+  "container apps environment": { cloud: "azure", id: "azure/application/container-app-environment" },
+  aca: { cloud: "azure", id: "azure/application/container-app" },
+  aks: { cloud: "azure", id: "azure/compute/container-kubernetes-service" },
+  eks: { cloud: "aws", id: "aws/containers/elastic-kubernetes-service" },
+  gke: { cloud: "gcp", id: "gcp/containers/g-k-e" },
+  lambda: { cloud: "aws", id: "aws/compute/lambda" },
+  "azure functions": { cloud: "azure", id: "azure/application/function-app" },
+  "function app": { cloud: "azure", id: "azure/application/function-app" },
+  ec2: { cloud: "aws", id: "aws/compute/ec2" },
+  "compute engine": { cloud: "gcp", id: "gcp/compute/compute-engine" },
+  ecs: { cloud: "aws", id: "aws/containers/elastic-container-service" },
+  fargate: { cloud: "aws", id: "aws/compute/fargate" },
+  "cloud run": { cloud: "gcp", id: "gcp/compute/cloud-run" },
+  "vertex ai": { cloud: "gcp", id: "gcp/ai/vertex-a-i" },
+  vertex: { cloud: "gcp", id: "gcp/ai/vertex-a-i" },
+  "event hub": { cloud: "azure", id: "azure/application/event-hub" },
+  "event hubs": { cloud: "azure", id: "azure/application/event-hub" },
+  eventhub: { cloud: "azure", id: "azure/application/event-hub" },
+  "service bus": { cloud: "azure", id: "azure/data/service-bus" },
+  "service bus queue": { cloud: "azure", id: "azure/data/service-bus-queue" },
+  "service bus topic": { cloud: "azure", id: "azure/data/service-bus-topic" },
+  sqs: { cloud: "aws", id: "aws/integration/sqs" },
+  "event grid": { cloud: "azure", id: "azure/application/event-grid-topic" },
+  eventbridge: { cloud: "aws", id: "aws/integration/eventbridge" },
+  "pub/sub": { cloud: "gcp", id: "gcp/integration/pub-sub" },
+  pubsub: { cloud: "gcp", id: "gcp/integration/pub-sub" },
+  signalr: { cloud: "azure", id: "azure/application/signalr" },
+  "azure sql": { cloud: "azure", id: "azure/data/sql-database" },
+  "azure sql server": { cloud: "azure", id: "azure/data/sql-server" },
+  rds: { cloud: "aws", id: "aws/database/rds" },
+  "cloud sql": { cloud: "gcp", id: "gcp/database/cloud-s-q-l" },
+  cosmos: { cloud: "azure", id: "azure/data/azure-cosmos-db" },
+  dynamodb: { cloud: "aws", id: "aws/database/dynamodb" },
+  firestore: { cloud: "gcp", id: "gcp/database/firestore" },
+  elasticache: { cloud: "aws", id: "aws/database/elasticache" },
+  s3: { cloud: "aws", id: "aws/storage/simple-storage-service" },
+  gcs: { cloud: "gcp", id: "gcp/storage/cloud-storage" },
+  synapse: { cloud: "azure", id: "azure/data/azure-synapse-analytics" },
+  databricks: { cloud: "azure", id: "azure/data/azure-databricks" },
+  bigquery: { cloud: "gcp", id: "gcp/analytics/big-query" },
+  "big query": { cloud: "gcp", id: "gcp/analytics/big-query" },
+  "azure openai": { cloud: "azure", id: "azure/ai/azure-openai" },
+  "application insights": { cloud: "azure", id: "azure/management/application-insights" },
+  "app insights": { cloud: "azure", id: "azure/management/application-insights" },
+  cloudwatch: { cloud: "aws", id: "aws/management/cloudwatch" },
+  stackdriver: { cloud: "gcp", id: "gcp/management/stackdriver" },
+  "log analytics": { cloud: "azure", id: "azure/management/log-analytics-workspace" },
+  "key vault": { cloud: "azure", id: "azure/security/key-vault" },
+  "key vault managed hsm": { cloud: "azure", id: "azure/security/azure-key-vault-managed-hsm" },
+  "secrets manager": { cloud: "aws", id: "aws/security/secrets-manager" },
+  "secret manager": { cloud: "gcp", id: "gcp/security/secret-manager" },
+  entra: { cloud: "azure", id: "azure/identity/azure-active-directory" },
+  "azure active directory": { cloud: "azure", id: "azure/identity/azure-active-directory" },
+  iam: { cloud: "aws", id: "aws/security/identity-and-access-management" },
+  cognito: { cloud: "aws", id: "aws/security/cognito" },
+};
+
+const PROPOSALS: Record<ServiceProvider, Record<string, string>> = {
+  azure: {
+    dns: "azure/networking/dns-zone-public", firewall: "azure/security/azure-firewall",
+    "app service": "azure/application/application-service", static: "azure/application/static-web-app",
+    "api management": "azure/management/api-management-service", "load balancer": "azure/networking/load-balancer",
+    function: "azure/application/function-app", kubernetes: "azure/compute/container-kubernetes-service",
+    "virtual machine": "azure/compute/virtual-machine", "service bus": "azure/data/service-bus",
+    "sql database": "azure/data/sql-database", cosmos: "azure/data/azure-cosmos-db",
+    redis: "azure/networking/azure-cache-for-redis", "blob storage": "azure/storage/storage-account-blob",
+    search: "azure/ai/cognitive-services-search", openai: "azure/ai/azure-openai",
+    monitor: "azure/management/azure-monitor", log: "azure/management/log-analytics-workspace",
+    "azure active directory": "azure/identity/azure-active-directory",
+  },
+  aws: {
+    cdn: "aws/networking/cloudfront", dns: "aws/networking/route-53",
+    "load balancer": "aws/networking/elastic-load-balancing", function: "aws/compute/lambda",
+    kubernetes: "aws/containers/elastic-kubernetes-service", "virtual machine": "aws/compute/ec2",
+    container: "aws/containers/elastic-container-service", "sql database": "aws/database/rds",
+    redis: "aws/database/elasticache", "blob storage": "aws/storage/simple-storage-service",
+    monitor: "aws/management/cloudwatch", "azure active directory": "aws/security/identity-and-access-management",
+  },
+  gcp: {
+    "virtual machine": "gcp/compute/compute-engine", kubernetes: "gcp/containers/g-k-e",
+    "sql database": "gcp/database/cloud-s-q-l", "blob storage": "gcp/storage/cloud-storage",
+  },
+};
+
 function lower(s: string): string {
   return s.toLowerCase();
 }
 
-function mentions(prompt: string, term: string): boolean {
-  return new RegExp(`(^|[^a-z0-9])${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z0-9]|$)`, "i").test(prompt);
+function phraseMatches(prompt: string, term: string): Array<{ term: string; start: number; end: number }> {
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replaceAll(" ", "[ -]+");
+  return [...prompt.matchAll(new RegExp(`(^|[^a-z0-9])(${escaped})(?=$|[^a-z0-9])`, "gi"))].map((match) => ({
+    term, start: match.index + match[1].length, end: match.index + match[1].length + match[2].length,
+  }));
 }
 
-function findBestIcon(icons: IconLite[], term: string): IconLite | undefined {
-  const normalizedTerm = lower(term).replaceAll("/", " ").replace(/\s+/g, " ").trim();
-  const tokenPattern = new RegExp(
-    `(^|[^a-z0-9])${normalizedTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replaceAll(" ", "[ -]?")}([^a-z0-9]|$)`,
-    "i"
-  );
-  return icons
-    .filter((icon) => tokenPattern.test(icon.label) || tokenPattern.test(icon.id.replaceAll("/", " ")))
-    .sort((a, b) => {
-      const aLabel = lower(a.label);
-      const bLabel = lower(b.label);
-      const score = (label: string) =>
-        label === normalizedTerm ? 0 : label.startsWith(normalizedTerm) ? 1 : label.includes(normalizedTerm) ? 2 : 3;
-      return score(aLabel) - score(bLabel) || a.label.length - b.label.length || a.label.localeCompare(b.label);
-    })[0];
+function selectedMentions(prompt: string, terms: string[]): ReturnType<typeof phraseMatches> {
+  const occurrences = terms.flatMap((term) => phraseMatches(prompt, term))
+    .sort((left, right) => Number(!!PRODUCTS[right.term]) - Number(!!PRODUCTS[left.term]) || (right.end - right.start) - (left.end - left.start));
+  const chosen: typeof occurrences = [];
+  for (const occurrence of occurrences) {
+    if (!chosen.some((other) => occurrence.start < other.end && occurrence.end > other.start)) chosen.push(occurrence);
+  }
+  return chosen;
 }
 
-function pickIcons(prompt: string, icons: IconLite[]): Picked[] {
+function pickIcons(prompt: string, icons: IconLite[]): { picked: Picked[]; diagnostics: PromptDiagnostics } {
   const p = lower(prompt);
   const picked: Picked[] = [];
   const seen = new Set<string>();
+  const unmatched = new Set<string>();
+  const assumptions = new Set<string>();
   const mentionedProviders = [
-    /\bazure\b|\bmicrosoft\b/.test(p) ? "azure" : null,
-    /\baws\b|\bamazon\b/.test(p) ? "aws" : null,
-    /\bgcp\b|\bgoogle cloud\b|\bgoogle\b/.test(p) ? "gcp" : null,
-  ].filter((provider): provider is string => provider !== null);
+    /\bazure\b/.test(p) ? "azure" : null,
+    /\baws\b|\bamazon web services\b/.test(p) ? "aws" : null,
+    /\bgcp\b|\bgoogle cloud\b/.test(p) ? "gcp" : null,
+  ].filter((provider): provider is ServiceProvider => provider !== null);
   const provider = mentionedProviders.length === 1 ? mentionedProviders[0] : null;
-  const candidates = provider ? icons.filter((icon) => icon.cloud === provider) : icons;
+  const requestedProducts = selectedMentions(p, Object.keys(PRODUCTS)).map(({ term }) => PRODUCTS[term]);
+  const providerConflict = !!provider && requestedProducts.some((product) => product.cloud !== provider);
+  const explicitlyRequested = new Set(requestedProducts.filter((product) => !provider || product.cloud === provider).map((product) => product.id));
 
   for (const rule of KEYWORDS) {
-    const matchedNeedles = rule.needles.filter((needle) => mentions(p, needle));
-    if (!matchedNeedles.length) continue;
-    // Prefer the provider's product name from the prompt (for example Lambda
-    // or Cloud Run), then fall back to the cloud-neutral match fragment.
-    const matchedTerms = matchedNeedles.sort((a, b) =>
-      Number(a === "serverless") - Number(b === "serverless") || b.length - a.length
-    );
-    const searchTerms =
-      rule.match === "sql database" && matchedTerms.some((term) => term === "sql" || term === "azure sql")
-        ? [rule.match, ...matchedTerms]
-        : [...matchedTerms, rule.match];
-    const icon = searchTerms
-      .map((term) => findBestIcon(candidates, term))
-      .find((candidate) => candidate !== undefined);
-    if (!icon) continue;
-    const key = `${rule.tier}:${icon.id}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    picked.push({ tier: rule.tier, icon });
+    const chosen = selectedMentions(p, rule.needles);
+    const specific = chosen.some((match) => PRODUCTS[match.term]);
+    const terms = [...new Set(chosen.map((match) => match.term))].filter((term) => {
+      const separate = !specific || PRODUCTS[term] || (provider && resolveServiceIcon({ label: term, cloud: provider }, icons));
+      if (!separate) assumptions.add(`"${term}" is not modeled separately from the named product; confirm its configuration and coverage.`);
+      return separate;
+    });
+    for (const term of terms) {
+      const product = PRODUCTS[term];
+      if (product && provider && product.cloud !== provider) {
+        unmatched.add(`"${term}" belongs to ${product.cloud.toUpperCase()}, not the requested ${provider.toUpperCase()}; no cross-cloud substitute was added.`);
+        continue;
+      }
+      let icon: IconLite | undefined;
+      if (product) icon = icons.find((item) => item.id === product.id && item.cloud === product.cloud);
+      else if (provider) {
+        icon = resolveServiceIcon({ label: term, cloud: provider }, icons);
+        // Engine names and branded products must not fall through to a different service.
+        if (!icon && !["postgres", "postgresql", "mysql", "sql server", "managed hsm", "kafka", "ai foundry", "ai studio", "active directory"].includes(term)) {
+          const proposal = term === "waf"
+            ? provider === "azure" ? "azure/security/waf-policy" : provider === "aws" ? "aws/security/waf" : undefined
+            : PROPOSALS[provider][rule.match];
+          if (!providerConflict || (proposal && explicitlyRequested.has(proposal))) {
+            icon = icons.find((item) => item.id === proposal && item.cloud === provider);
+            if (icon && !explicitlyRequested.has(icon.id)) assumptions.add(`"${term}" is represented by a proposed ${icon.label}; confirm the service and configuration.`);
+          }
+        }
+      }
+      if (!icon) {
+        unmatched.add(`"${term}" has no unambiguous ${product?.cloud.toUpperCase() ?? provider?.toUpperCase() ?? "provider-specific"} catalog selection; add or clarify it manually.`);
+        continue;
+      }
+      if (seen.has(icon.id)) continue;
+      seen.add(icon.id);
+      picked.push({ tier: rule.tier, icon });
+    }
   }
 
-  return picked;
+  return { picked, diagnostics: { unmatched: [...unmatched], assumptions: [...assumptions] } };
 }
 
 const COL_W = 280;
@@ -184,21 +305,35 @@ export function promptToArchitecture(
   icons: IconLite[],
   opts: { animateEdges?: boolean; guidedDesign?: boolean } = {}
 ): ArchPayload | null {
-  const azureOnly = /\bazure\b|\bmicrosoft\b/i.test(prompt) && !/\baws\b|\bamazon\b|\bgcp\b|\bgoogle\b/i.test(prompt);
+  return buildPromptArchitecture(prompt, icons, opts).payload;
+}
+
+export function buildPromptArchitecture(
+  prompt: string,
+  icons: IconLite[],
+  opts: { animateEdges?: boolean; guidedDesign?: boolean } = {},
+): { payload: ArchPayload | null; diagnostics: PromptDiagnostics } {
+  if (prompt.length > 8000) return {
+    payload: null,
+    diagnostics: { unmatched: ["The prompt exceeds 8,000 characters. Shorten it before generating a draft."], assumptions: [] },
+  };
+  const azureOnly = /\bazure\b/i.test(prompt) && !/\baws\b|\bamazon web services\b|\bgcp\b|\bgoogle cloud\b/i.test(prompt);
   const guided = opts.guidedDesign ?? (azureOnly && /\b(secure|enterprise|production|resilient|compliance|landing zone|business)\b/i.test(prompt));
-  let picked = pickIcons(prompt, icons);
+  const selection = pickIcons(prompt, icons);
+  let picked = selection.picked;
   if (guided && azureOnly) {
-    if (!picked.length && /\b(app|application|platform|system|portal|workload|solution)\b/i.test(prompt)) {
-      picked = pickIcons("Azure App Service and Azure SQL", icons);
+    if (!picked.length && !selection.diagnostics.unmatched.length && /\b(app|application|platform|system|portal|workload|solution)\b/i.test(prompt)) {
+      picked = pickIcons("Azure App Service and Azure SQL", icons).picked;
+      if (picked.length) selection.diagnostics.assumptions.push("App Service and Azure SQL are proposed starting services, not explicit requirements.");
     }
     if (picked.length) {
-      const controls = pickIcons("Azure Active Directory, Key Vault, and Monitor", icons);
+      const controls = pickIcons("Azure Active Directory, Key Vault, and Monitor", icons).picked;
       for (const control of controls) {
         if (!picked.some((item) => item.icon.id === control.icon.id)) picked.push(control);
       }
     }
   }
-  if (!picked.length) return null;
+  if (!picked.length) return { payload: null, diagnostics: selection.diagnostics };
 
   const byTier = new Map<Tier, IconLite[]>();
   for (const t of TIER_ORDER) byTier.set(t, []);
@@ -234,7 +369,8 @@ export function promptToArchitecture(
       nodes.push({
         kind: "icon",
         id,
-        label: guided && icon.id === "azure/identity/azure-active-directory" ? "Microsoft Entra ID" : icon.label,
+        label: icon.id === "azure/application/application-service" ? "Azure App Service"
+          : guided && icon.id === "azure/identity/azure-active-directory" ? "Microsoft Entra ID" : icon.label,
         iconId: icon.id,
         iconPath: icon.path,
         // parent-relative
@@ -297,5 +433,5 @@ export function promptToArchitecture(
     });
   }
 
-  return { nodes, edges };
+  return { payload: { nodes, edges }, diagnostics: selection.diagnostics };
 }

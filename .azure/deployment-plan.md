@@ -1,9 +1,93 @@
 # Azure Deployment Plan
 
-> **Status:** Deployed
+> **Status:** Validated
 
 Generated: 2026-08-12
 Updated: 2026-09-20 (Asia/Kolkata)
+
+## Priority 5 - Canonical service and provider identification
+
+- **Baseline:** Deployed application `94e1abc`; verification/order documentation
+  `ebbb1cb`. The four user-reported fixes are complete.
+- **Scope:** Trace prompt scaffolding, provider-locked catalog resolution and
+  offline generation. Preserve service identity when labels change, avoid
+  duplicate/wrong App Service scaffolds and cross-cloud substitutions, and
+  explicitly report unmet/unsupported prompt requirements.
+- **Boundary:** Preserve the conversion/template identity fixes already shipped.
+  Do not include deferred Outline/collapse/mapping-editor/packet work or the
+  separate priority 6 compiler/naming backlog.
+- **Plan:** Finish parking competitor WIP after all agents pause; reproduce the
+  remaining identity defects; implement a shared deterministic identity contract;
+  add exact regression cases; validate/build/deploy through the existing
+  application-only pipeline and verify production.
+- **State:** Implementation in progress on the clean production baseline.
+  Deferred competitor WIP is isolated at
+  `c4b91a44d33066e9aceb011a086d57f445a95d0f`, pinned by
+  `refs/checkpoints/deferred-competitor-a7e748c4`. It is not part of this release.
+  No infrastructure, role or model configuration changes are planned.
+- **Verification:** Local proof recorded below. Continue using GPT-6 Astra and deterministic model
+  fixtures; no unverified model calls or customer IaC execution.
+
+### Priority 5 implementation
+
+- Reproduced wrong App Service feature/file picks, cross-cloud Key Vault
+  substitution, unknown AWS-to-Panorama fallback, and label-induced Azure
+  Function App generation from App Service or AWS Lambda nodes.
+- Extracted the shipped finite alias resolver into shared service identity.
+  Exact IDs and explicit providers are authoritative; no partial-token guesses.
+- Prompt scaffolding uses exact product IDs, one instance per canonical service,
+  separate product variants and explicit coverage/proposal diagnostics.
+- Both native and legacy Azure generators use a canonical resource-kind
+  allowlist, not editable labels or broad family regexes. Zero-mapping outputs
+  cannot expose a deployable download. Legacy AI rejects unresolved identity
+  atomically without replacing the current canvas or claiming success.
+- Targeted unit/contract run: 83 passed; prior PowerShell safety: 8 passed.
+  Full suite checkpoint: 222 passed. Six new browser journeys passed locally.
+  Strict types and lint passed after correcting a test-only union narrowing.
+- Both manual icon pickers now include and rank exact product aliases without
+  crossing their provider filter. Generic SQL without provider evidence remains
+  ambiguous; named resource variants do not collapse into base services.
+- Final dev identity browser suite: 7/7 passed. Final full contracts: 222/222,
+  lint and the standalone build passed. A 36-case affected-surface production
+  browser run is underway; hosted verification follows deployment.
+
+### Priority 5 - Section 7: Validation Proof
+
+- `npm run test:playground`: 222/222 passed, including ten new production-imported
+  identity contracts, all 303 non-Azure catalog entries, rename invariance across
+  formats, named variants, catalog gaps and atomic legacy refusal.
+- `npm run test:powershell-preview`: 8/8 passed with mocked Azure commands.
+- `npm run lint`, `npx tsc --noEmit --incremental false` and the final
+  `npm run build` passed. The standalone artifact responds with HTTP 200.
+- The first affected-surface run passed 35/36; conversion reload stalled.
+  Tracing found 3,085 eager cloud-icon SVG requests across the journey and
+  delayed IndexedDB completion. No model or stored-identity corruption occurred.
+- The modern picker now defers hidden catalog images, matching the legacy
+  picker's existing lazy-loading approach. The same conversion journey makes
+  four cloud-icon requests. Both reload repeats and both request-bound checks
+  passed without relaxing their timeouts.
+- Final standalone affected-surface suite: **37/37 passed** in 2.6 minutes,
+  covering eight identity/search/load cases, offline preview/deployment consent,
+  architecture editing/exports, round trips, all 16 templates and conversion.
+- UI appearance inspected on the final candidate. All AI/publication browser
+  responses remain fixtures; no real model invocation, customer IaC execution,
+  resource provisioning or role change.
+- Existing pipeline/owner permission remains applicable. Remote master is
+  `ebbb1cb7ce89b0072f2abc65bfaca4763c3f0a10`; no deployment workflow changes.
+- Deferred competitor changes remain isolated at checkpoint `c4b91a44`;
+  they are absent from this candidate. Priority 6 compiler/naming repair is
+  explicitly not represented as completed by identity correctness.
+
+#### Priority 5 - All validation checks pass
+
+- [x] Unit/contracts, preview safety, lint, strict types, standalone build.
+- [x] Full affected-surface browser gate 37/37.
+- [x] Existing application-only CI/CD target and owner-scoped permission.
+- [x] Static role review: no new identity or permissions; unchanged AI endpoints.
+- [x] Infrastructure What-If/Policy/Docker checks are not applicable to this
+  code-only standalone zip release.
+- [x] Complete azure-validate using actual recorded proof.
+- [ ] Deploy and verify the exact hosted release.
 
 ## Delivery order - latest user instruction
 
