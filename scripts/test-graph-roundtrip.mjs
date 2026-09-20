@@ -6,6 +6,7 @@ import ts from "typescript";
 import { z } from "zod";
 
 const cache = new Map();
+const browserStorage = new Map();
 function load(relative, parent = new URL("../components/playground/lib/", import.meta.url)) {
   const url = new URL(relative.endsWith(".ts") ? relative : `${relative}.ts`, parent);
   if (cache.has(url.href)) return cache.get(url.href);
@@ -16,6 +17,11 @@ function load(relative, parent = new URL("../components/playground/lib/", import
   }).outputText;
   vm.runInNewContext(compiled, {
     exports,
+    window: { localStorage: {
+      getItem: (key) => browserStorage.get(key) ?? null,
+      setItem: (key, value) => browserStorage.set(key, value),
+      removeItem: (key) => browserStorage.delete(key),
+    } },
     require: (name) => {
       if (name === "zod") return { z };
       if (name.startsWith(".")) return load(name, url);
@@ -28,6 +34,8 @@ const { validateImportedGraph } = load("validate");
 const { applyAutoSequence } = load("sequence");
 const { resolveTemplate } = load("template-engine");
 const { PLAYGROUND_LIMITS } = load("types");
+const { migrateGraph, migratePayload } = load("migrations");
+const { loadAutosave, saveAutosave } = load("storage");
 const group = (id, parentId) => ({ id, type: "group", position: { x: 0, y: 0 }, data: { label: id, variant: "custom" }, width: 600, height: 400, ...(parentId ? { parentId } : {}) });
 const note = (id, parentId) => ({ id, type: "sticky", position: { x: 30.5, y: 40.25 }, data: { label: id }, ...(parentId ? { parentId } : {}) });
 const validate = (graph) => validateImportedGraph(graph, [], { strictIcons: false });
@@ -123,4 +131,52 @@ test("every bundled template resolves to valid hierarchy and importable geometry
     const result = validate(graph);
     assert.equal(result.ok, true, `${file}: ${result.errors?.join("; ")}`);
   }
+});
+
+test("legacy imports retain shared requirements, environments and linked service metadata", () => {
+  const input = {
+    nodes: [{
+      id: "app", type: "service", position: { x: 10, y: 20 },
+      data: { label: "App", iconId: "azure/application/application-service", cloud: "azure", properties: { region: "westeurope", replicas: 3 }, semantics: { environmentId: "prod", evidenceIds: ["owner"] } },
+    }],
+    edges: [],
+    metadata: { environments: [{ id: "prod", name: "Production" }], evidence: [{ id: "owner", source: "user", summary: "Owner assertion" }] },
+  };
+  const result = validate(input);
+  assert.equal(result.ok, true, result.errors?.join("; "));
+  assert.deepEqual(JSON.parse(JSON.stringify(result.graph.metadata)), input.metadata);
+  assert.deepEqual(JSON.parse(JSON.stringify(result.graph.nodes[0].data.semantics)), input.nodes[0].data.semantics);
+  const bad = structuredClone(input);
+  bad.nodes[0].data.semantics.evidenceIds = ["missing"];
+  assert.equal(validate(bad).ok, false);
+});
+
+test("legacy storage migrations reject unsupported or fractional versions rather than silently returning them", () => {
+  for (const version of [0, -1, 1.5, 3, NaN]) {
+    assert.throws(() => migrateGraph({ nodes: [], edges: [] }, version), /Unsupported/);
+    assert.equal(migratePayload({ version, graph: { nodes: [], edges: [] } }), null);
+  }
+  assert.equal(migratePayload({ version: 1, graph: { nodes: [], edges: [] } }).version, 2);
+});
+
+test("an unsupported legacy autosave cannot be replaced by an older fallback or an autosave write", () => {
+  browserStorage.clear();
+  const future = JSON.stringify({ version: 99, graph: { nodes: [note("future")], edges: [] } });
+  const old = JSON.stringify({ version: 1, graph: { nodes: [note("old")], edges: [] } });
+  browserStorage.set("playground:autosave", future);
+  browserStorage.set("playground:autosave:v1", old);
+  assert.throws(() => loadAutosave(), /newer/);
+  const result = saveAutosave({ nodes: [], edges: [] });
+  assert.equal(result.ok, false);
+  assert.match(result.error, /not been overwritten/);
+  assert.equal(browserStorage.get("playground:autosave"), future);
+  assert.equal(browserStorage.get("playground:autosave:v1"), old);
+  browserStorage.delete("playground:autosave");
+  const restored = loadAutosave();
+  assert.equal(restored.nodes[0].id, "old");
+  assert.equal(browserStorage.has("playground:autosave"), false);
+  assert.equal(browserStorage.get("playground:autosave:v1"), old);
+  assert.equal(saveAutosave(restored).ok, true);
+  assert.equal(JSON.parse(browserStorage.get("playground:autosave")).version, 2);
+  browserStorage.clear();
 });

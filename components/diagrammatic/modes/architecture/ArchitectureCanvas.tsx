@@ -66,80 +66,11 @@ import {
 import type { CanvasTheme, IconLite } from "../../shared/types";
 import { MAX_PLAYBACK_STEP, parseArchitectureDocument } from "@/lib/architecture-document";
 import { absolutePosition, boundaryAtPoint, descendantIds, expandAncestors, GROUP_INSET, nodeSize, parentFirst, reparentNode } from "@/lib/architecture-hierarchy";
+import { ARCHITECTURE_MODEL_VERSION, architectureNodeSemanticsSchema, architectureEdgeSemanticsSchema, parseConnectionHandle, serviceNodeSemantics } from "@/lib/architecture-model";
+import type { ArchNode, ArchShape, ArchEdgeStyle, ArchPayload, ArchitectureMetadata, ArchitectureNodeSemantics, ArchitectureEdgeSemantics } from "@/lib/architecture-model";
+export type { ArchNode, ArchShape, ArchIconNode, ArchGroupNode, ArchShapeNode, ArchEdge, ArchEdgeStyle, ArchPayload } from "@/lib/architecture-model";
 
 // ─── Public types (preserved + extended for Phase 3) ──────────────────────
-
-export type ArchNode = ArchIconNode | ArchGroupNode | ArchShapeNode;
-
-export type ArchShape =
-  | "rectangle"
-  | "circle"
-  | "diamond"
-  | "database"
-  | "person"
-  | "document"
-  | "internet";
-
-export interface ArchIconNode {
-  kind?: "icon"; // optional for back-compat with pre-phase-3 payloads
-  id: string;
-  label: string;
-  iconId: string;
-  iconPath: string;
-  /** Absolute coords, OR — if `parentId` is set — coords relative to the parent group. */
-  x: number;
-  y: number;
-  width?: number;
-  height?: number;
-  parentId?: string;
-  subtitle?: string;
-}
-
-export interface ArchShapeNode {
-  kind: "shape";
-  id: string;
-  label: string;
-  shape: ArchShape;
-  x: number;
-  y: number;
-  width?: number;
-  height?: number;
-  parentId?: string;
-  subtitle?: string;
-}
-
-export interface ArchGroupNode {
-  kind: "group";
-  id: string;
-  label: string;
-  /** Parent-relative when nested; absolute otherwise. */
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  parentId?: string;
-  /** Optional named tier (Edge/Frontend/Gateway/Compute/Messaging/Data/Ops). */
-  tier?: string;
-}
-
-export type ArchEdgeStyle = "solid" | "dashed" | "flow";
-
-export interface ArchEdge {
-  id: string;
-  source: string;
-  target: string;
-  sourceHandle?: string | null;
-  targetHandle?: string | null;
-  label?: string;
-  style?: ArchEdgeStyle;
-  /** Explicit 1-based playback/GIF order. Lower steps animate first. */
-  step?: number;
-}
-
-export interface ArchPayload {
-  nodes: ArchNode[];
-  edges: ArchEdge[];
-}
 
 export interface ArchitectureCanvasHandle {
   dropIcon: (icon: IconLite, clientX: number, clientY: number) => void;
@@ -180,6 +111,11 @@ export interface ArchitectureSelection {
   parentOptions?: Array<{ id: string; label: string }>;
   style?: ArchEdgeStyle;
   step?: number;
+  semantics?: ArchitectureNodeSemantics;
+  relationship?: ArchitectureEdgeSemantics;
+  environmentOptions?: Array<{ id: string; name: string }>;
+  requirements?: ArchitectureMetadata["requirements"];
+  evidence?: ArchitectureMetadata["evidence"];
 }
 
 export interface ArchitectureSelectionPatch {
@@ -189,6 +125,8 @@ export interface ArchitectureSelectionPatch {
   step?: number;
   parentId?: string | null;
   tier?: string;
+  semantics?: ArchitectureNodeSemantics;
+  relationship?: ArchitectureEdgeSemantics;
 }
 
 interface Props {
@@ -227,6 +165,7 @@ interface IconNodeData {
   subtitle?: string;
   width?: number;
   height?: number;
+  semantics?: ArchitectureNodeSemantics;
 }
 
 function ConnectionHandles() {
@@ -294,6 +233,7 @@ interface ShapeNodeData {
   label: string;
   shape: ArchShape;
   subtitle?: string;
+  semantics?: ArchitectureNodeSemantics;
 }
 
 const SHAPE_ICONS = {
@@ -339,6 +279,7 @@ const ShapeNode = memo(ShapeNodeImpl);
 interface GroupNodeData {
   label: string;
   tier?: string;
+  semantics?: ArchitectureNodeSemantics;
   minWidth?: number;
   minHeight?: number;
 }
@@ -411,6 +352,7 @@ interface LabeledEdgeData {
   label?: string;
   /** Auto-assigned playback order index (1-based). Rendered as a chip. */
   step?: number;
+  semantics?: ArchitectureEdgeSemantics;
 }
 
 const LabeledEdgeImpl = ({
@@ -533,7 +475,7 @@ function edgePropsForStyle(style: ArchEdgeStyle): Partial<Edge> {
 
 // ─── Serialization ────────────────────────────────────────────────────────
 
-function archToFlow(payload: ArchPayload): { nodes: Node[]; edges: Edge[] } {
+function archToFlow(payload: ArchPayload): { nodes: Node[]; edges: Edge[]; metadata?: ArchitectureMetadata } {
   payload = parseArchitectureDocument(payload);
   const groupIds = new Set(
     (payload.nodes ?? []).filter((n) => n.kind === "group").map((n) => n.id)
@@ -545,7 +487,7 @@ function archToFlow(payload: ArchPayload): { nodes: Node[]; edges: Edge[] } {
         id: n.id,
         type: "group",
         position: { x: n.x, y: n.y },
-        data: { label: n.label, tier: n.tier },
+        data: { label: n.label, tier: n.tier, semantics: n.semantics },
         style: { width: n.width, height: n.height, padding: 0, border: 0, background: "transparent" },
         zIndex: 0,
         selectable: true,
@@ -558,7 +500,7 @@ function archToFlow(payload: ArchPayload): { nodes: Node[]; edges: Edge[] } {
         id: n.id,
         type: "shape",
         position: { x: n.x, y: n.y },
-        data: { label: n.label, shape: n.shape, subtitle: n.subtitle },
+        data: { label: n.label, shape: n.shape, subtitle: n.subtitle, semantics: n.semantics },
         style: {
           width: n.width ?? 128,
           height: n.height ?? 104,
@@ -572,7 +514,7 @@ function archToFlow(payload: ArchPayload): { nodes: Node[]; edges: Edge[] } {
       id: n.id,
       type: "icon",
       position: { x: n.x, y: n.y },
-      data: { label: n.label, iconPath: n.iconPath, iconId: n.iconId, subtitle: n.subtitle, width: n.width, height: n.height },
+      data: { label: n.label, iconPath: n.iconPath, iconId: n.iconId, subtitle: n.subtitle, width: n.width, height: n.height, semantics: n.semantics },
       ...(n.width !== undefined || n.height !== undefined ? { style: { width: n.width, height: n.height } } : {}),
       zIndex: 2,
       ...(parentId ? { parentId } : {}),
@@ -586,9 +528,9 @@ function archToFlow(payload: ArchPayload): { nodes: Node[]; edges: Edge[] } {
     targetHandle: e.targetHandle,
     label: undefined,
     ...edgePropsForStyle(e.style ?? "flow"),
-    data: { archStyle: e.style ?? "flow", label: e.label, step: e.step },
+    data: { archStyle: e.style ?? "flow", label: e.label, step: e.step, semantics: e.semantics },
   }));
-  return { nodes, edges };
+  return { nodes, edges, metadata: payload.metadata };
 }
 
 function declaredDimension(node: Node, dimension: "width" | "height"): number | undefined {
@@ -596,8 +538,10 @@ function declaredDimension(node: Node, dimension: "width" | "height"): number | 
   return typeof value === "number" ? value : undefined;
 }
 
-function flowToArch(nodes: Node[], edges: Edge[]): ArchPayload {
+function flowToArch(nodes: Node[], edges: Edge[], metadata?: ArchitectureMetadata): ArchPayload {
   return {
+    schemaVersion: ARCHITECTURE_MODEL_VERSION,
+    ...(metadata ? { metadata: structuredClone(metadata) } : {}),
     nodes: nodes.map((n): ArchNode => {
       if (n.type === "group") {
         const d = n.data as unknown as GroupNodeData;
@@ -608,6 +552,7 @@ function flowToArch(nodes: Node[], edges: Edge[]): ArchPayload {
           id: n.id,
           label: d?.label ?? "",
           tier: d?.tier,
+          ...(d.semantics ? { semantics: structuredClone(d.semantics) } : {}),
           x: n.position.x,
           y: n.position.y,
           width: w,
@@ -623,6 +568,7 @@ function flowToArch(nodes: Node[], edges: Edge[]): ArchPayload {
           label: d?.label ?? "",
           shape: d?.shape ?? "rectangle",
           subtitle: d?.subtitle,
+          ...(d.semantics ? { semantics: structuredClone(d.semantics) } : {}),
           x: n.position.x,
           y: n.position.y,
           width: declaredDimension(n, "width") ?? n.measured?.width,
@@ -638,6 +584,7 @@ function flowToArch(nodes: Node[], edges: Edge[]): ArchPayload {
         iconId: d?.iconId ?? "",
         iconPath: d?.iconPath ?? "",
         subtitle: d?.subtitle,
+        semantics: structuredClone(serviceNodeSemantics(d?.iconId ?? "", d.semantics)),
         x: n.position.x,
         y: n.position.y,
         ...(declaredDimension(n, "width") !== undefined ? { width: declaredDimension(n, "width") } : {}),
@@ -651,11 +598,12 @@ function flowToArch(nodes: Node[], edges: Edge[]): ArchPayload {
         id: e.id,
         source: e.source,
         target: e.target,
-        ...(e.sourceHandle !== undefined ? { sourceHandle: e.sourceHandle } : {}),
-        ...(e.targetHandle !== undefined ? { targetHandle: e.targetHandle } : {}),
+        ...(e.sourceHandle !== undefined ? { sourceHandle: parseConnectionHandle(e.sourceHandle) } : {}),
+        ...(e.targetHandle !== undefined ? { targetHandle: parseConnectionHandle(e.targetHandle) } : {}),
         label: d.label,
         style: d.archStyle ?? "flow",
         step: d.step,
+        ...(d.semantics ? { semantics: structuredClone(d.semantics) } : {}),
       };
     }),
   };
@@ -783,6 +731,7 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
 ) {
   const [nodes, setNodes] = useState<Node[]>(() => archToFlow(value).nodes);
   const [edges, setEdges] = useState<Edge[]>(() => archToFlow(value).edges);
+  const [metadata, setMetadata] = useState<ArchitectureMetadata | undefined>(() => archToFlow(value).metadata);
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
   useEffect(() => {
     onReadyChange?.(rfInstance !== null);
@@ -791,8 +740,8 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const defaultEdgeStyle = useRef<ArchEdgeStyle>("flow");
 
-  const past = useRef<Array<{ nodes: Node[]; edges: Edge[]; edgeStyle: ArchEdgeStyle }>>([]);
-  const future = useRef<Array<{ nodes: Node[]; edges: Edge[]; edgeStyle: ArchEdgeStyle }>>([]);
+  const past = useRef<Array<{ nodes: Node[]; edges: Edge[]; edgeStyle: ArchEdgeStyle; metadata?: ArchitectureMetadata }>>([]);
+  const future = useRef<Array<{ nodes: Node[]; edges: Edge[]; edgeStyle: ArchEdgeStyle; metadata?: ArchitectureMetadata }>>([]);
   const dragging = useRef(false);
   const resizing = useRef(false);
   const resizingNodeIds = useRef(new Set<string>());
@@ -816,23 +765,23 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
   const snapshot = useCallback(() => {
     const previous = past.current.at(-1);
     // React Flow can report node and edge removal in the same batched action.
-    if (previous?.nodes !== nodes || previous.edges !== edges || previous.edgeStyle !== defaultEdgeStyle.current) {
-      past.current.push({ nodes, edges, edgeStyle: defaultEdgeStyle.current });
+    if (previous?.nodes !== nodes || previous.edges !== edges || previous.metadata !== metadata || previous.edgeStyle !== defaultEdgeStyle.current) {
+      past.current.push({ nodes, edges, metadata, edgeStyle: defaultEdgeStyle.current });
     }
     if (past.current.length > 100) past.current.shift();
     future.current = [];
-  }, [nodes, edges]);
+  }, [nodes, edges, metadata]);
 
   const notifyRef = useRef<number | null>(null);
   useEffect(() => {
     if (notifyRef.current) cancelAnimationFrame(notifyRef.current);
     notifyRef.current = requestAnimationFrame(() => {
-      onChange?.(flowToArch(nodes, edges));
+      onChange?.(flowToArch(nodes, edges, metadata));
     });
     return () => {
       if (notifyRef.current) cancelAnimationFrame(notifyRef.current);
     };
-  }, [nodes, edges, onChange]);
+  }, [nodes, edges, metadata, onChange]);
 
   const lastHydrateKey = useRef<string>("");
   useEffect(() => {
@@ -845,6 +794,7 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
       requestAnimationFrame(() => {
         setNodes(flow.nodes);
         setEdges(flow.edges);
+        setMetadata(flow.metadata);
         requestAnimationFrame(() => rfInstance?.fitView({ padding: 0.2, duration: 400 }));
       });
     }
@@ -949,16 +899,23 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
 
   const describeNode = useCallback((node: Node): ArchitectureSelection => {
     const excluded = descendantIds(nodes, [node.id]);
+    const declared = architectureNodeSemanticsSchema.parse(node.data.semantics ?? {});
+    const semantics = node.type === "icon" && typeof node.data.iconId === "string"
+      ? serviceNodeSemantics(node.data.iconId, declared) ?? declared : declared;
     return {
       kind: "node", id: node.id, label: String(node.data.label ?? ""),
       nodeKind: node.type === "group" ? "group" : node.type === "shape" ? "shape" : "icon",
       subtitle: typeof node.data.subtitle === "string" ? node.data.subtitle : undefined,
       tier: typeof node.data.tier === "string" ? node.data.tier : undefined,
       parentId: node.parentId,
+      semantics,
+      environmentOptions: metadata?.environments,
+      requirements: metadata?.requirements?.filter((item) => semantics.requirementIds?.includes(item.id)),
+      evidence: metadata?.evidence?.filter((item) => semantics.evidenceIds?.includes(item.id)),
       parentOptions: nodes.filter((item) => item.type === "group" && !excluded.has(item.id))
         .map((item) => ({ id: item.id, label: `${item.data.label || "Boundary"} (${item.data.tier || "Custom"})` })),
     };
-  }, [nodes]);
+  }, [nodes, metadata]);
 
   const insertNode = useCallback((node: Node, parentId?: string) => {
     try {
@@ -1055,6 +1012,9 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
           label: d.label ?? "",
           style: d.archStyle ?? "flow",
           step: d.step,
+          relationship: d.semantics,
+          requirements: metadata?.requirements?.filter((item) => d.semantics?.requirementIds?.includes(item.id)),
+          evidence: metadata?.evidence?.filter((item) => d.semantics?.evidenceIds?.includes(item.id)),
         });
         return;
       }
@@ -1065,7 +1025,7 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
       }
       onSelectionChange?.(null);
     },
-    [onSelectionChange, describeNode]
+    [onSelectionChange, describeNode, metadata]
   );
 
   // Undo can change a parent/type without changing the selected node IDs.
@@ -1196,12 +1156,13 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
             zIndex: 0,
           }, selectedGroup?.id);
       },
-      serialize: () => flowToArch(nodes, edges),
+      serialize: () => flowToArch(nodes, edges, metadata),
       hydrate: (payload) => {
         const flow = archToFlow(payload);
         snapshot();
         setNodes(flow.nodes);
         setEdges(flow.edges);
+        setMetadata(flow.metadata);
         requestAnimationFrame(() => rfInstance?.fitView({ padding: 0.2, duration: 400 }));
       },
       fit: () => {
@@ -1226,7 +1187,7 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
       undo: () => {
         const prev = past.current.pop();
         if (!prev) return;
-        future.current.push({ nodes, edges, edgeStyle: defaultEdgeStyle.current });
+        future.current.push({ nodes, edges, metadata, edgeStyle: defaultEdgeStyle.current });
         defaultEdgeStyle.current = prev.edgeStyle;
         onEdgeStyleChange?.(prev.edgeStyle);
         dragging.current = false;
@@ -1235,11 +1196,12 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
         stopSequence();
         setNodes(prev.nodes);
         setEdges(prev.edges);
+        setMetadata(prev.metadata);
       },
       redo: () => {
         const next = future.current.pop();
         if (!next) return;
-        past.current.push({ nodes, edges, edgeStyle: defaultEdgeStyle.current });
+        past.current.push({ nodes, edges, metadata, edgeStyle: defaultEdgeStyle.current });
         defaultEdgeStyle.current = next.edgeStyle;
         onEdgeStyleChange?.(next.edgeStyle);
         dragging.current = false;
@@ -1248,6 +1210,7 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
         stopSequence();
         setNodes(next.nodes);
         setEdges(next.edges);
+        setMetadata(next.metadata);
       },
       setAllEdgeStyle: (style) => {
         if (defaultEdgeStyle.current === style && edges.every((edge) => ((edge.data as LabeledEdgeData | undefined)?.archStyle ?? "flow") === style)) return;
@@ -1273,6 +1236,23 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
         const node = nodes.find((candidate) => candidate.id === id);
         const edge = edges.find((candidate) => candidate.id === id);
         if (!node && !edge) return;
+        let nodeSemantics: ArchitectureNodeSemantics | undefined;
+        let edgeSemantics: ArchitectureEdgeSemantics | undefined;
+        try {
+          if (node && patch.semantics !== undefined) {
+            nodeSemantics = architectureNodeSemanticsSchema.parse(patch.semantics);
+            const candidate = flowToArch(nodes, edges, metadata);
+            parseArchitectureDocument({ ...candidate, nodes: candidate.nodes.map((item) => item.id === id ? { ...item, semantics: nodeSemantics } : item) });
+          }
+          if (edge && patch.relationship !== undefined) {
+            edgeSemantics = architectureEdgeSemanticsSchema.parse(patch.relationship);
+            const candidate = flowToArch(nodes, edges, metadata);
+            parseArchitectureDocument({ ...candidate, edges: candidate.edges.map((item) => item.id === id ? { ...item, semantics: edgeSemantics } : item) });
+          }
+        } catch (cause) {
+          reportError(cause instanceof Error ? cause.message : "Invalid architecture context.");
+          return;
+        }
         if (patch.step !== undefined && (!Number.isInteger(patch.step) || patch.step < 1 || patch.step > MAX_PLAYBACK_STEP)) {
           reportError(`Playback order must be a whole number from 1 to ${MAX_PLAYBACK_STEP}.`);
           return;
@@ -1297,6 +1277,7 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
                       ...(patch.label !== undefined ? { label: patch.label } : {}),
                       ...(patch.subtitle !== undefined ? { subtitle: patch.subtitle } : {}),
                       ...(patch.tier !== undefined && node.type === "group" ? { tier: patch.tier } : {}),
+                      ...(nodeSemantics !== undefined ? { semantics: nodeSemantics } : {}),
                     },
                   }
                 : candidate
@@ -1318,6 +1299,7 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
                       ...(candidate.data as object),
                       ...(patch.label !== undefined ? { label: patch.label } : {}),
                       ...(patch.step !== undefined ? { step: patch.step } : {}),
+                      ...(edgeSemantics !== undefined ? { semantics: edgeSemantics } : {}),
                       archStyle: nextStyle,
                     },
                   }
@@ -1383,6 +1365,7 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
     [
       nodes,
       edges,
+      metadata,
       rfInstance,
       screenToFlowPosition,
       getFlowNodesBounds,

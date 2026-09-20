@@ -4,6 +4,7 @@ import manifest from "../content/cloud-icons.json";
 import type { ArchPayload } from "../components/diagrammatic/modes/architecture/ArchitectureCanvas";
 import type { PlaygroundGraph } from "../components/playground/lib/types";
 import { readSavedDiagram } from "./read-saved-diagram";
+import { parseArchitectureDocument } from "../lib/architecture-document";
 
 test.describe.configure({ timeout: 90_000 });
 test.use({ viewport: { width: 1440, height: 1000 } });
@@ -11,9 +12,9 @@ const icon = manifest.icons[0];
 const group = { id: "tier", kind: "group" as const, label: "Compute boundary", tier: "Compute", x: 100.25, y: 100.5, width: 500.5, height: 380.25 };
 const service = { id: "service", kind: "icon" as const, label: "API \u2192 workload", subtitle: "Customer-owned", iconId: icon.id, iconPath: icon.path, x: 40.25, y: 60.5, width: 180.5, height: 140.25, parentId: "tier" };
 const shape = { id: "data", kind: "shape" as const, shape: "database" as const, label: "Data", subtitle: "Retain geometry", x: 750.25, y: 200.5, width: 200.5, height: 130.25 };
-const edge = { id: "request", source: "service", target: "data", sourceHandle: "bottom", targetHandle: "right", label: "TLS \u2192 v2", style: "dashed" as const, step: 137 };
+const edge = { id: "request", source: "service", target: "data", sourceHandle: "bottom" as const, targetHandle: "right" as const, label: "TLS \u2192 v2", style: "dashed" as const, step: 137 };
 const fixture: ArchPayload = { nodes: [service, group, shape], edges: [edge] };
-const normalized: ArchPayload = { nodes: [group, service, shape], edges: [edge] };
+const normalized = parseArchitectureDocument({ nodes: [group, service, shape], edges: [edge] });
 
 async function importGraph(page: Page, graph: unknown, replace = false) {
   if (replace) page.once("dialog", (dialog) => dialog.accept());

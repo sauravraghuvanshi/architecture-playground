@@ -17,6 +17,7 @@ import type { IconManifestEntry, PlaygroundGraph } from "./types";
 import { normalizeGraph } from "./migrations";
 import { PLAYGROUND_LIMITS } from "./types";
 import { hierarchyErrors, parentFirst } from "./hierarchy";
+import { architectureMetadataSchema, architectureNodeSemanticsSchema, architectureEdgeSemanticsSchema, legacyNodeSemantics, validateArchitectureReferences } from "../../../lib/architecture-model";
 
 const MAX_NODES = PLAYGROUND_LIMITS.nodes;
 const MAX_EDGES = PLAYGROUND_LIMITS.edges;
@@ -54,6 +55,7 @@ const serviceDataSchema = z.object({
   layerId: z.string().max(64).optional(),
   tags: z.array(z.string().max(50)).max(20).optional(),
   properties: servicePropertiesSchema,
+  semantics: architectureNodeSemanticsSchema.optional(),
 });
 
 const groupDataSchema = z.object({
@@ -62,12 +64,14 @@ const groupDataSchema = z.object({
   color: hexColor,
   description: z.string().max(500).optional(),
   layerId: z.string().max(64).optional(),
+  semantics: architectureNodeSemanticsSchema.optional(),
 });
 
 const stickyDataSchema = z.object({
   label: labelSchema,
   color: hexColor,
   layerId: z.string().max(64).optional(),
+  semantics: architectureNodeSemanticsSchema.optional(),
 });
 
 const nodeSchema = z.discriminatedUnion("type", [
@@ -120,6 +124,7 @@ const edgeSchema = z.object({
       lineStyle: z.enum(["solid", "dashed", "dotted"]).optional(),
       arrowStyle: z.enum(["none", "forward", "backward", "bidirectional"]).optional(),
       description: z.string().max(500).optional(),
+      semantics: architectureEdgeSemanticsSchema.optional(),
     })
     .optional(),
 });
@@ -133,15 +138,6 @@ const layerSchema = z.object({
   order: z.number().int(),
 });
 
-const metadataSchema = z.object({
-  name: z.string().max(200).optional(),
-  description: z.string().max(2000).optional(),
-  author: z.string().max(100).optional(),
-  tags: z.array(z.string().max(50)).max(20).optional(),
-  createdAt: z.string().optional(),
-  updatedAt: z.string().optional(),
-});
-
 export const graphSchema = z.object({
   nodes: z.array(nodeSchema).max(MAX_NODES),
   edges: z.array(edgeSchema).max(MAX_EDGES),
@@ -149,7 +145,7 @@ export const graphSchema = z.object({
     .object({ x: finite, y: finite, zoom: z.number().positive().max(10) })
     .optional(),
   layers: z.array(layerSchema).max(50).optional(),
-  metadata: metadataSchema.optional(),
+  metadata: architectureMetadataSchema.optional(),
 });
 
 export interface ValidationResult {
@@ -177,6 +173,19 @@ export function validateImportedGraph(
   }
 
   const knownIcons = new Set(manifest.map((i) => i.id));
+  try {
+    validateArchitectureReferences({
+      metadata: parsed.data.metadata,
+      nodes: parsed.data.nodes.map((node) => ({
+        id: node.id,
+        iconId: node.type === "service" ? node.data.iconId : undefined,
+        semantics: legacyNodeSemantics(node.data),
+      })),
+      edges: parsed.data.edges.map((edge) => ({ id: edge.id, semantics: edge.data?.semantics })),
+    });
+  } catch (cause) {
+    return { ok: false, errors: [cause instanceof Error ? cause.message : "Invalid architecture metadata."] };
+  }
   const seenNodeIds = new Set<string>();
   const cleanNodes: PlaygroundGraph["nodes"] = [];
   const errors: string[] = [];

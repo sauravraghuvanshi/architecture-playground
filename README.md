@@ -540,6 +540,13 @@ and [PowerShell What-If result cmdlet](https://learn.microsoft.com/powershell/mo
 
 ## Offline infrastructure drafts
 
+Architecture JSON uses a [shared versioned model](docs/architecture-model.md).
+It retains declared region/SKU/environment, relationships, requirements,
+evidence and original design intent across canvas editing, history, save/reload,
+conversion and AI handoff. The Inspector exposes this context without treating
+it as verified deployed configuration. Older unversioned diagrams migrate on
+read; future versions and dangling semantic references are rejected safely.
+
 Both editors share the same deterministic Azure mappings, naming allocation and
 resource prerequisites. Naming version 2 uses a bounded label prefix plus a hash
 of the stable diagram node ID, with collision checks. Duplicate labels, leading

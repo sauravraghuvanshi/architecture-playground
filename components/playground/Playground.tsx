@@ -35,7 +35,7 @@ import { validateImportedGraph } from "./lib/validate";
 import type { IconManifestEntry, PlaygroundGraph, PlaygroundTemplate, Layer, DiagramMetadata } from "./lib/types";
 import { DEFAULT_LAYER } from "./lib/types";
 import { createServiceRegistry } from "./lib/service-registry";
-import { normalizeGraph } from "./lib/migrations";
+import { normalizeGraph, migratePayload } from "./lib/migrations";
 import { resolveGraphIcons } from "./lib/resolve-icons";
 
 interface Props {
@@ -144,12 +144,25 @@ function PlaygroundShell({ icons, templates }: Props) {
   const rfRef = useRef<ReactFlowInstance | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const [restored, setRestored] = useState(false);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+  const reportAutosaveError = useCallback((message: string) => {
+    setRestoreError(message);
+    setRestored(false);
+  }, []);
 
   const persistedGraph = useMemo(() => flowToGraph(nodes, edges, graphExtras), [nodes, edges, graphExtras]);
-  useAutosave(persistedGraph, restored);
+  useAutosave(persistedGraph, restored, reportAutosaveError);
 
   // Restore autosave OR template handoff (from /templates gallery) on mount.
   useEffect(() => {
+    let saved: PlaygroundGraph | null = null;
+    let autosaveSafe = true;
+    try {
+      saved = restoreAutosave();
+    } catch (cause) {
+      autosaveSafe = false;
+      reportAutosaveError(cause instanceof Error ? cause.message : "The saved diagram could not be read."); // eslint-disable-line react-hooks/set-state-in-effect -- one-time browser-storage hydration result
+    }
     // Template gallery handoff takes precedence over autosave.
     let usedHandoff = false;
     try {
@@ -160,7 +173,7 @@ function PlaygroundShell({ icons, templates }: Props) {
         if (parsed.graph && Array.isArray(parsed.graph.nodes)) {
           const normalized = normalizeGraph(parsed.graph);
           const flow = graphToFlow(normalized, iconsById);
-          setFlow(flow); // eslint-disable-line react-hooks/set-state-in-effect -- one-time hydration
+          setFlow(flow);
           setGraphExtras({ layers: normalized.layers, metadata: normalized.metadata });
           dispatchHistory({ type: "reset", snapshot: snapshotGraph(normalized) });
           ui.announce(`Loaded template ${parsed.name ?? parsed.id ?? ""}`.trim());
@@ -173,17 +186,21 @@ function PlaygroundShell({ icons, templates }: Props) {
     }
 
     if (!usedHandoff) {
-      const saved = restoreAutosave();
-      if (saved && (saved.nodes.length > 0 || saved.edges.length > 0)) {
-        const normalized = normalizeGraph(saved);
-        const flow = graphToFlow(normalized, iconsById);
-        setFlow(flow);
-        setGraphExtras({ layers: normalized.layers, metadata: normalized.metadata });
-        dispatchHistory({ type: "reset", snapshot: snapshotGraph(normalized) });
-        ui.announce("Restored autosaved diagram.");
+      if (saved) {
+        try {
+          const normalized = normalizeGraph(saved);
+          const flow = graphToFlow(normalized, iconsById);
+          setFlow(flow);
+          setGraphExtras({ layers: normalized.layers, metadata: normalized.metadata });
+          dispatchHistory({ type: "reset", snapshot: snapshotGraph(normalized) });
+          ui.announce("Restored autosaved diagram.");
+        } catch (cause) {
+          autosaveSafe = false;
+          reportAutosaveError(cause instanceof Error ? cause.message : "The saved diagram could not be restored.");
+        }
       }
     }
-    setRestored(true);
+    setRestored(autosaveSafe);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -267,9 +284,14 @@ function PlaygroundShell({ icons, templates }: Props) {
       }
       const raw = await readJsonFile(file);
       // Accept either a bare graph or our { version, graph } export wrapper.
-      const candidate = (raw && typeof raw === "object" && "graph" in (raw as object))
-        ? (raw as { graph: unknown }).graph
-        : raw;
+      let candidate: unknown = raw;
+      if (raw && typeof raw === "object" && "graph" in raw) {
+        if ("version" in raw) {
+          const migrated = migratePayload(raw);
+          if (!migrated) throw new Error("Unsupported or invalid diagram version. The current canvas has not changed.");
+          candidate = migrated.graph;
+        } else candidate = raw.graph;
+      }
       const result = validateImportedGraph(candidate, icons);
       if (!result.ok || !result.graph) {
         alert("Import failed:\n" + (result.errors ?? ["unknown error"]).slice(0, 5).join("\n"));
@@ -612,6 +634,9 @@ function PlaygroundShell({ icons, templates }: Props) {
         onFitView={handleFitView}
         onToggleShortcuts={() => setShortcutsOpen((v) => !v)}
       />
+      {restoreError && <div role="alert" className="border-b border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+        Autosave paused: {restoreError} Original browser data is preserved. Export any new work as JSON before leaving; use a compatible version to recover the saved diagram.
+      </div>}
       <div className="flex min-h-0 flex-1">
         <Palette icons={icons} />
         <div className="flex min-w-0 flex-1 flex-col">

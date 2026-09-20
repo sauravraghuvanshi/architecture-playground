@@ -6,6 +6,7 @@ import ts from "typescript";
 import * as flow from "@xyflow/react";
 import { MAX_PLAYBACK_STEP, parseArchitectureDocument } from "../lib/architecture-document.ts";
 import * as hierarchy from "../lib/architecture-hierarchy.ts";
+import * as architectureModel from "../lib/architecture-model.ts";
 
 const source = readFileSync(new URL("../components/diagrammatic/modes/architecture/ArchitectureCanvas.tsx", import.meta.url), "utf8");
 const compiled = ts.transpileModule(source, {
@@ -53,11 +54,12 @@ function harness(initialPayload = payload) {
     "@xyflow/react": { ...flow, ReactFlow: "ReactFlow", useReactFlow: () => instance },
     "@/lib/architecture-document": { MAX_PLAYBACK_STEP, parseArchitectureDocument },
     "@/lib/architecture-hierarchy": hierarchy,
+    "@/lib/architecture-model": architectureModel,
     "lucide-react": Object.fromEntries(["Box", "Circle", "Database", "Diamond", "FileText", "Globe2", "Square", "UserRound"].map((name) => [name, name])),
   };
   const exports = {};
   vm.runInNewContext(`${compiled}\nexports.CanvasUnderTest = CanvasInner;`, {
-    exports, window: { innerWidth: 1440, innerHeight: 1000 },
+    exports, Error, structuredClone, window: { innerWidth: 1440, innerHeight: 1000 },
     requestAnimationFrame: () => 0, cancelAnimationFrame: () => {}, setTimeout, clearTimeout,
     require: (name) => {
       if (!(name in dependencies)) throw new Error(`Unexpected canvas dependency: ${name}`);
@@ -179,7 +181,51 @@ test("explicit icon and shape geometry survives measured rounding without changi
     { id: "icon", type: "dimensions", dimensions: { width: 181, height: 140 } },
     { id: "shape", type: "dimensions", dimensions: { width: 201, height: 130 } },
   ]);
-  assert.deepEqual(JSON.parse(JSON.stringify(h.handle.serialize())), input);
+  assert.deepEqual(JSON.parse(JSON.stringify(h.handle.serialize())), parseArchitectureDocument(input));
+});
+
+test("semantic configuration, relationships and root context survive editing and history", () => {
+  const input = {
+    ...structuredClone(payload),
+    metadata: {
+      name: "Context", environments: [{ id: "prod", name: "Production" }],
+      requirements: [{ id: "r", category: "reliability", statement: "Recovery objective" }],
+      evidence: [{ id: "proof", source: "user", summary: "Owner statement" }],
+    },
+  };
+  input.nodes[1].semantics = { region: "westeurope", environmentId: "prod", requirementIds: ["r"], evidenceIds: ["proof"] };
+  input.edges[0].semantics = { connectionType: "dependency", protocol: "HTTPS", evidenceIds: ["proof"] };
+  const h = harness(input);
+  h.handle.updateElement("api", { semantics: { ...input.nodes[1].semantics, sku: "P1v3" } }); h.render();
+  assert.equal(h.handle.serialize().nodes[1].semantics.sku, "P1v3");
+  h.handle.undo(); h.render();
+  assert.deepEqual(h.handle.serialize().nodes[1].semantics, input.nodes[1].semantics);
+  h.handle.redo(); h.render();
+  h.handle.setAllEdgeStyle("dashed"); h.render();
+  assert.deepEqual(h.handle.serialize().edges[0].semantics, input.edges[0].semantics);
+  assert.deepEqual(h.handle.serialize().metadata, input.metadata);
+  const exported = h.handle.serialize();
+  exported.metadata.name = "Mutated outside";
+  exported.nodes[1].semantics.region = "Mutated outside";
+  assert.equal(h.handle.serialize().metadata.name, "Context");
+  assert.equal(h.handle.serialize().nodes[1].semantics.region, "westeurope");
+});
+
+test("same-size hydration restores metadata together with diagram history and rejects invalid context atomically", () => {
+  const h = harness({ ...payload, metadata: { name: "Original" } });
+  const next = { ...structuredClone(payload), metadata: { name: "Imported" } };
+  next.nodes[1].semantics = { region: "eastus" };
+  h.handle.hydrate(next); h.render();
+  assert.equal(h.handle.serialize().metadata.name, "Imported");
+  h.handle.undo(); h.render();
+  assert.equal(h.handle.serialize().metadata.name, "Original");
+  h.handle.redo(); h.render();
+  const before = JSON.stringify(h.handle.serialize());
+  h.handle.updateElement("api", { semantics: { environmentId: "missing" } }); h.render();
+  assert.match(h.errors.at(-1), /missing environment/);
+  assert.equal(JSON.stringify(h.handle.serialize()), before);
+  assert.throws(() => h.handle.hydrate({ ...next, schemaVersion: 99 }));
+  assert.equal(JSON.stringify(h.handle.serialize()), before);
 });
 
 test("parents are hydrated before children without changing parent-relative coordinates", () => {

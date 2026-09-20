@@ -20,6 +20,7 @@ const bounded = await import("../lib/request-json.ts");
 const limiter = await import("../lib/ai-rate-limit.ts");
 const { parentFirst } = await import("../lib/architecture-hierarchy.ts");
 const { parseArchitectureDocument } = await import("../lib/architecture-document.ts");
+const architectureModel = await import("../lib/architecture-model.ts");
 const manifest = JSON.parse(readFileSync(new URL("../content/cloud-icons.json", import.meta.url), "utf8"));
 const icon = manifest.icons[0];
 const appService = manifest.icons.find((icon) => icon.id === "azure/application/application-service");
@@ -42,7 +43,9 @@ test("conversion maps exact server catalog icons and preserves diagram evidence"
   assert.equal(result.payload.nodes[1].parentId, "g");
   assert.equal(result.payload.nodes[1].x, 10);
   assert.equal(result.payload.nodes[2].subtitle, "Visible note");
-  assert.deepEqual(result.payload.edges[0], { id: "ab", source: "a", target: "b", label: "TLS", style: "dashed", step: 2 });
+  assert.deepEqual(result.payload.edges[0], { id: "ab", source: "a", target: "b", label: "TLS", style: "dashed", step: 2, semantics: { evidenceIds: ["whiteboard-edge-0"] } });
+  assert.equal(result.payload.metadata.evidence.find((entry) => entry.id === "whiteboard-edge-0").summary, diagram.edges[0].evidence);
+  assert.ok(result.payload.metadata.evidence.every((entry) => entry.source === "whiteboard-model"));
   assert.equal(result.warnings.length, 1);
   assert.deepEqual(conversion.parseWhiteboardConversionResponse(result, manifest.icons), result);
 });
@@ -175,7 +178,7 @@ function loadStudioAdapter() {
   const compiled = ts.transpileModule(`${parts.map((part) => part.getText(ast)).join("\n")}\nexports.adapt = playgroundGraphToArchPayload;`, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
-  const context = { exports: {}, resolveConversionIcon: conversion.resolveConversionIcon, parentFirst };
+  const context = { exports: {}, resolveConversionIcon: conversion.resolveConversionIcon, parentFirst, parseArchitectureDocument, ...architectureModel };
   vm.runInNewContext(compiled, context);
   return context.exports.adapt;
 }

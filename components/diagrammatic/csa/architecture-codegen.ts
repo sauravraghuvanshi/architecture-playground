@@ -1,21 +1,13 @@
 import { azureResourceKind, type AzureResourceKind } from "../../../lib/service-identity.ts";
 import { emitTerraformDraft } from "./terraform-emitter.ts";
 import { emitAzureCliDraft } from "./azure-cli-emitter.ts";
+import type { ArchitectureCodeInput } from "../../../lib/architecture-model.ts";
+import { ARCHITECTURE_MODEL_VERSION } from "../../../lib/architecture-model.ts";
 
 export type ArchitectureCodeFormat = "bicep" | "terraform" | "azure-cli" | "powershell";
 
-interface ArchitectureNode {
-  id: string;
-  kind?: "icon" | "group" | "shape";
-  label: string;
-  iconId?: string;
-  cloud?: string;
-}
-
-interface ArchitecturePayload {
-  nodes: ArchitectureNode[];
-  edges: Array<{ id: string; source: string; target: string; label?: string }>;
-}
+type ArchitecturePayload = ArchitectureCodeInput;
+type ArchitectureNode = ArchitectureCodeInput["nodes"][number];
 
 type ResourceKind = AzureResourceKind;
 
@@ -67,7 +59,8 @@ function allocateName(node: ArchitectureNode, used: Set<string>): string {
 }
 
 function detectKind(node: ArchitectureNode): ResourceKind | null {
-  return node.iconId ? azureResourceKind(node.iconId, node.cloud) ?? null : null;
+  if (node.cloud && node.semantics?.provider && node.cloud !== node.semantics.provider) throw new Error(`Service "${node.id}" has conflicting providers.`);
+  return node.iconId ? azureResourceKind(node.iconId, node.semantics?.provider ?? node.cloud) ?? null : null;
 }
 
 function detectResources(payload: ArchitecturePayload): {
@@ -75,6 +68,9 @@ function detectResources(payload: ArchitecturePayload): {
   warnings: string[];
   totalServiceNodes: number;
 } {
+  if (payload.schemaVersion !== undefined && payload.schemaVersion !== ARCHITECTURE_MODEL_VERSION) {
+    throw new Error("Unsupported architecture model version. No code was generated.");
+  }
   const serviceNodes = payload.nodes.filter(
     (node) => node.kind !== "group" && node.kind !== "shape" && node.iconId
   );
@@ -114,6 +110,9 @@ function detectResources(payload: ArchitecturePayload): {
   if (resources.some((resource) => resource.kind === "functions")) {
     warnings.push("Function drafts use Node 22 on a Dedicated plan with separate keyless host storage and a scoped managed identity. Host storage has authenticated public endpoints; configure private connectivity explicitly if required. Additional trigger/binding permissions are not inferred, and function code is not deployed.");
   }
+  const configured = serviceNodes.filter(({ semantics }) => semantics && (semantics.region || semantics.sku || semantics.environmentId || Object.keys(semantics.properties ?? {}).length));
+  if (configured.length) warnings.push(`${configured.length} service nodes contain declared region/SKU/environment/properties. This offline starter does not implement those per-service settings; retain the architecture JSON, reconcile them with the generated defaults, and do not treat this export as satisfying that configuration.`);
+  if (payload.metadata?.requirements?.length || payload.metadata?.evidence?.length) warnings.push("Architecture requirements and evidence are preserved in the source document, but this offline generator does not evaluate or satisfy them. Review the versioned architecture JSON alongside this draft.");
   return { resources, warnings, totalServiceNodes: serviceNodes.length };
 }
 

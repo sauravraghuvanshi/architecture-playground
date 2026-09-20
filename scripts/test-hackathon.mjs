@@ -33,7 +33,7 @@ test("base64 exports preserve every binary byte and malformed data URLs fail", a
 });
 
 test("architecture JSON round-trip preserves grouping, shapes, protocols, styles and stages", () => {
-  assert.deepEqual(parseArchitectureDocument(JSON.parse(JSON.stringify(graph))), graph);
+  assert.deepEqual(parseArchitectureDocument(JSON.parse(JSON.stringify(graph))), { ...graph, schemaVersion: 1 });
 });
 
 test("architecture import rejects dangling edges, duplicate IDs, invalid positions and remote icons", () => {
@@ -51,7 +51,7 @@ test("native JSON preserves all connection sides, null defaults and explicit geo
         nodes: graph.nodes.map((node) => ({ ...node, width: 240.5, height: 160.25 })),
         edges: [{ ...graph.edges[0], sourceHandle, targetHandle, step: 100_000 }],
       };
-      assert.deepEqual(parseArchitectureDocument(JSON.parse(JSON.stringify(input))), input);
+      assert.deepEqual(parseArchitectureDocument(JSON.parse(JSON.stringify(input))), { ...input, schemaVersion: 1 });
     }
   }
 });

@@ -453,7 +453,7 @@ test("deployment route validates requests, forwards evidence/cancellation and ne
   const result = await response.json();
   assert.equal(result.source, "foundry-agent");
   assert.equal(route.calls[0][0], "deployment");
-  assert.deepEqual(JSON.parse(route.calls[0][2]).diagram, payload);
+  assert.deepEqual(JSON.parse(route.calls[0][2]).diagram, document.parseArchitectureDocument(payload));
   assert.equal(JSON.parse(route.calls[0][2]).context, "EU only");
   controller.abort();
   assert.equal(route.calls[0][3].aborted, true);

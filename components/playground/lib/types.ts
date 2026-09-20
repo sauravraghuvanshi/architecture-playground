@@ -1,11 +1,12 @@
 // Shared types for the Architecture Playground.
 // Server (page.tsx) and client (Playground/Canvas) both import from here.
+import type { ArchitectureProvider, ArchitectureMetadata, ArchitectureNodeSemantics, ArchitectureEdgeSemantics } from "../../../lib/architecture-model";
 
 // ---------------------------------------------------------------------------
 // Cloud provider identifiers
 // ---------------------------------------------------------------------------
 
-export type CloudId = "azure" | "aws" | "gcp";
+export type CloudId = ArchitectureProvider;
 
 export const PLAYGROUND_LIMITS = { nodes: 200, edges: 500, sequenceStep: 500 } as const;
 
@@ -38,12 +39,7 @@ export interface IconManifest {
 // Connection types — semantic meaning of an edge
 // ---------------------------------------------------------------------------
 
-export type ConnectionType =
-  | "data-flow"      // data moves between services (default)
-  | "network"        // network-level connectivity (VNet peering, Private Link)
-  | "dependency"     // one service depends on another (not a data path)
-  | "sequence"       // numbered request-flow step (participates in playback)
-  | "custom";        // user-defined
+export type ConnectionType = NonNullable<ArchitectureEdgeSemantics["connectionType"]>;
 
 /** Edge line rendering style. */
 export type LineStyle = "solid" | "dashed" | "dotted";
@@ -97,14 +93,7 @@ export interface ServiceDefinition {
 // Diagram metadata
 // ---------------------------------------------------------------------------
 
-export interface DiagramMetadata {
-  name?: string;
-  description?: string;
-  author?: string;
-  tags?: string[];
-  createdAt?: string;          // ISO 8601
-  updatedAt?: string;          // ISO 8601
-}
+export type DiagramMetadata = ArchitectureMetadata;
 
 // ---------------------------------------------------------------------------
 // Node types
@@ -125,7 +114,7 @@ export interface BasePosition {
  * Used by IaC emitters (Bicep/Terraform) and AI review.
  * Keys & values are intentionally loose (sku, tier, region, replicas, etc).
  */
-export type ServiceProperties = Record<string, string | number | boolean>;
+export type ServiceProperties = NonNullable<ArchitectureNodeSemantics["properties"]>;
 
 export interface ServiceNodeData {
   iconId: string;        // matches IconManifestEntry.id
@@ -135,6 +124,7 @@ export interface ServiceNodeData {
   layerId?: string;      // layer assignment; defaults to "default"
   tags?: string[];
   properties?: ServiceProperties;
+  semantics?: ArchitectureNodeSemantics;
 }
 
 export interface GroupNodeData {
@@ -143,12 +133,14 @@ export interface GroupNodeData {
   color?: string;        // hex string
   description?: string;
   layerId?: string;
+  semantics?: ArchitectureNodeSemantics;
 }
 
 export interface StickyNodeData {
   label: string;
   color?: string;
   layerId?: string;
+  semantics?: ArchitectureNodeSemantics;
 }
 
 export interface PlaygroundNode {
@@ -176,6 +168,7 @@ export interface PlaygroundEdgeData {
   lineStyle?: LineStyle;             // defaults to "solid"
   arrowStyle?: ArrowStyle;           // defaults to "forward"
   description?: string;
+  semantics?: ArchitectureEdgeSemantics;
 }
 
 export interface PlaygroundEdge {

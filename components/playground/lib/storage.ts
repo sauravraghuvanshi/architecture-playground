@@ -5,7 +5,7 @@
  *
  * v2: unified migration pipeline via lib/migrations.ts.  The storage key is
  * kept stable ("playground:autosave") so v1 payloads are discovered and
- * migrated in-place on first restore.
+ * migrated in memory on restore. Original legacy data is retained for recovery.
  */
 import type { PlaygroundGraph, StoredPayload } from "./types";
 import { CURRENT_SCHEMA_VERSION } from "./types";
@@ -63,22 +63,24 @@ function unpackPayload(raw: string | null): PlaygroundGraph | null {
 }
 
 // Autosave (single slot) — checks both current and legacy keys
-export function saveAutosave(graph: PlaygroundGraph): { ok: boolean; quota?: boolean } {
+export function saveAutosave(graph: PlaygroundGraph): { ok: boolean; quota?: boolean; error?: string } {
+  try {
+    loadAutosave();
+  } catch {
+    return { ok: false, error: "Existing autosave is unreadable or uses an unsupported version. It has not been overwritten." };
+  }
   return safeSet(AUTOSAVE_KEY, packPayload(graph));
 }
 
 export function loadAutosave(): PlaygroundGraph | null {
-  // Try current key first, then fall back to legacy v1 key.
-  let result = unpackPayload(safeGet(AUTOSAVE_KEY));
-  if (!result) {
-    result = unpackPayload(safeGet(LEGACY_AUTOSAVE_KEY));
-    if (result) {
-      // Re-save under the new key and clean up the legacy key.
-      saveAutosave(result);
-      try { window.localStorage.removeItem(LEGACY_AUTOSAVE_KEY); } catch { /* noop */ }
-    }
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(AUTOSAVE_KEY) ?? window.localStorage.getItem(LEGACY_AUTOSAVE_KEY);
+  if (raw === null) return null;
+  const result = migrate(JSON.parse(raw));
+  if (!result || !Array.isArray(result.graph?.nodes) || !Array.isArray(result.graph?.edges)) {
+    throw new Error("Saved diagram format is invalid or newer than this application.");
   }
-  return result;
+  return result.graph;
 }
 
 export function clearAutosave(): void {

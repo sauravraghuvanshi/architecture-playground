@@ -40,6 +40,7 @@ import { StatusBar } from "./shared/StatusBar";
 import { KeyboardHints } from "./shared/KeyboardHints";
 import { buildPromptArchitecture, type PromptDiagnostics } from "@/lib/prompt-to-arch";
 import { parseArchitectureDocument } from "@/lib/architecture-document";
+import { architectureMetadataSchema, architectureEdgeSemanticsSchema, legacyNodeSemantics, parseConnectionHandle } from "@/lib/architecture-model";
 import { parentFirst } from "@/lib/architecture-hierarchy";
 import { generatedArchitectureSchema } from "@/lib/ai-mode-prompts";
 import WhiteboardConvertModal from "./shared/WhiteboardConvertModal";
@@ -1048,6 +1049,7 @@ export function Workspace({
         {mode === "architecture" && (
           <Inspector
             issues={issues}
+            architectureMetadata={archPayload.metadata}
             selection={selection}
             onUpdateSelection={updateSelection}
             onDeleteSelection={() => canvasRef.current?.deleteSelection()}
@@ -1299,6 +1301,7 @@ function ModeCanvasFor({
 // with rich data). We map the subset the architecture canvas understands.
 
 interface PlaygroundLikeGraph {
+  metadata?: unknown;
   nodes: Array<{
     id: string;
     type: string;
@@ -1307,6 +1310,9 @@ interface PlaygroundLikeGraph {
       label?: string;
       iconId?: string;
       variant?: string;
+      cloud?: unknown;
+      properties?: unknown;
+      semantics?: unknown;
       [k: string]: unknown;
     };
     parentId?: string;
@@ -1319,7 +1325,7 @@ interface PlaygroundLikeGraph {
     target: string;
     sourceHandle?: string | null;
     targetHandle?: string | null;
-    data?: { label?: string; protocol?: string; animated?: boolean; step?: number; lineStyle?: "solid" | "dashed" };
+    data?: { label?: string; protocol?: string; animated?: boolean; step?: number; lineStyle?: "solid" | "dashed" | "dotted"; connectionType?: string; arrowStyle?: string; description?: string; semantics?: unknown };
   }>;
 }
 
@@ -1387,6 +1393,7 @@ function playgroundGraphToArchPayload(
         height: n.height ?? 220,
         label: (n.data?.label as string) ?? "Group",
         tier: VARIANT_TO_TIER[variant] ?? "Custom",
+        semantics: legacyNodeSemantics(n.data),
         ...(n.parentId ? { parentId: n.parentId } : {}),
       });
     } else if (n.type === "service") {
@@ -1408,6 +1415,7 @@ function playgroundGraphToArchPayload(
         x: usesAbsoluteCoordinates && parent ? n.position.x - parent.x : n.position.x,
         y: usesAbsoluteCoordinates && parent ? n.position.y - parent.y : n.position.y,
         label,
+        semantics: legacyNodeSemantics(n.data),
         ...(n.width !== undefined ? { width: n.width } : {}),
         ...(n.height !== undefined ? { height: n.height } : {}),
         ...(typeof n.data.description === "string" ? { subtitle: n.data.description } : {}),
@@ -1422,14 +1430,22 @@ function playgroundGraphToArchPayload(
     id: e.id,
     source: e.source,
     target: e.target,
-    ...(e.sourceHandle !== undefined ? { sourceHandle: e.sourceHandle } : {}),
-    ...(e.targetHandle !== undefined ? { targetHandle: e.targetHandle } : {}),
+    ...(e.sourceHandle !== undefined ? { sourceHandle: parseConnectionHandle(e.sourceHandle) } : {}),
+    ...(e.targetHandle !== undefined ? { targetHandle: parseConnectionHandle(e.targetHandle) } : {}),
     label: e.data?.label ?? e.data?.protocol,
     style: e.data?.lineStyle === "dashed" ? "dashed" : e.data?.animated ? "flow" : "solid",
     step: e.data?.step,
+    semantics: architectureEdgeSemanticsSchema.parse({
+      ...architectureEdgeSemanticsSchema.parse(e.data?.semantics ?? {}),
+      ...(e.data?.connectionType ? { connectionType: e.data.connectionType } : {}),
+      ...(e.data?.protocol ? { protocol: e.data.protocol } : {}),
+      ...(e.data?.description ? { description: e.data.description } : {}),
+      ...(e.data?.lineStyle ? { lineStyle: e.data.lineStyle } : {}),
+      ...(e.data?.arrowStyle ? { arrowStyle: e.data.arrowStyle } : {}),
+    }),
   }));
 
-  return { nodes, edges };
+  return parseArchitectureDocument({ nodes, edges, ...(graph.metadata ? { metadata: architectureMetadataSchema.parse(graph.metadata) } : {}) });
 }
 
 // ─── Export helpers ────────────────────────────────────────────────────────

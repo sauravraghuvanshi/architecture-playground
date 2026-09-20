@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { readSavedDiagram } from "./read-saved-diagram";
 import { readCanvasPayload } from "./read-canvas-payload";
 import { waitForWorkspace } from "./wait-for-workspace";
+import { parseArchitectureDocument } from "../lib/architecture-document";
 
 const original = {
   nodes: [{ kind: "shape", id: "existing", label: "Existing architecture", shape: "rectangle", x: 0, y: 0 }],
@@ -58,7 +59,7 @@ test("native PNG conversion previews evidence and requires replacement consent w
   await openConversion(page);
   await expect(page.getByRole("note", { name: "Existing architecture warning" })).toContainText("not merge");
   const readArchitecture = () => readCanvasPayload(page, "architecture");
-  expect(await readArchitecture()).toEqual(original);
+  expect(await readArchitecture()).toEqual(parseArchitectureDocument(original));
   await page.getByRole("button", { name: "Analyze Whiteboard", exact: true }).click();
   const preview = page.getByRole("region", { name: "Conversion preview" });
   await expect(preview).toBeVisible();
@@ -70,12 +71,12 @@ test("native PNG conversion previews evidence and requires replacement consent w
   await expect(preview).toContainText("Verify handwritten TLS label.");
   const apply = page.getByRole("button", { name: "Replace architecture", exact: true });
   await expect(apply).toBeDisabled();
-  expect(await readArchitecture()).toEqual(original);
+  expect(await readArchitecture()).toEqual(parseArchitectureDocument(original));
   await page.getByRole("checkbox", { name: /I reviewed this preview/ }).check();
   await apply.click();
   await expect(page.getByRole("dialog", { name: "Convert Whiteboard to architecture", exact: true })).toHaveCount(0, { timeout: 15_000 });
   await expect(page.locator(".react-flow__node")).toHaveCount(3, { timeout: 15_000 });
-  expect(await readArchitecture()).toEqual(converted);
+  expect(await readArchitecture()).toEqual(parseArchitectureDocument(converted));
   const storage = await page.evaluate(() => ({ all: JSON.stringify(localStorage), whiteboard: localStorage.getItem("diagrammatic.draft.whiteboard") }));
   expect(storage.whiteboard).toContain('"rectangle"');
   expect(storage.all).not.toContain("data:image/png");
@@ -92,10 +93,10 @@ test("official Azure conversion identities render and survive library reload wit
     ],
     edges: [{ id: "sql-connection", source: "app", target: "sql", label: "SQL", style: "solid" }],
   };
-  const normalizedPayload = {
+  const normalizedPayload = parseArchitectureDocument({
     nodes: payload.nodes.map((node) => node.kind === "shape" ? { ...node, width: 128, height: 104 } : node),
     edges: payload.edges.map((edge) => ({ ...edge, step: 1 })),
-  };
+  });
   const readPersistedPayload = async () => {
     const saved = (await readSavedDiagram(page, "Converted Whiteboard"))?.payload;
     // IndexedDB retains undefined fields; exported JSON omits them. Compare the
@@ -152,7 +153,7 @@ test("cancellation ignores late results and reopening resets confirmation", asyn
   await expect(page.getByRole("checkbox", { name: /I reviewed this preview/ })).not.toBeChecked();
   await expect(page.getByRole("button", { name: "Replace architecture", exact: true })).toBeDisabled();
   await page.keyboard.press("Escape");
-  expect(await readCanvasPayload(page, "architecture")).toEqual(original);
+  expect(await readCanvasPayload(page, "architecture")).toEqual(parseArchitectureDocument(original));
 });
 
 test("invalid model responses and rate limits leave the architecture untouched", async ({ page }) => {
@@ -169,7 +170,7 @@ test("invalid model responses and rate limits leave the architecture untouched",
   await expect(page.getByRole("region", { name: "Conversion preview" })).toHaveCount(0);
   await page.getByRole("button", { name: "Analyze Whiteboard", exact: true }).click();
   await expect(page.getByRole("dialog").getByRole("alert")).toContainText("Rate limit exceeded");
-  expect(await readCanvasPayload(page, "architecture")).toEqual(original);
+  expect(await readCanvasPayload(page, "architecture")).toEqual(parseArchitectureDocument(original));
 });
 
 test("conversion API rejects spoofed and oversized images before contacting a model", async ({ request }) => {

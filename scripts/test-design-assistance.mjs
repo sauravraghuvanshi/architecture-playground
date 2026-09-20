@@ -360,7 +360,11 @@ test("generation corrects JSON, schema, reference and catalog failures once whil
     const route = generationRoute({ complete: async () => ++count === 1 ? invalid : JSON.stringify(corrected) });
     const response = await route.post(syntheticGenerationInput);
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { ...parseGuidedArchitecture(corrected, icons), mode: "architecture" });
+    const result = await response.json();
+    const parsed = parseGuidedArchitecture(corrected, icons);
+    assert.deepEqual(result, { ...parsed, graph: modeHelpers.recordGenerationIntent(parsed.graph, syntheticGenerationInput), mode: "architecture" });
+    assert.equal(result.graph.metadata.designIntent, syntheticGenerationInput.prompt);
+    assert.deepEqual(result.graph.metadata.requirements.map((item) => item.statement), ["Small prototype", "RTO four hours; RPO one hour", "East US only"]);
     assert.equal(route.calls.length, 2);
     const [first, second] = route.calls;
     assert.equal(first[0].length, 2);

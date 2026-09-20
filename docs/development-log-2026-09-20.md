@@ -429,3 +429,31 @@ Released as `c2714836180d7dca9403c75976d4bc067f4905de`:
   inference, generated customer infrastructure execution or role changes.
 - Priorities **1-6 and 11 complete**; **7 next**, then the remaining numbered
   backlog. Competitor work stays deferred until stage 3.
+
+## Priority 7 continuation - shared architecture semantics
+
+Implemented locally, not yet released:
+
+- Introduced one UI-independent runtime/type contract with native payload
+  version 1, explicit migration of older unversioned data, canonical provider-safe
+  identities and rejection of unknown versions before replacing valid content.
+- Added bounded environments, requirements, evidence and original design intent;
+  declared service region/SKU/properties and typed relationship metadata survive
+  native serialization/history, legacy adaptation, save/reload and JSON export.
+- Inspector displays source-labelled context and supports region/SKU/environment
+  and relationship edits. Complete environment/evidence definition authoring is
+  available through the documented JSON contract, not an implied full metadata UI.
+- Guided generation retains original user constraints separately from model prose.
+  Whiteboard conversion retains textual model observations, never its transient
+  source PNG. Versioned review/deployment inputs use the shared context; stale
+  review detection includes metadata. Offline generators explicitly disclose
+  per-service settings/requirements they do not implement.
+- Fixed migration-only dirty revision churn and empty scratch recovery that could
+  recreate a deleted blank diagram, without dropping metadata-only or annotated
+  work. Legacy future-version imports/autosaves now preserve originals, reject
+  invalid envelopes and pause writes with a visible recovery warning.
+- Final current proof: **244/244 contracts**, lint/types/standalone build,
+  **71/71 production-build browser cases**. IaC regression also passed 88
+  executable safety cases and 17 real compiler/provider fixtures.
+- Production remains `c271483`. Azure validation/deployment and hosted model
+  verification are next after the test-harness cleanup handoff.

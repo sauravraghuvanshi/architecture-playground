@@ -1,9 +1,120 @@
 # Azure Deployment Plan
 
-> **Status:** Deployed and Verified
+> **Status:** Validated
 
 Generated: 2026-08-12
 Updated: 2026-09-20 (Asia/Kolkata)
+
+## Priority 7 - Shared typed and versioned architecture model
+
+- **Baseline:** Application `c271483`, priority 6 deployed and verified within
+  its scope; close-out `7119fb0`. Competitor checkpoint remains deferred.
+- **Scope:** One shared architecture contract for canonical services/providers,
+  configuration, environments, boundaries, relationships, requirements and
+  evidence, with explicit migration of existing representations.
+- **Plan:** Trace current schemas and adapter loss points; define bounded
+  backward-compatible metadata and version handling; wire every relevant
+  persistence/canvas/AI/conversion/code-input surface; prove round trips and
+  migration failures without replacing valid user content; validate/build,
+  deploy via the existing pipeline, and verify hosted.
+- **Constraints:** Preserve existing visual/identity/geometry/history contracts.
+  Do not invent region/SKU/requirements or claim semantic evidence from layout.
+  No live model inference, customer IaC execution or new application resources.
+- **Recipe:** Existing application-only GitHub Actions/App Service release.
+- **State:** Implemented and validated; ready for the existing application-only
+  deployment pipeline. Hosted verification follows release.
+
+### Priority 7 trace and implementation decisions
+
+- Native types currently live in the React canvas; a separate Zod rebuild drops
+  all unrecognized metadata. The React Flow adapters rebuild nodes/edges and
+  discard service configuration. Root context is absent from canvas history.
+- The legacy graph has provider/properties/metadata and relationship semantics,
+  but the native adapter drops them. Whiteboard conversion explicitly discards
+  its textual evidence. The review request rebuild drops root metadata.
+- Introduce a shared, UI-independent version-1 architecture payload contract.
+  Unversioned native payloads migrate explicitly; unknown/future versions fail
+  before canvas mutation. This is separate from library envelope and legacy
+  storage versions. Preserve existing geometry and visual field names.
+- Use bounded shared metadata for environments, requirements and evidence;
+  typed node configuration/provider and typed relationship context. Validate
+  references and provider consistency without inventing regions, SKUs or trust.
+- Retain compatible legacy adapters and storage; share semantic schemas/types,
+  migrate existing service properties, preserve root metadata, and reject
+  unsupported version migrations explicitly.
+- Preserve semantic metadata through native history/serialization, document
+  save/reload, conversion, review and deployment inputs. Add editable region/SKU
+  and relationship fields in the existing Inspector. Offline code must disclose
+  configuration it cannot honor rather than silently claiming equivalence.
+- Add migration/reference/round-trip tests and native/legacy/AI boundary tests,
+  plus hosted import/edit/save/review/export journeys with deterministic mocks.
+  No competitor Outline/mapping-editor/packet work is included.
+
+### Priority 7 implementation and initial verification
+
+- Shared Zod/type contract and explicit unversioned-to-v1 native migration;
+  future schemas fail closed. Known aliases canonicalize without label guesses.
+- Native history/serialization preserves detached semantic metadata and root
+  context. Legacy import/generation uses the same semantic schemas.
+- Inspector exposes declared region/SKU/environment, typed relationships,
+  original intent and source-labelled requirement/evidence context. JSON remains
+  the complete authoring interface for environment/evidence definitions.
+- Guided generation retains the original prompt and user constraints separately
+  from model prose. Whiteboard conversion retains textual model observations
+  without persisting the transient PNG. Review/deployment inputs keep context,
+  and context changes invalidate a previous review.
+- Offline IaC explicitly reports per-service settings/requirements it does not
+  implement; this model is not a claim of complete deployment configuration.
+- Initial 242/242 full contracts, lint/types/build, 88 script-safety tests and
+  17 real IaC compiler fixtures passed. New browser journeys passed 3/3.
+- Broad local browser run first found four outdated expectations of unversioned
+  JSON. Expected values now use the migration contract without dropping fields.
+  A subsequent 68/69 run exposed empty scratch recovery recreating a deleted
+  diagram. Recovery now ignores version-only empty payloads while preserving
+  metadata-only and annotation-only work; its new unit regression passes.
+- Final trace also found that the legacy UI unwrapped file envelopes without
+  checking their version and could overwrite an unsupported autosave. Both
+  paths now reject unsupported versions, pause writes with a visible warning,
+  retain the original data, and preserve valid legacy source keys during restore.
+- Final code checks: **244/244 contracts**, lint, strict TypeScript and standalone
+  build passed. **71/71 production-build browser cases passed** in 3.1 minutes,
+  including the new five-case model/native/legacy acceptance suite.
+- PowerShell harness scratch roots now use ignored `node_modules/.cache`,
+  matching CLI tests. The changed harness passed 26/26 alongside concurrent
+  full lint without the cleanup race. No production files changed in that step.
+- Remaining gate: Azure validation, application release and hosted verification.
+  Not deployed.
+
+### Priority 7 - All validation checks pass
+
+- [x] Core application-only checks: existing Actions target, owner-scoped GitHub
+  access, unit/contract tests and local HTTP 200 readiness.
+- [x] Docker, infrastructure What-If and live role/policy changes: not applicable
+  to this existing standalone application ZIP release. No provisioning is planned.
+- [x] `npm run test:playground`: 244/244.
+- [x] `npm run lint`, strict TypeScript and `npm run build`.
+- [x] Final production-build browser suite: 71/71, with no timeout relaxation.
+- [x] Prior IaC safety: 88/88 executable mocks and 17/17 real compiler fixtures.
+- [x] Static role review: no change to previously reviewed generated host roles;
+  no changes to deployed application permissions or AI configuration.
+- [x] Test-harness cleanup handoff and concurrent lint verification.
+- [x] Validation workflow completion.
+
+### Priority 7 - Section 7: Validation Proof
+
+Validated locally on 2026-09-20. The 71-case final browser run covers model
+metadata edit/history/persistence, future-version protection in both editors,
+exact code downloads, nested boundaries, named documents, recovery, Whiteboard
+conversion, all bundled templates, exports and prior identity/undo behavior.
+Earlier test-only issues (unversioned expectations, combobox label selection and
+two incorrectly nested new tests) were corrected without weakening assertions.
+The real empty-recovery and legacy-version overwrite risks found during the
+trace were fixed and have unit/browser regressions. No live model inference,
+customer IaC execution, new infrastructure or role changes were used.
+Final harness handoff was rechecked with both executable suites (88/88) running
+alongside full ESLint and strict TypeScript. All passed. Remote master remained
+`7119fb021eaaa6fcb388e66ecf9759986bcba497`; the deferred competitor checkpoint
+remained `c4b91a44d33066e9aceb011a086d57f445a95d0f`.
 
 ## Priority 6 - Repair offline infrastructure-code generation
 

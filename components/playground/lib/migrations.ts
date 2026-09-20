@@ -61,6 +61,9 @@ export function migrateGraph(
   graph: PlaygroundGraph,
   fromVersion: number
 ): { graph: PlaygroundGraph; version: number } {
+  if (!Number.isInteger(fromVersion) || fromVersion < 1 || fromVersion > CURRENT_SCHEMA_VERSION) {
+    throw new Error(`Unsupported playground schema version: ${fromVersion}.`);
+  }
   let current = graph;
   let version = fromVersion;
 
@@ -68,8 +71,7 @@ export function migrateGraph(
     const migrationIdx = version - 1; // v1→v2 is index 0
     const fn = MIGRATIONS[migrationIdx];
     if (!fn) {
-      // No migration path — return as-is (the validator will catch real issues).
-      break;
+      throw new Error(`Missing playground migration from version ${version}.`);
     }
     current = fn(current);
     version++;
@@ -87,7 +89,7 @@ export function migratePayload(raw: unknown): StoredPayload | null {
   const p = raw as Partial<StoredPayload>;
 
   // Must have a version and a graph.
-  if (typeof p.version !== "number" || !p.graph) return null;
+  if (typeof p.version !== "number" || !Number.isInteger(p.version) || p.version < 1 || !p.graph) return null;
 
   // Already at current version — return as-is.
   if (p.version === CURRENT_SCHEMA_VERSION) return p as StoredPayload;

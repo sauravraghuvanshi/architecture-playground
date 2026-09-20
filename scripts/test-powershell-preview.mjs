@@ -25,8 +25,9 @@ const requiredEnv = {
 };
 
 function execute(scenario = "success", { payload = full, env = {}, template = "targetScope = 'resourceGroup'\n" } = {}) {
-  const directory = join(process.cwd(), `.test-powershell-preview-${randomUUID()}`);
-  mkdirSync(directory);
+  // ESLint ignores node_modules, so concurrent lint cannot traverse roots being cleaned up.
+  const directory = join(process.cwd(), "node_modules", ".cache", `.test-powershell-preview-${randomUUID()}`);
+  mkdirSync(directory, { recursive: true });
   try {
     const result = generateArchitectureCode(payload, "powershell");
     const previewPath = join(directory, "preview.ps1");

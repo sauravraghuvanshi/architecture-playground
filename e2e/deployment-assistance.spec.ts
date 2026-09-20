@@ -1,6 +1,7 @@
 import { expect, test, type BrowserContext, type Download, type Page } from "@playwright/test";
 import { generateArchitectureCode, generateArmTemplate } from "../components/diagrammatic/csa/architecture-codegen";
 import type { ArchPayload } from "../components/diagrammatic/modes/architecture/ArchitectureCanvas";
+import { parseArchitectureDocument } from "../lib/architecture-document";
 
 const architecture: ArchPayload = {
   nodes: [{
@@ -216,7 +217,7 @@ test.describe("Deployment assistance with mocked named-agent responses", () => {
     await expect(modal.getByText("Runtime Foundry agent draft", { exact: true })).toBeVisible();
     await expect(modal.getByTestId("generated-code")).toHaveText(generatedCode.trim());
     expect(requests.generation).toEqual([{
-      payload: architecture, format: "bicep", context: "West Europe, private data endpoints, no credentials.",
+      payload: parseArchitectureDocument(architecture), format: "bicep", context: "West Europe, private data endpoints, no credentials.",
     }]);
     await expect(modal.getByText(agentDraft.warnings[0], { exact: true })).toBeVisible();
     await expect(modal.getByText(agentDraft.assumptions[0], { exact: true })).toBeVisible();
@@ -271,7 +272,7 @@ test.describe("Deployment assistance with mocked named-agent responses", () => {
     await publish.click();
     const popup = await popupEvent;
     await expect(popup).toHaveTitle("Mock Azure Portal");
-    expect(requests.publication).toEqual([{ source: "offline", consent: true, payload: architecture }]);
+    expect(requests.publication).toEqual([{ source: "offline", consent: true, payload: parseArchitectureDocument(architecture) }]);
     expect(requests.unexpected).toEqual([]);
     await popup.close();
   });

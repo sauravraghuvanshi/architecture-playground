@@ -5,7 +5,7 @@ import {
   getDiagram, listDiagrams, saveDiagram, validateDiagramRecord,
   type DiagramDocument, type DiagramSaveInput, type DiagramComment, type DiagramVersion,
 } from "@/lib/diagram-library";
-import { parseArchitectureDocument } from "@/lib/architecture-document";
+import { parseArchitectureDocument, hasArchitectureContent } from "@/lib/architecture-document";
 import { MODE_META, type CanvasTheme, type DiagrammaticMode } from "./types";
 
 const ACTIVE_KEY = "diagrammatic.active-documents";
@@ -119,13 +119,15 @@ export function useDiagramDocuments(options: Options) {
               throw new Error("The draft has no valid diagram data.");
             }
             const payload = mode === "architecture" ? parseArchitectureDocument(draft.payload) : draft.payload;
+            const annotations = readAnnotations(mode, (issue) => issues.push(issue));
+            if (mode === "architecture" && !hasArchitectureContent(payload) && annotations.comments.length === 0 && annotations.versions.length === 0) continue;
             const markerKey = `diagrammatic.recovered.${mode}`;
             const legacyId = localStorage.getItem(markerKey);
             const priorRecovery = existing.find((document) => document.id === legacyId && document.mode === mode);
             const recovered = priorRecovery && priorRecovery.updatedAt >= draft.savedAt ? await getDiagram(priorRecovery.id) : await saveDiagram({
               name: `${MODE_META[mode].label} (recovered draft)`, mode,
               payload, canvasTheme: optionsRef.current.theme(mode),
-              ...readAnnotations(mode, (issue) => issues.push(issue)),
+              ...annotations,
             });
             localStorage.setItem(markerKey, recovered.id);
             next[mode] = recovered;
@@ -206,8 +208,9 @@ export function useDiagramDocuments(options: Options) {
   const inputHasChanges = useCallback((input: DiagramSaveInput) => {
     const committed = input.id ? committedDocuments.current.get(input.id) : undefined;
     if (!committed) return true;
+    const previousPayload = committed.mode === "architecture" ? parseArchitectureDocument(committed.payload) : committed.payload;
     return input.name !== committed.name || input.canvasTheme !== committed.canvasTheme ||
-      persistedJson(input.payload) !== persistedJson(committed.payload) ||
+      persistedJson(input.payload) !== persistedJson(previousPayload) ||
       persistedJson(input.comments) !== persistedJson(committed.comments) ||
       persistedJson(input.versions) !== persistedJson(committed.versions);
   }, []);

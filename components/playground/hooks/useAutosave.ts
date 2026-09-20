@@ -10,18 +10,19 @@ import type { PlaygroundGraph } from "../lib/types";
 
 const DEBOUNCE_MS = 1000;
 
-export function useAutosave(graph: PlaygroundGraph, enabled = true) {
+export function useAutosave(graph: PlaygroundGraph, enabled: boolean, onError: (message: string) => void) {
   const timeoutRef = useRef<number | null>(null);
   useEffect(() => {
     if (!enabled) return;
     if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
     timeoutRef.current = window.setTimeout(() => {
-      saveAutosave(graph);
+      const result = saveAutosave(graph);
+      if (!result.ok) onError(result.error ?? (result.quota ? "Browser storage quota was exceeded." : "Browser storage is unavailable."));
     }, DEBOUNCE_MS);
     return () => {
       if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
     };
-  }, [graph, enabled]);
+  }, [graph, enabled, onError]);
 }
 
 export function restoreAutosave(): PlaygroundGraph | null {

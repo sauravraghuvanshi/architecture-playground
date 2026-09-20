@@ -82,8 +82,8 @@ export function ArchitectureReviewModal({
   );
   const evidenceFingerprint = useMemo(() => JSON.stringify({
     source, description, businessContext, image: source === "image" ? reviewImage?.dataUrl : null,
-    diagram: diagramAssessment?.fingerprint ?? null,
-  }), [source, description, businessContext, reviewImage, diagramAssessment]);
+    diagram: evidencePayload,
+  }), [source, description, businessContext, reviewImage, evidencePayload]);
   const staleReview = review && reviewFingerprint !== evidenceFingerprint;
   useEffect(() => {
     if (!open) activeRequest.current?.abort();

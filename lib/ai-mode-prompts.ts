@@ -9,6 +9,7 @@
 
 import { z } from "zod";
 import type { ChatMessage } from "./ai";
+import { architectureMetadataSchema, architectureNodeSemanticsSchema, architectureEdgeSemanticsSchema, validateArchitectureReferences } from "./architecture-model.ts";
 
 export type AiMode =
   | "architecture"
@@ -66,7 +67,7 @@ export type DesignAssistance = z.infer<typeof designAdviceSchema> & {
 const graphId = z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/);
 const coordinate = z.number().finite().min(-100_000).max(100_000);
 export const generatedArchitectureSchema = z.object({
-  metadata: z.object({ name: z.string().min(1).max(200), description: z.string().max(2000) }),
+  metadata: architectureMetadataSchema.extend({ name: z.string().min(1).max(200), description: z.string().max(2000) }),
   nodes: z.array(z.object({
     id: graphId,
     type: z.literal("service"),
@@ -75,6 +76,7 @@ export const generatedArchitectureSchema = z.object({
       iconId: z.string().regex(/^(azure|aws|gcp)\/[a-z0-9-]+\/[a-z0-9-]+$/),
       label: z.string().min(1).max(200),
       cloud: z.enum(["azure", "aws", "gcp"]),
+      semantics: architectureNodeSemanticsSchema.optional(),
     }),
   })).min(1).max(60),
   edges: z.array(z.object({
@@ -84,6 +86,7 @@ export const generatedArchitectureSchema = z.object({
       connectionType: z.literal("data-flow"),
       lineStyle: z.enum(["solid", "dashed"]),
       arrowStyle: z.literal("forward"),
+      semantics: architectureEdgeSemanticsSchema.optional(),
     }),
   })).max(180),
 }).superRefine((graph, ctx) => {
@@ -96,6 +99,15 @@ export const generatedArchitectureSchema = z.object({
   }
   if (graph.nodes.some((node) => !node.data.iconId.startsWith(`${node.data.cloud}/`))) {
     ctx.addIssue({ code: "custom", message: "Icon provider must match node cloud." });
+  }
+  try {
+    validateArchitectureReferences({
+      metadata: graph.metadata,
+      nodes: graph.nodes.map((node) => ({ id: node.id, iconId: node.data.iconId, semantics: node.data.semantics })),
+      edges: graph.edges.map((edge) => ({ id: edge.id, semantics: edge.data.semantics })),
+    });
+  } catch (cause) {
+    ctx.addIssue({ code: "custom", message: cause instanceof Error ? cause.message : "Invalid architecture metadata." });
   }
 });
 
@@ -131,6 +143,39 @@ export function buildGenerationUserPrompt(input: z.infer<typeof generationReques
   return JSON.stringify({ description: input.prompt, businessConstraints: input.businessConstraints ?? {} });
 }
 
+export function recordGenerationIntent(
+  graph: z.infer<typeof generatedArchitectureSchema>,
+  input: z.infer<typeof generationRequestSchema>,
+) {
+  const categories = {
+    budget: "cost", availability: "reliability", recovery: "reliability",
+    dataResidency: "compliance", compliance: "compliance", scale: "performance",
+  } as const;
+  const requirements = [...(graph.metadata.requirements ?? [])];
+  const evidence = [...(graph.metadata.evidence ?? [])];
+  const availableId = (prefix: string, entries: Array<{ id: string }>) => {
+    let id = prefix;
+    let index = 1;
+    while (entries.some((entry) => entry.id === id)) id = `${prefix}-${index++}`;
+    return id;
+  };
+  for (const field of Object.keys(categories) as Array<keyof typeof categories>) {
+    const statement = input.businessConstraints?.[field];
+    if (!statement?.trim()) continue;
+    const evidenceId = availableId(`user-${field}`, evidence);
+    evidence.push({ id: evidenceId, source: "user", summary: statement });
+    requirements.push({ id: availableId(`constraint-${field}`, requirements), category: categories[field], statement, evidenceIds: [evidenceId] });
+  }
+  return generatedArchitectureSchema.parse({
+    ...graph,
+    metadata: {
+      ...graph.metadata, designIntent: input.prompt,
+      ...(requirements.length ? { requirements } : {}),
+      ...(evidence.length ? { evidence } : {}),
+    },
+  });
+}
+
 type GenerationCompletion = (
   messages: ChatMessage[],
   options: { temperature: number; maxTokens: number; responseFormat: "json_object"; signal: AbortSignal }
@@ -162,7 +207,8 @@ export async function generateGuidedArchitecture(
     });
     signal.throwIfAborted();
     try {
-      return parseGuidedArchitecture(JSON.parse(raw), catalog);
+      const result = parseGuidedArchitecture(JSON.parse(raw), catalog);
+      return { ...result, graph: recordGenerationIntent(result.graph, input) };
     } catch (error) {
       if (!(error instanceof SyntaxError) && !(error instanceof z.ZodError)) throw error;
       if (attempt === 1) {

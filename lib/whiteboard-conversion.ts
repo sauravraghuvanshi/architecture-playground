@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { parseArchitectureDocument } from "./architecture-document";
-import type { ArchPayload } from "../components/diagrammatic/modes/architecture/ArchitectureCanvas";
+import type { ArchPayload, ArchitectureMetadata } from "./architecture-model";
 import { resolveServiceIcon as resolveConversionIcon, serviceLabelProvider as labeledProvider } from "./service-identity.ts";
 export { resolveServiceIcon as resolveConversionIcon } from "./service-identity.ts";
 export type { ServiceIcon as ConversionIcon } from "./service-identity.ts";
@@ -95,11 +95,18 @@ export function parseWhiteboardConversion(
   const source = new Map(conversionSourceSchema.parse(sourceNodes).map((node) => [node.id, node]));
   const claimed = new Set<string>();
   const warnings = [...model.warnings];
-  const nodes = model.nodes.map((node) => {
+  const observations: NonNullable<ArchitectureMetadata["evidence"]> = [];
+  const nodes = model.nodes.map((node, index) => {
     const { evidence: observed, ...data } = node;
-    void observed;
-    if (data.kind === "group") return data;
+    const evidenceId = `whiteboard-node-${index}`;
+    observations.push({
+      id: evidenceId, source: "whiteboard-model", summary: observed,
+      ...("sourceElementId" in data && data.sourceElementId ? { sourceElementId: data.sourceElementId } : {}),
+    });
+    const semantics = { evidenceIds: [evidenceId] };
+    if (data.kind === "group") return { ...data, semantics };
     const { sourceElementId, ...base } = data;
+    const preserved = { ...base, semantics };
     let icon: ConversionIcon | undefined;
     if (sourceElementId) {
       const original = source.get(sourceElementId);
@@ -115,24 +122,25 @@ export function parseWhiteboardConversion(
       }
     }
     if (!icon) {
-      if (data.kind === "shape" && !sourceElementId && !labeledProvider(data.label).cloud) return base;
+      if (data.kind === "shape" && !sourceElementId && !labeledProvider(data.label).cloud) return preserved;
       warnings.push(`"${data.label}" has no unambiguous provider-safe catalog match; retained as a generic shape.`);
-      const { iconId: ignored, ...generic } = base as typeof base & { iconId?: string };
+      const { iconId: ignored, ...generic } = preserved as typeof preserved & { iconId?: string };
       void ignored;
       return { ...generic, kind: "shape" as const, shape: data.kind === "shape" ? data.shape : "rectangle" as const };
     }
-    const { shape: ignored, ...service } = base as typeof base & { shape?: string };
+    const { shape: ignored, ...service } = preserved as typeof preserved & { shape?: string };
     void ignored;
     return { ...service, kind: "icon" as const, iconId: icon.id, iconPath: icon.path };
   });
   if (claimed.size !== source.size) {
     throw new Error("Conversion did not retain all source service identities. Clarify the drawing and retry.");
   }
-  const edges = model.edges.map(({ evidence: observed, ...edge }) => {
-    void observed;
-    return edge;
+  const edges = model.edges.map(({ evidence: observed, ...edge }, index) => {
+    const evidenceId = `whiteboard-edge-${index}`;
+    observations.push({ id: evidenceId, source: "whiteboard-model", summary: observed });
+    return { ...edge, semantics: { evidenceIds: [evidenceId] } };
   });
-  return { payload: parseArchitectureDocument({ nodes, edges }), warnings };
+  return { payload: parseArchitectureDocument({ nodes, edges, metadata: { evidence: observations } }), warnings };
 }
 
 export function parseWhiteboardConversionResponse(value: unknown, icons: readonly ConversionIcon[]): WhiteboardConversion {

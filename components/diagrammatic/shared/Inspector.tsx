@@ -18,6 +18,8 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { MAX_PLAYBACK_STEP } from "@/lib/architecture-document";
 import { ARCHITECTURE_TIERS } from "@/lib/architecture-hierarchy";
+import { connectionTypeSchema } from "@/lib/architecture-model";
+import type { ArchitectureMetadata } from "@/lib/architecture-model";
 import type {
   ArchitectureSelection,
   ArchitectureSelectionPatch,
@@ -43,6 +45,7 @@ const SEVERITY: Record<Severity, { icon: LucideIcon; color: string; bg: string; 
 
 interface Props {
   issues: ValidationIssue[];
+  architectureMetadata?: ArchitectureMetadata;
   selection?: ArchitectureSelection | null;
   onUpdateSelection?: (id: string, patch: ArchitectureSelectionPatch) => void;
   onDeleteSelection?: () => void;
@@ -57,6 +60,7 @@ interface Props {
  */
 export function Inspector({
   issues,
+  architectureMetadata,
   selection,
   onUpdateSelection,
   onDeleteSelection,
@@ -64,6 +68,7 @@ export function Inspector({
 }: Props) {
   const [propsOpen, setPropsOpen] = useState(true);
   const [valOpen, setValOpen] = useState(true);
+  const [contextOpen, setContextOpen] = useState(true);
 
   const counts = issues.reduce(
     (acc, i) => ({ ...acc, [i.severity]: (acc[i.severity] ?? 0) + 1 }),
@@ -71,7 +76,7 @@ export function Inspector({
   );
 
   return (
-    <aside className="hidden w-[304px] shrink-0 flex-col border-l border-slate-800 bg-[#0b1220] text-slate-300 xl:flex">
+    <aside className="hidden w-[304px] shrink-0 flex-col overflow-y-auto border-l border-slate-800 bg-[#0b1220] text-slate-300 xl:flex">
       {/* Properties */}
       <Section
         open={propsOpen}
@@ -98,6 +103,20 @@ export function Inspector({
           </div>
         )}
       </Section>
+
+      {architectureMetadata && (
+        <Section open={contextOpen} onToggle={() => setContextOpen((value) => !value)} title="Architecture context" badge={null}>
+          <section aria-label="Architecture context" className="max-h-80 space-y-3 overflow-y-auto px-3 pb-4 text-[11px] text-slate-300">
+            {architectureMetadata.name && <h3 className="font-semibold text-white">{architectureMetadata.name}</h3>}
+            {architectureMetadata.designIntent && <p className="whitespace-pre-wrap"><strong>Original intent: </strong>{architectureMetadata.designIntent}</p>}
+            {architectureMetadata.description && <p className="whitespace-pre-wrap">{architectureMetadata.description}</p>}
+            {!!architectureMetadata.environments?.length && <p>Environments: {architectureMetadata.environments.map((item) => item.name).join(", ")}</p>}
+            {architectureMetadata.requirements?.map((item) => <p key={item.id}><span className="text-cyan-300">{item.category}: </span>{item.statement}</p>)}
+            {!!architectureMetadata.evidence?.length && <p>{architectureMetadata.evidence.length} recorded evidence entries. Select a linked component or connection to inspect its sources.</p>}
+            <p className="text-[10px] text-slate-500">Declared context, not deployment verification. JSON export retains all metadata and source references.</p>
+          </section>
+        </Section>
+      )}
 
       {/* Validation */}
       <Section
@@ -236,6 +255,41 @@ function SelectionProperties({
       )}
 
       {selection.kind === "node" && (
+        <div className="space-y-3 border-t border-slate-800 pt-3">
+          {selection.semantics?.provider && <p className="text-[10px] text-slate-400">Provider identity: <strong className="uppercase text-slate-200">{selection.semantics.provider}</strong></p>}
+          {(["region", "sku"] as const).map((field) => (
+            <Field key={field} label={field === "region" ? "Declared region" : "Declared SKU"}>
+              <input key={`${selection.id}:${selection.semantics?.[field] ?? ""}`}
+                defaultValue={selection.semantics?.[field] ?? ""} maxLength={100}
+                placeholder="Unspecified"
+                onBlur={(event) => {
+                  const value = event.currentTarget.value.trim();
+                  if (value === (selection.semantics?.[field] ?? "")) return;
+                  const semantics = { ...selection.semantics };
+                  if (value) semantics[field] = value; else delete semantics[field];
+                  onUpdate?.(selection.id, { semantics });
+                }}
+                onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-2 text-xs text-white focus:border-cyan-400" />
+            </Field>
+          ))}
+          {!!selection.environmentOptions?.length && <Field label="Environment">
+            <select value={selection.semantics?.environmentId ?? ""}
+              onChange={(event) => {
+                const semantics = { ...selection.semantics };
+                if (event.target.value) semantics.environmentId = event.target.value; else delete semantics.environmentId;
+                onUpdate?.(selection.id, { semantics });
+              }}
+              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-2 text-xs text-white">
+              <option value="">Unspecified</option>
+              {selection.environmentOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+          </Field>}
+          <p className="text-[10px] text-slate-400">Declared design intent, not verified Azure configuration. Offline starter exports report settings they do not implement.</p>
+        </div>
+      )}
+
+      {selection.kind === "node" && (
         <Field label="Parent boundary" hint="Keeps nested children together">
           <select aria-label="Parent boundary" value={selection.parentId ?? ""}
             onChange={(event) => onUpdate?.(selection.id, { parentId: event.target.value || null })}
@@ -265,6 +319,31 @@ function SelectionProperties({
 
       {selection.kind === "edge" && (
         <>
+          <Field label="Relationship type">
+            <select value={selection.relationship?.connectionType ?? ""}
+              onChange={(event) => {
+                const relationship = { ...selection.relationship };
+                if (event.target.value) relationship.connectionType = connectionTypeSchema.parse(event.target.value); else delete relationship.connectionType;
+                onUpdate?.(selection.id, { relationship });
+              }}
+              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-2 text-xs text-white">
+              <option value="">Unspecified</option>
+              {connectionTypeSchema.options.map((type) => <option key={type} value={type}>{type}</option>)}
+            </select>
+          </Field>
+          <Field label="Transport protocol">
+            <input key={`${selection.id}:${selection.relationship?.protocol ?? ""}`} maxLength={100}
+              defaultValue={selection.relationship?.protocol ?? ""} placeholder="Unspecified"
+              onBlur={(event) => {
+                const protocol = event.currentTarget.value.trim();
+                if (protocol === (selection.relationship?.protocol ?? "")) return;
+                const relationship = { ...selection.relationship };
+                if (protocol) relationship.protocol = protocol; else delete relationship.protocol;
+                onUpdate?.(selection.id, { relationship });
+              }}
+              onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
+              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-2 text-xs text-white" />
+          </Field>
           <Field label="GIF / playback order" hint="1 animates first">
             <input
               type="number"
@@ -306,6 +385,15 @@ function SelectionProperties({
           </div>
         </>
       )}
+
+      {!!selection.requirements?.length && <section aria-label="Linked requirements" className="space-y-2 text-[11px]">
+        <h3 className="font-semibold text-slate-200">Linked requirements</h3>
+        {selection.requirements.map((item) => <p key={item.id}>{item.statement}</p>)}
+      </section>}
+      {!!selection.evidence?.length && <section aria-label="Recorded evidence" className="space-y-2 text-[11px]">
+        <h3 className="font-semibold text-slate-200">Recorded evidence - not independently verified</h3>
+        {selection.evidence.map((item) => <p key={item.id}><span className="text-cyan-300">{item.source}: </span>{item.summary}</p>)}
+      </section>}
 
       <button
         type="button"

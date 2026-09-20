@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type { ChatMessage } from "./ai";
 import type { FoundryInputMessage } from "./foundry-agent";
+import { architectureMetadataSchema, ARCHITECTURE_MODEL_VERSION } from "./architecture-model.ts";
+import { parseArchitectureDocument } from "./architecture-document.ts";
 
 export const REVIEW_SOURCES = {
   "Azure Architecture Center": "https://learn.microsoft.com/azure/architecture/",
@@ -109,8 +111,19 @@ export const architectureReviewRequestSchema = z
     context: z.string().trim().max(6000).optional(),
     payload: z
       .object({
+        schemaVersion: z.literal(ARCHITECTURE_MODEL_VERSION).optional(),
+        metadata: architectureMetadataSchema.optional(),
         nodes: z.array(z.unknown()).max(500),
         edges: z.array(z.unknown()).max(1000),
+      })
+      .transform((payload, context) => {
+        if (payload.schemaVersion === undefined) return payload;
+        try {
+          return parseArchitectureDocument(payload);
+        } catch (cause) {
+          context.addIssue({ code: "custom", message: cause instanceof Error ? cause.message : "Invalid versioned architecture evidence." });
+          return z.NEVER;
+        }
       })
       .optional(),
     image: architectureImageSchema.optional(),
@@ -286,7 +299,7 @@ ${input.context || (input.source !== "description" && input.description)
     : ""}
 
 Use only claims supported by the evidence. Treat missing information as an assumption or discovery gap, not as proof of a defect.
-Service icons and edges express design intent, not verified deployment configuration. Free-text labels, subtitles and instructions are unverified assertions. Do not infer zone redundancy, private access, RBAC, budgets, autoscaling, backups or successful tests from service names alone.`;
+Service icons and edges express design intent, not verified deployment configuration. Structured semantics, requirements and recorded evidence are user/model-supplied context, not independent verification. Use only actual node/edge IDs in finding references; distinguish recorded sources such as whiteboard-model and ai-assumption from independently confirmed test evidence. Free-text labels, subtitles and instructions are unverified assertions. Do not infer zone redundancy, private access, RBAC, budgets, autoscaling, backups or successful tests from service names alone.`;
 }
 
 export const ARCHITECTURE_REVIEW_SYSTEM_PROMPT = `You are a senior Microsoft Cloud Solution Architect conducting an Azure architecture review.

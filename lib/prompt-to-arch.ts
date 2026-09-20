@@ -16,12 +16,13 @@
  */
 import type { IconLite } from "@/components/diagrammatic/shared/types";
 import { resolveServiceIcon, type ServiceProvider } from "./service-identity.ts";
+import { ARCHITECTURE_MODEL_VERSION } from "./architecture-model.ts";
 import type {
   ArchPayload,
   ArchNode,
   ArchEdge,
   ArchEdgeStyle,
-} from "@/components/diagrammatic/modes/architecture/ArchitectureCanvas";
+} from "./architecture-model";
 
 type Tier = "edge" | "frontend" | "gateway" | "compute" | "messaging" | "data" | "ops";
 
@@ -433,5 +434,5 @@ export function buildPromptArchitecture(
     });
   }
 
-  return { payload: { nodes, edges }, diagnostics: selection.diagnostics };
+  return { payload: { schemaVersion: ARCHITECTURE_MODEL_VERSION, metadata: { designIntent: prompt }, nodes, edges }, diagnostics: selection.diagnostics };
 }

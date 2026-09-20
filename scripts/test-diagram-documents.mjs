@@ -3,7 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import ts from "typescript";
-import { parseArchitectureDocument } from "../lib/architecture-document.ts";
+import { parseArchitectureDocument, hasArchitectureContent } from "../lib/architecture-document.ts";
 import { DiagramLibraryError, validateDiagramRecord } from "../lib/diagram-library.ts";
 
 const source = readFileSync(new URL("../components/diagrammatic/shared/useDiagramDocuments.ts", import.meta.url), "utf8");
@@ -129,7 +129,7 @@ function harness({ records = [document()], active = { architecture: "original" }
   const dependencies = {
     react,
     "@/lib/diagram-library": library,
-    "@/lib/architecture-document": { parseArchitectureDocument },
+    "@/lib/architecture-document": { parseArchitectureDocument, hasArchitectureContent },
     "./types": { MODE_META: { architecture: { label: "Architecture" }, whiteboard: { label: "Whiteboard" } } },
   };
   const exports = {};
@@ -435,4 +435,19 @@ test("unchanged canvas notifications do not advance the persisted revision or ca
   h.current.annotate({ comments: [comment] });
   await h.flush();
   assert.equal(h.current.hasPendingChanges(), true);
+});
+
+test("empty versioned scratch does not resurrect a deleted document, but context and annotations are preserved", async () => {
+  for (const variant of ["empty", "context", "comments"]) {
+    const h = harness({ records: [], active: {} });
+    const payload = { schemaVersion: 1, ...graph(0), ...(variant === "context" ? { metadata: { designIntent: "Capture intent before drawing." } } : {}) };
+    const raw = JSON.stringify({ mode: "architecture", savedAt: 100, payload });
+    h.local.set("diagrammatic.draft", raw);
+    if (variant === "comments") h.local.set("diagrammatic.comments.architecture:draft", JSON.stringify([comment]));
+    await h.flush();
+    assert.equal(h.calls.length, variant === "empty" ? 0 : 1);
+    assert.equal(h.local.get("diagrammatic.draft"), raw, "never delete the recoverable source during migration");
+    if (variant === "context") assert.deepEqual(h.current.documents.architecture.payload.metadata, payload.metadata);
+    if (variant === "comments") assert.deepEqual(structuredClone(h.current.documents.architecture.comments), [comment]);
+  }
 });
