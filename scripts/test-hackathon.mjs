@@ -63,9 +63,10 @@ test("native import rejects unsupported handles and nested groups instead of sil
   }));
 });
 
-test("image styles preserve default prompt and validate explicit presets", () => {
+test("image styles preserve user intent with canvas-aware instructions and validate explicit presets", () => {
   const original = imageRequestSchema.parse({ prompt: "An order workflow" });
-  assert.equal(buildImagePrompt(original), "An order workflow");
+  assert.match(buildImagePrompt(original), /Visual requested by the user:\nAn order workflow$/);
+  assert.match(buildImagePrompt(original), /Exact canvas background: #05080d/);
   assert.match(buildImagePrompt(imageRequestSchema.parse({ prompt: original.prompt, style: "executive" })), /presentation style/);
   for (const input of [{ prompt: 42 }, { prompt: "x", style: "unknown" }, { prompt: "x", size: "huge" }, { prompt: "x".repeat(1001) }]) {
     assert.equal(imageRequestSchema.safeParse(input).success, false);

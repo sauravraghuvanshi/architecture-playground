@@ -3,7 +3,20 @@
 Last updated: 2026-09-20, Asia/Kolkata.
 
 **Priorities 1-4 are deployed and verified. Priorities 5-33 are pending.
-Next: priority 5, after the user's selection. No next-priority work has started.**
+The user has selected the Whiteboard fidelity / conversion / nested-boundary
+detour below before resuming the numbered backlog.**
+
+## User-selected interruption - 20 September 2026
+
+The current candidate addresses canvas-aware AI image prompts, readable
+Whiteboard theme behavior, canonical service icons during conversion, and real
+nested cloud boundaries. It also includes a local, Git-excluded Cloudairy/Lucid
+research supplement in `Audit Report/competition-and-canvas-fidelity.html`.
+Combined production validation and release verification are in progress; do
+not treat candidate functionality as deployed until the release record is added.
+
+This overlaps parts of priorities 5, 7, 11, 12 and 14 without completing their
+entire scope. Preserve the stable numbers and remaining acceptance criteria.
 
 This is the persistent copy of the 33-item implementation order agreed in the
 session. Keep these numbers stable so the user can select work by number.
@@ -44,8 +57,9 @@ These releases are cumulative. Current production includes all four.
 
 ## Remaining implementation priorities
 
-All entries below are **Pending / not started**. Descriptions are scope and
-acceptance guidance, not claims of deployed functionality.
+Entries below retain their original scope. The user-selected interruption
+above covers specific portions; broader requirements remain pending.
+Descriptions are acceptance guidance, not claims of deployed functionality.
 
 | Priority Number | Feature / Fix to Implement | Description |
 | ---: | --- | --- |

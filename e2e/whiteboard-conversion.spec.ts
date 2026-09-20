@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readSavedDiagram } from "./read-saved-diagram";
+import { readCanvasPayload } from "./read-canvas-payload";
 
 const original = {
   nodes: [{ kind: "shape", id: "existing", label: "Existing architecture", shape: "rectangle", x: 0, y: 0 }],
@@ -36,6 +37,8 @@ async function openConversion(page: Page) {
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript((payload) => {
+    if (sessionStorage.getItem("conversion-test-initialized")) return;
+    sessionStorage.setItem("conversion-test-initialized", "true");
     localStorage.clear();
     localStorage.setItem("diagrammatic.draft", JSON.stringify({ mode: "architecture", payload }));
   }, original);
@@ -53,8 +56,7 @@ test("native PNG conversion previews evidence and requires replacement consent w
   });
   await openConversion(page);
   await expect(page.getByRole("note", { name: "Existing architecture warning" })).toContainText("not merge");
-  const readArchitecture = async () => (await readSavedDiagram(page, "Converted Whiteboard"))?.payload ??
-    page.evaluate(() => JSON.parse(localStorage.getItem("diagrammatic.draft") ?? "{}").payload);
+  const readArchitecture = () => readCanvasPayload(page, "architecture");
   expect(await readArchitecture()).toEqual(original);
   await page.getByRole("button", { name: "Analyze Whiteboard", exact: true }).click();
   const preview = page.getByRole("region", { name: "Conversion preview" });
@@ -70,13 +72,61 @@ test("native PNG conversion previews evidence and requires replacement consent w
   expect(await readArchitecture()).toEqual(original);
   await page.getByRole("checkbox", { name: /I reviewed this preview/ }).check();
   await apply.click();
-  await expect(page.getByRole("dialog", { name: "Convert Whiteboard to architecture", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "Convert Whiteboard to architecture", exact: true })).toHaveCount(0, { timeout: 15_000 });
   await expect(page.locator(".react-flow__node")).toHaveCount(3, { timeout: 15_000 });
   expect(await readArchitecture()).toEqual(converted);
   const storage = await page.evaluate(() => ({ all: JSON.stringify(localStorage), whiteboard: localStorage.getItem("diagrammatic.draft.whiteboard") }));
   expect(storage.whiteboard).toContain('"rectangle"');
   expect(storage.all).not.toContain("data:image/png");
   expect(storage.all).not.toContain("iVBOR");
+});
+
+test("official Azure conversion identities render and survive library reload without label-based substitution", async ({ page }) => {
+  test.setTimeout(120_000);
+  const payload = {
+    nodes: [
+      { kind: "icon", id: "app", label: "Checkout API", iconId: "azure/application/application-service", iconPath: "/cloud-icons/azure/application/application-service.svg", x: 20, y: 50 },
+      { kind: "icon", id: "sql", label: "Azure SQL Database", iconId: "azure/data/sql-database", iconPath: "/cloud-icons/azure/data/sql-database.svg", x: 300, y: 50 },
+      { kind: "shape", id: "unknown", label: "Azure custom service", shape: "rectangle", x: 580, y: 50 },
+    ],
+    edges: [{ id: "sql-connection", source: "app", target: "sql", label: "SQL", style: "solid" }],
+  };
+  const normalizedPayload = {
+    nodes: payload.nodes.map((node) => node.kind === "shape" ? { ...node, width: 128, height: 104 } : node),
+    edges: payload.edges.map((edge) => ({ ...edge, step: 1 })),
+  };
+  const readPersistedPayload = async () => {
+    const saved = (await readSavedDiagram(page, "Converted Whiteboard"))?.payload;
+    // IndexedDB retains undefined fields; exported JSON omits them. Compare the
+    // complete document after native defaults and autosave, not the premount fixture.
+    return saved === undefined ? undefined : JSON.parse(JSON.stringify(saved));
+  };
+  await page.route("**/api/ai/convert", (route) => route.fulfill({
+    json: {
+      payload: {
+        ...payload,
+        nodes: payload.nodes.map((node) => node.id === "app" ? { ...node, iconPath: payload.nodes[1].iconPath } : node),
+      },
+      warnings: ["Azure custom service has no catalog match; retained as a generic shape."],
+    },
+  }));
+  await openConversion(page);
+  await page.getByRole("button", { name: "Analyze Whiteboard", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Conversion preview" })).toContainText("2 service icons");
+  await page.getByRole("checkbox", { name: /I reviewed this preview/ }).check();
+  await page.getByRole("button", { name: "Replace architecture", exact: true }).click();
+  await expect(page.locator(".react-flow__node")).toHaveCount(3, { timeout: 30_000 });
+  for (const path of [payload.nodes[0].iconPath, payload.nodes[1].iconPath]) {
+    const image = page.locator(`.react-flow__node img[src="${path}"]`);
+    await expect(image).toBeVisible();
+    await expect.poll(() => image.evaluate((element) => (element as HTMLImageElement).naturalWidth), { timeout: 20_000 }).toBeGreaterThan(0);
+  }
+  await expect.poll(readPersistedPayload, { timeout: 15_000 }).toEqual(normalizedPayload);
+  await page.goto("/diagrammatic?mode=architecture");
+  await expect(page.locator(".react-flow__node")).toHaveCount(3, { timeout: 30_000 });
+  await expect(page.locator('.react-flow__node[data-id="app"]')).toContainText("Checkout API");
+  await expect(page.locator(`.react-flow__node[data-id="app"] img[src="${payload.nodes[0].iconPath}"]`)).toBeVisible();
+  await expect.poll(readPersistedPayload, { timeout: 15_000 }).toEqual(normalizedPayload);
 });
 
 test("cancellation ignores late results and reopening resets confirmation", async ({ page }) => {
@@ -99,7 +149,7 @@ test("cancellation ignores late results and reopening resets confirmation", asyn
   await expect(page.getByRole("checkbox", { name: /I reviewed this preview/ })).not.toBeChecked();
   await expect(page.getByRole("button", { name: "Replace architecture", exact: true })).toBeDisabled();
   await page.keyboard.press("Escape");
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("diagrammatic.draft") ?? "{}").payload)).toEqual(original);
+  expect(await readCanvasPayload(page, "architecture")).toEqual(original);
 });
 
 test("invalid model responses and rate limits leave the architecture untouched", async ({ page }) => {
@@ -116,7 +166,7 @@ test("invalid model responses and rate limits leave the architecture untouched",
   await expect(page.getByRole("region", { name: "Conversion preview" })).toHaveCount(0);
   await page.getByRole("button", { name: "Analyze Whiteboard", exact: true }).click();
   await expect(page.getByRole("dialog").getByRole("alert")).toContainText("Rate limit exceeded");
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("diagrammatic.draft") ?? "{}").payload)).toEqual(original);
+  expect(await readCanvasPayload(page, "architecture")).toEqual(original);
 });
 
 test("conversion API rejects spoofed and oversized images before contacting a model", async ({ request }) => {

@@ -199,7 +199,9 @@ draft bytes. Recovery downloads contain the affected original local data and
 should be handled with the same confidentiality as the diagrams themselves.
 
 Whiteboard conversion follows the same request-scoped policy for its rendered
-PNG. The user explicitly starts analysis and separately confirms replacement
+PNG and bounded source identity/label evidence. This evidence is extracted from
+explicit canonical service metadata and associated labels, not arbitrary
+custom-data fields or binary image files. The user explicitly starts analysis and separately confirms replacement
 of the architecture canvas. PNG dimensions are limited to 8,192 per side and
 16 megapixels, and request bodies are byte-bounded before JSON parsing. The
 model receives a transcription-only prompt; node IDs, topology, evidence, and

@@ -4,13 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import { Loader2, ScanLine, X } from "lucide-react";
 import type { ArchPayload } from "../modes/architecture/ArchitectureCanvas";
 import { ARCHITECTURE_IMAGE_MAX_BYTES } from "@/lib/architecture-review";
-import { parseWhiteboardConversionResponse, type WhiteboardConversion } from "@/lib/whiteboard-conversion";
+import { conversionSourceSchema, parseWhiteboardConversionResponse, type ConversionIcon, type ConversionSourceNode, type WhiteboardConversion } from "@/lib/whiteboard-conversion";
 
 export interface WhiteboardConvertModalProps {
   open: boolean;
   onClose: () => void;
   onResult: (payload: ArchPayload) => void | Promise<void>;
   getImage: () => Promise<Blob>;
+  icons: readonly ConversionIcon[];
+  getSourceNodes?: () => ConversionSourceNode[];
   hasExistingArchitecture?: boolean;
 }
 
@@ -36,7 +38,7 @@ export default function WhiteboardConvertModal(props: WhiteboardConvertModalProp
   return props.open ? <ConversionDialog {...props} /> : null;
 }
 
-function ConversionDialog({ onClose, onResult, getImage, hasExistingArchitecture = true }: WhiteboardConvertModalProps) {
+function ConversionDialog({ onClose, onResult, getImage, icons, getSourceNodes, hasExistingArchitecture = true }: WhiteboardConvertModalProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [preview, setPreview] = useState<WhiteboardConversion | null>(null);
@@ -90,6 +92,7 @@ function ConversionDialog({ onClose, onResult, getImage, hasExistingArchitecture
     setPreview(null);
     setConsent(false);
     try {
+      const sourceNodes = conversionSourceSchema.parse(getSourceNodes?.() ?? []);
       const blob = await getImage();
       run.signal.throwIfAborted();
       if (blob.type !== "image/png" || blob.size === 0 || blob.size > ARCHITECTURE_IMAGE_MAX_BYTES) {
@@ -100,7 +103,7 @@ function ConversionDialog({ onClose, onResult, getImage, hasExistingArchitecture
       const response = await fetch("/api/ai/convert", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: { name: "whiteboard.png", mimeType: "image/png", dataUrl } }),
+        body: JSON.stringify({ image: { name: "whiteboard.png", mimeType: "image/png", dataUrl }, sourceNodes }),
         signal: run.signal,
         cache: "no-store",
       });
@@ -112,7 +115,7 @@ function ConversionDialog({ onClose, onResult, getImage, hasExistingArchitecture
             : "Conversion failed or returned an invalid diagram. Clarify the drawing and retry. Nothing was changed.");
       }
       const result: unknown = await response.json();
-      const validated = parseWhiteboardConversionResponse(result);
+      const validated = parseWhiteboardConversionResponse(result, icons);
       if (!run.signal.aborted && controller.current === run) setPreview(validated);
     } catch (failure) {
       if (!run.signal.aborted && controller.current === run) {
@@ -136,7 +139,7 @@ function ConversionDialog({ onClose, onResult, getImage, hasExistingArchitecture
   }
 
   const groups = preview?.payload.nodes.filter((node) => node.kind === "group").length ?? 0;
-  const icons = preview?.payload.nodes.filter((node) => node.kind !== "shape" && node.kind !== "group").length ?? 0;
+  const iconCount = preview?.payload.nodes.filter((node) => node.kind !== "shape" && node.kind !== "group").length ?? 0;
   const labels = new Map(preview?.payload.nodes.map((node) => [node.id, node.label]));
 
   return (
@@ -147,14 +150,14 @@ function ConversionDialog({ onClose, onResult, getImage, hasExistingArchitecture
           <button ref={closeButton} onClick={cancel} aria-label="Close conversion" className="rounded p-2 text-slate-400 hover:bg-white/10"><X size={18} /></button>
         </header>
         <div className="space-y-4 overflow-y-auto p-5">
-          <p className="text-sm text-slate-300">Analyze the current Whiteboard as a PNG using your configured Azure OpenAI vision deployment. The conversion does not save the image to files, browser storage, or application logs. Your original Whiteboard is unchanged.</p>
+          <p className="text-sm text-slate-300">Analyze the current Whiteboard as a PNG using your configured Azure OpenAI vision deployment. Explicit service identities, when available, accompany the image so renamed services keep their official icons. Unknown services remain generic shapes. The conversion does not save the image to files, browser storage, or application logs. Your original Whiteboard is unchanged.</p>
           <p className="text-xs text-slate-400">Only send content you are authorized to process. The configured Azure service&apos;s data handling policies apply. AI may miss or misread evidence; check every component and connection before replacing your architecture.</p>
           {hasExistingArchitecture && <p role="note" aria-label="Existing architecture warning" className="rounded-lg border border-amber-300/25 bg-amber-300/10 p-3 text-sm text-amber-100">Your current architecture is not empty. Applying this conversion will replace its nodes and connections, not merge them. Save a snapshot first if you need to retain it.</p>}
           {busy && <p role="status" className="flex items-center gap-2 text-sm text-cyan-300"><Loader2 size={16} className="animate-spin" />Analyzing visible diagram evidence...</p>}
           {error && <p role="alert" className="rounded-lg border border-red-400/25 bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
           {preview && <section aria-label="Conversion preview" className="space-y-3">
             <h3 className="font-semibold text-cyan-200">Architecture preview</h3>
-            <p className="text-sm">{preview.payload.nodes.length} nodes: {icons} service icons, {groups} groups, {preview.payload.nodes.length - icons - groups} generic shapes. {preview.payload.edges.length} connections.</p>
+            <p className="text-sm">{preview.payload.nodes.length} nodes: {iconCount} service icons, {groups} groups, {preview.payload.nodes.length - iconCount - groups} generic shapes. {preview.payload.edges.length} connections.</p>
             <ul className="max-h-44 space-y-1 overflow-auto rounded-lg bg-black/20 p-3 text-sm" aria-label="Preview components">
               {preview.payload.nodes.map((node) => <li key={node.id}>
                 <span className="font-medium">{node.label}</span> <span className="text-slate-400">({node.kind ?? "icon"}{"iconId" in node ? `: ${node.iconId}` : ""})</span>

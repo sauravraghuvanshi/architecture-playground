@@ -1,4 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
+import { readSavedDiagram } from "./read-saved-diagram";
+
+function savedFiles(payload: unknown): object {
+  if (!payload || typeof payload !== "object" || !("files" in payload) ||
+      !payload.files || typeof payload.files !== "object" || Array.isArray(payload.files)) {
+    throw new Error("The saved Whiteboard has no binary file map.");
+  }
+  return payload.files;
+}
 
 async function savedDocuments(page: Page) {
   return page.evaluate(() => new Promise<Array<{
@@ -157,7 +166,8 @@ test("Whiteboard image binaries survive New, reopening and a fresh page load", a
   await expect(page.locator(".excalidraw")).toBeVisible({ timeout: 30_000 });
   await page.locator('button[title^="Click or drag to insert"]').first().click();
   await nameCurrent(page, "Workshop A");
-  await expect.poll(async () => (await savedDocuments(page)).find((document) => document.name === "Workshop A")?.files).toBe(1);
+  await expect.poll(async () => (await savedDocuments(page)).find((document) => document.name === "Workshop A")?.files ?? 0).toBeGreaterThan(0);
+  const originalFiles = savedFiles((await readSavedDiagram(page, "Workshop A"))?.payload);
   await page.getByRole("button", { name: "New diagram", exact: true }).click();
   await nameCurrent(page, "Workshop B");
   await page.reload();
@@ -171,7 +181,7 @@ test("Whiteboard image binaries survive New, reopening and a fresh page load", a
   const image = await download;
   expect(image.suggestedFilename()).toMatch(/\.png$/);
   const docs = await savedDocuments(page);
-  expect(docs.find((document) => document.name === "Workshop A")?.files).toBe(1);
+  expect(savedFiles((await readSavedDiagram(page, "Workshop A"))?.payload)).toEqual(originalFiles);
   expect(docs.find((document) => document.name === "Workshop A")?.elements).toBeGreaterThan(0);
   expect(docs.find((document) => document.name === "Workshop B")?.files).toBe(0);
 });

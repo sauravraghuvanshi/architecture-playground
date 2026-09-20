@@ -1,9 +1,171 @@
 # Azure Deployment Plan
 
-> **Status:** Deployed
+> **Status:** Validated
 
 Generated: 2026-08-12
 Updated: 2026-09-20 (Asia/Kolkata)
+
+## Whiteboard fidelity and nested cloud boundaries - user-selected interruption
+
+This work takes precedence over the numbered roadmap at the user's request.
+Baseline: application `d70340c`, documentation `7621e77`. Preserve prior releases.
+
+- **Target/recipe:** Existing application-only GitHub Actions/App Service release
+  at https://architecture-playground.azurewebsites.net. No new infrastructure.
+- **Scope:** Canvas-aware AI image prompts; readable Whiteboard symbols in both
+  themes; faithful service/icon identity in Whiteboard-to-architecture conversion;
+  nested Landing Zone, Virtual Network and Subnet boundaries with services inside.
+- **Research:** Inspect current implementation and publicly documented Cloudairy
+  and Lucidchart capabilities. Record evidence, differentiated opportunities and
+  limits in the locally excluded Audit Report; do not claim whole-product parity.
+- **Implementation plan:** Reproduce each issue; fix underlying shared behavior;
+  cover themes, conversion identity, nested editing/history/save/import/export;
+  validate the production build; deploy and repeat focused hosted acceptance.
+- **Model/testing boundary:** GPT-6 Astra for engineering work. Use deterministic
+  AI fixtures unless an explicitly permitted image-model test can be performed;
+  never misrepresent fixtures as proof of live image aesthetics.
+- **Validation proof:** Recorded below. No deployment until azure-validate completes.
+- **Rollback:** Redeploy the previous application; export diagrams before moving
+  back to an older client that may not understand nested architecture boundaries.
+
+### Boundary implementation and intermediate verification
+
+- Added typed, parent-relative nested groups and cycle/missing-parent validation.
+  Parent-first loading, ancestor-aware hit testing, explicit parent editing,
+  drag-to-parent/detach, subtree deletion and resize containment share helpers.
+- Cloud boundary presets include Landing Zone, Subscription, Resource Group,
+  Region, Virtual Network, VPC and Subnet. Existing application tiers remain.
+  The UI explicitly distinguishes conceptual design from provisioned networking.
+- Native hook tests: 19 passed, including eight new hierarchy/history cases.
+  Initial full contract suite: 188 passed before the parallel Whiteboard changes.
+  Strict types and scoped lint pass for the architecture implementation.
+- Browser verification found and corrected non-interactive boundary header text.
+  Actual nested drag, reparent, delete/undo, ancestor resizing, save/reload and
+  JSON/PNG exports have passed against the loopback development candidate.
+- An existing connection test measured handles during fit-view animation; it now
+  waits for the real handle to settle before recording coordinates, retaining
+  all connection and visibility assertions. The corrected scenario passed.
+- Export and boundary disclosures now use native click activation and
+  focus-within dismissal rather than a delayed blur timer and mouse-only actions.
+  A keyboard test initially tried to focus the workspace while its loading guard
+  was inert; it now waits for actual workspace readiness, not an arbitrary delay.
+- These are intermediate results, not release approval. Combined production
+  build, Whiteboard/AI/conversion acceptance and hosted verification are pending.
+
+### Combined candidate - validation in progress
+
+- Whiteboard: literal-color rendering rather than global image inversion;
+  canvas-aware prompt context, decoded image proportions, adaptive owned neutral
+  symbols/foregrounds and unchanged arbitrary custom colors. Eight deterministic
+  browser cases and 28 scoped unit checks passed after Workspace integration.
+  Existing opaque AI rasters are not rewritten; model background compliance is
+  best effort, not guaranteed transparency or a verified live-model result.
+- Conversion: canonical server/client resolution maps explicit known Azure
+  service names to official bundled icons. Explicit source `iconId`/`serviceId`
+  metadata, when available, survives relabeling; absent/duplicate associations
+  fail rather than silently losing identity. Normal Lucide-only insertion does
+  not fabricate provider metadata. Eighteen scoped tests and five browser cases
+  passed; original scene/binaries remain intact.
+- Combined unit/contract suite: 208 passed. Previous PowerShell preview safety:
+  8 passed. Repository lint, strict TypeScript and standalone production build
+  passed. The first broad production-candidate run passed 63 of 70 cases.
+- Corrected a CRC-invalid synthetic PNG fixture now that insertion validates
+  actual decoded dimensions. Corrected an older history test that programmatically
+  uploaded JSON while the workspace was inert/loading, bypassing normal user
+  readiness; the complete resize/history scenario then passed twice.
+- Cloudairy/Lucid research is saved as a self-contained local HTML supplement:
+  14 compared capabilities and 32 source entries. Search, print, citation anchors,
+  1440/390 layouts and absence of automatic external requests verified. The
+  original audit and supplement remain Git-excluded.
+- Existing App Service pipeline and owner-scoped push permissions rechecked.
+  Remote master is the expected `7621e77454b198709e74ec918589e23ed81fddab`.
+  No cloud infrastructure, identity, role, provider configuration or deployment
+  workflow changes are introduced. No live model calls were performed.
+- Final gate: complete broad acceptance, resolve legacy-asset readability
+  coverage, then invoke azure-validate and azure-deploy before release.
+
+### Corrective integration findings
+
+- The broader run found a real Whiteboard live-drawing regression: semantic
+  color tagging replaced an arrow while Excalidraw still held its drag reference.
+  Reconciliation now waits until drawing/editing ends and transient interaction
+  fields are not persisted. A nonzero-length arrow bound to two distinct symbols,
+  Undo/Redo and animated GIF export passed after the fix.
+- Before-release Lucide assets were verified against baseline `d70340c` with a
+  real-pixel test. They contain literal navy artwork and become readable on light
+  canvas without migration. Untagged legacy white text is intentionally preserved
+  rather than assuming it was not a custom color.
+- Shared conversion matching exposed missing known legacy-template aliases.
+  Canonical provider-safe coverage and normalized persistence expectations are
+  being corrected before the final candidate; false fuzzy matches are not restored.
+- Persistence tests now verify exact retained binary maps rather than assuming
+  one file per symbol (neutral source plus theme variants are intentional), and
+  shared readers respect the active IndexedDB document instead of assuming all
+  canvases remain scratch data in localStorage.
+- The AI toolbar now remains disabled while readiness is unknown and exposes
+  HTTP/malformed-status failures explicitly instead of presenting an enabled
+  action or a silent success-shaped fallback. Three new readiness cases pass.
+- Corrective readiness/storage/history browser run: 6 passed. Combined source
+  checkpoint: 212 unit/contract tests, strict TypeScript and repository lint pass.
+  Final production rebuild and acceptance remain required.
+
+### Whiteboard fidelity - Section 7: Validation Proof
+
+#### All validation checks pass - scoped application release
+
+- [x] Core application validation: 212 unit/contract tests, 8 command-mocked
+  PowerShell tests, lint, strict types and final standalone build.
+- [x] Functional release gate: 32/32 changed-feature browser scenarios.
+  Broader baseline/retest limitations are recorded below, not hidden.
+- [x] Exact final hierarchy guard: 39/39 hierarchy/conversion tests after
+  duplicate-ID rejection, followed by a successful standalone rebuild.
+- [x] Existing pipeline and repository permissions checked; no new subscription,
+  resources, environment, container or infrastructure artifact is introduced.
+- [x] Bicep/ARM validate/What-If and Azure Policy provisioning checks: not
+  applicable to this code-only zip release; no customer IaC is executed.
+- [x] Docker build: not applicable to the existing Node standalone recipe.
+- [x] Static role verification: no new identity, data operation or RBAC change.
+- [x] Complete azure-validate workflow for the scoped release and hand off to
+  azure-deploy. The unrelated snapshot timing limitation remains disclosed.
+
+Evidence checkpoint: 2026-09-20, after 15:52 IST; existing application-only
+GitHub Actions/App Service recipe, with no new infrastructure or role changes.
+
+- `npm run test:playground`: 212/212 unit/contract tests passed, including real
+  production helpers for colors, image requests, conversion, template identity,
+  hierarchy, history and persistence.
+- `npm run test:powershell-preview`: 8/8 passed; all Azure operations mocked,
+  preserving the prior release's non-deploying preview guarantee.
+- `npm run lint`, `npx tsc --noEmit --incremental false`, and `npm run build`:
+  passed. The final standalone build includes the duplicate-ID hierarchy guard.
+  The changed hierarchy/conversion subset was rerun after that guard: 39/39.
+- Exact final artifact started successfully (HTTP 200). Its nested-template
+  handoff and invalid-hierarchy retention browser smoke passed 2/2. Template
+  startup uses the same explicit 30-second budget as existing gallery imports.
+- Final changed-feature browser gate: **32/32 passed** on the standalone
+  candidate: readiness, nested boundaries, both-canvas history, image/theme
+  pixels and proportions, canonical conversion, legacy icon colors and bound
+  arrow/GIF export. Models are deterministic fixtures; no live inference.
+- Corrected broader candidate: **70/74 initially passed**. Three startup guards
+  were corrected to wait for actual workspace readiness under the established
+  canvas-startup budget and passed twice. The unchanged prior snapshot timing
+  case passed one isolated repeat and failed one. All 74 distinct cases were
+  verified across the run/retests, but the broad suite is not represented as
+  clean or that unrelated intermittent behavior as fixed.
+- All 16 bundled template imports passed with a 53-identity audited fixture:
+  49 official mappings and four explicit catalog gaps. No unrelated icons are
+  substituted for absent services.
+- Local rendered UI and the research HTML were inspected. The HTML has 14
+  capability rows, 32 evidence entries, valid in-page links, working search and
+  print, responsive 1440/390 layouts and no automatic external requests.
+- Existing owner-scoped GitHub push/admin permission and expected master
+  `7621e77454b198709e74ec918589e23ed81fddab` verified. No IAM, resource provisioning,
+  provider configuration, real customer deployment or template publication.
+- Static role verification: existing App Service/Foundry access remains
+  unchanged; no new principals, role assignments, SDK permissions or secrets.
+- Scope limitation: untagged legacy custom white text is preserved; previously
+  generated opaque images are not rewritten; model palette compliance is best
+  effort. This gate does not certify competitor parity or all-browser support.
 
 ## Priority 4: Truly read-only deployment previews
 

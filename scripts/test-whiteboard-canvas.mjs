@@ -4,17 +4,18 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import ts from "typescript";
 import { z } from "zod";
+import * as appearance from "../lib/whiteboard-appearance.ts";
 
 const source = readFileSync(new URL("../components/diagrammatic/modes/whiteboard/Canvas.tsx", import.meta.url), "utf8");
 const compiled = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
 }).outputText;
-const pngData = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZQmcAAAAASUVORK5CYII=";
+const pngData = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgqLjyHwAEFAJMURtfXQAAAABJRU5ErkJggg==";
 const imageFile = { id: "image1", mimeType: "image/png", dataURL: pngData, created: 1, lastRetrieved: 2, version: 1 };
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
 // Stub the drawing engine and hook lifecycle, but execute the actual canvas handle implementation.
-function canvasHarness({ ready = true, pngFailure, gifFailure } = {}) {
+function canvasHarness({ ready = true, pngFailure, gifFailure, imageWidth = 1200, imageHeight = 800, state = {} } = {}) {
   const calls = [];
   const files = {};
   let elements = [];
@@ -23,14 +24,14 @@ function canvasHarness({ ready = true, pngFailure, gifFailure } = {}) {
   const api = {
     getFiles: () => files,
     getSceneElements: () => elements,
-    getAppState: () => ({ exportEmbedScene: true }),
+    getAppState: () => ({ exportEmbedScene: true, viewBackgroundColor: "#05080d", ...state }),
     addFiles: (added) => {
       calls.push(["addFiles", added]);
       for (const file of added) files[file.id] = file;
     },
     updateScene: (scene) => {
       calls.push(["updateScene", scene]);
-      elements = scene.elements;
+      if (scene.elements) elements = scene.elements;
       for (const element of elements) {
         if (element.type === "image") assert.ok(files[element.fileId], "Image binaries must exist before scene restoration");
       }
@@ -56,6 +57,7 @@ function canvasHarness({ ready = true, pngFailure, gifFailure } = {}) {
       Excalidraw: "Excalidraw",
       MainMenu: { DefaultItems: { SaveAsImage: "SaveAsImage", ClearCanvas: "ClearCanvas" } },
       convertToExcalidrawElements: (value) => value,
+      newElementWith: (element, updates) => ({ ...element, ...updates, version: (element.version ?? 0) + 1 }),
       CaptureUpdateAction: { IMMEDIATELY: "IMMEDIATELY", NEVER: "NEVER", EVENTUALLY: "EVENTUALLY" },
       exportToBlob: async (options) => {
         calls.push(["exportPng", options]);
@@ -64,6 +66,10 @@ function canvasHarness({ ready = true, pngFailure, gifFailure } = {}) {
       },
     },
     "@excalidraw/excalidraw/index.css": {},
+    "@/lib/whiteboard-appearance": {
+      ...appearance,
+      decodeWhiteboardImage: async () => ({ width: imageWidth, height: imageHeight }),
+    },
     "./export-gif": {
       exportWhiteboardFlowGif: async (options) => {
         calls.push(["exportGif", options]);
@@ -78,6 +84,8 @@ function canvasHarness({ ready = true, pngFailure, gifFailure } = {}) {
     exports,
     TextEncoder,
     btoa: (value) => Buffer.from(value, "binary").toString("base64"),
+    requestAnimationFrame: (callback) => { callback(); return 1; },
+    cancelAnimationFrame: () => {},
     document: { querySelector: () => { throw new Error("Canvas controls must not query the global document"); } },
     require: (name) => {
       if (!(name in dependencies)) throw new Error(`Unexpected canvas dependency: ${name}`);
@@ -85,8 +93,8 @@ function canvasHarness({ ready = true, pngFailure, gifFailure } = {}) {
     },
   });
   const ref = { current: null };
-  exports.WhiteboardCanvas({ value: { elements: [], files: {} } }, ref);
-  return { handle: ref.current, calls, files, png, gif };
+  const rendered = exports.WhiteboardCanvas({ value: { elements: [], files: {} } }, ref);
+  return { handle: ref.current, calls, files, png, gif, onChange: rendered.props.children.props.onChange };
 }
 
 test("snapshot hydration restores validated image binaries before elements after a fresh mount", () => {
@@ -94,11 +102,14 @@ test("snapshot hydration restores validated image binaries before elements after
   handle.hydrate({
     elements: [{ id: "drawing1", type: "image", fileId: "image1" }],
     files: { image1: imageFile },
-    appState: { collaborators: {}, selectedElementIds: { stale: true } },
+    appState: { collaborators: {}, selectedElementIds: { stale: true }, newElement: { id: "stale" }, editingTextElement: { id: "stale" }, isResizing: true },
   });
   assert.deepEqual(calls.map(([operation]) => operation), ["addFiles", "updateScene", "clearHistory"]);
   assert.deepEqual(plain(files.image1), imageFile);
   assert.equal(calls[1][1].appState.selectedElementIds, undefined);
+  assert.equal(calls[1][1].appState.newElement, undefined);
+  assert.equal(calls[1][1].appState.editingTextElement, undefined);
+  assert.equal(calls[1][1].appState.isResizing, undefined);
   assert.deepEqual(plain(handle.serialize().files), { image1: imageFile });
 });
 
@@ -127,6 +138,8 @@ test("native PNG exports omit embedded scene metadata and use restored files", a
   const options = calls.find(([operation]) => operation === "exportPng")[1];
   assert.equal(options.appState.exportEmbedScene, false);
   assert.equal(options.appState.exportBackground, true);
+  assert.equal(options.appState.exportWithDarkMode, false);
+  assert.equal(options.appState.theme, "light");
   assert.equal(options.files.image1.dataURL, pngData);
 });
 
@@ -158,9 +171,9 @@ test("undo, redo and delete use only this canvas's Excalidraw controls", () => {
   ]);
 });
 
-test("each custom image and symbol insertion registers files before an immediate history checkpoint", () => {
+test("each custom image and symbol insertion registers files before an immediate history checkpoint", async () => {
   const { handle, calls, files } = canvasHarness();
-  handle.insertImage(pngData.split(",")[1], "image/png");
+  await handle.insertImage(pngData.split(",")[1], "image/png");
   handle.insertSvgAsset('<svg xmlns="http://www.w3.org/2000/svg"><rect width="10" height="10"/></svg>', "Symbol");
   const updates = calls.filter(([operation]) => operation === "updateScene");
   assert.equal(updates.length, 2);
@@ -169,4 +182,42 @@ test("each custom image and symbol insertion registers files before an immediate
   assert.equal(updates[1][1].elements.length, 2);
   assert.equal(Object.keys(files).length, 2);
   assert.deepEqual(calls.map(([operation]) => operation), ["addFiles", "updateScene", "addFiles", "updateScene"]);
+});
+
+test("decoded aspect ratio and captured request surface survive insertion and serialization", async () => {
+  const canvas = { theme: "dark", backgroundColor: "#193a52", foregroundColor: "#f8fafc" };
+  const { handle, calls } = canvasHarness({ imageWidth: 1536, imageHeight: 1024, state: { viewBackgroundColor: canvas.backgroundColor } });
+  assert.deepEqual(plain(handle.getImageCanvasContext()), canvas);
+  await handle.insertImage(pngData.split(",")[1], "image/png", { canvas });
+  const element = calls.find(([operation]) => operation === "updateScene")[1].elements[0];
+  assert.equal(element.width, 480);
+  assert.equal(element.height, 320);
+  assert.deepEqual(plain(element.customData.diagrammaticImageCanvas), canvas);
+  assert.equal(Object.values(handle.serialize().files)[0].dataURL, pngData);
+});
+
+test("custom background is passed unchanged into PNG and GIF exports", async () => {
+  const { handle, calls } = canvasHarness({ state: { viewBackgroundColor: "#193a52", exportWithDarkMode: true, theme: "dark" } });
+  await handle.exportBlob("png");
+  await handle.exportBlob("gif");
+  const png = calls.find(([operation]) => operation === "exportPng")[1];
+  const gif = calls.find(([operation]) => operation === "exportGif")[1];
+  assert.equal(png.appState.viewBackgroundColor, "#193a52");
+  assert.equal(png.appState.exportWithDarkMode, false);
+  assert.equal(gif.backgroundColor, "#193a52");
+  assert.equal(gif.appState.exportWithDarkMode, false);
+});
+
+test("semantic annotation waits until a live native drawing gesture finishes", () => {
+  const { onChange, calls } = canvasHarness();
+  const arrow = { id: "live-arrow", type: "arrow", strokeColor: "#f8fafc", width: 0, height: 0, points: [[0, 0], [0, 0]] };
+  onChange([arrow], { viewBackgroundColor: "#05080d", newElement: arrow }, {});
+  assert.equal(calls.length, 0, "Never replace the element referenced by the active pointer gesture");
+  const completed = { ...arrow, width: 240, points: [[0, 0], [240, 0]] };
+  onChange([completed], { viewBackgroundColor: "#05080d", newElement: null }, {});
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][1].elements[0].width, 240);
+  assert.deepEqual(plain(calls[0][1].elements[0].points), [[0, 0], [240, 0]]);
+  assert.equal(calls[0][1].elements[0].customData.diagrammaticForeground, "#f8fafc");
+  assert.equal(calls[0][1].captureUpdate, "NEVER");
 });

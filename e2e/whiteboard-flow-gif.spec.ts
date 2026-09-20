@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { readCanvasPayload } from "./read-canvas-payload";
 
 test("connects bundled symbols with a flow arrow and exports an animated GIF", async ({
   page,
@@ -33,27 +34,30 @@ test("connects bundled symbols with a flow arrow and exports an animated GIF", a
   await page.mouse.move(bounds!.x + 670, bounds!.y + 300, { steps: 12 });
   await page.mouse.up();
 
-  await page.waitForFunction(() => {
-    const raw = localStorage.getItem("diagrammatic.draft.whiteboard");
-    if (!raw) return false;
-    const parsed = JSON.parse(raw) as {
-      payload?: {
-        elements?: Array<{
-          type?: string;
-          startBinding?: unknown;
-          endBinding?: unknown;
-        }>;
-      };
+  const arrowState = async () => {
+    const payload = await readCanvasPayload(page, "whiteboard") as {
+      elements?: Array<{
+        type?: string;
+        isDeleted?: boolean;
+        width?: number;
+        height?: number;
+        startBinding?: { elementId?: string };
+        endBinding?: { elementId?: string };
+      }>;
     };
-    return (
-      parsed.payload?.elements?.some(
-        (element) =>
-          element.type === "arrow" &&
-          Boolean(element.startBinding) &&
-          Boolean(element.endBinding)
-      ) ?? false
-    );
-  });
+    return (payload?.elements ?? []).filter((element) => element.type === "arrow" && !element.isDeleted).map((element) => ({
+      longEnough: Math.hypot(element.width ?? 0, element.height ?? 0) > 100,
+      startBound: Boolean(element.startBinding?.elementId),
+      endBound: Boolean(element.endBinding?.elementId),
+      distinctSymbols: element.startBinding?.elementId !== element.endBinding?.elementId,
+    }));
+  };
+  const connectedArrow = [{ longEnough: true, startBound: true, endBound: true, distinctSymbols: true }];
+  await expect.poll(arrowState, { timeout: 15_000 }).toEqual(connectedArrow);
+  await whiteboard.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect.poll(arrowState).toEqual([]);
+  await whiteboard.getByRole("button", { name: "Redo", exact: true }).click();
+  await expect.poll(arrowState).toEqual(connectedArrow);
 
   await page.getByRole("button", { name: "Export" }).click();
   const gifOption = page.getByRole("button", { name: "GIF · ordered request flow" });

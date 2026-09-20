@@ -248,3 +248,75 @@ changes were retained and published with this application release.
   Next: **priority 5**, not started. The roadmap now records 4 completed and
   29 pending priorities. This final record is documentation-only, not a new app
   deployment.
+
+## User-selected interruption - Whiteboard fidelity and cloud boundaries
+
+The user paused the numbered queue to address four screenshot-backed issues.
+The implementation is complete locally; final release verification is pending
+at this checkpoint. The existing application-only App Service pipeline remains
+the deployment target. Engineering and delegated work used GPT-6 Astra.
+
+### Delivered in the candidate
+
+1. Image-generation requests capture the actual canvas theme/background and
+   foreground. Prompt instructions request a flat matching illustration without
+   photographed paper, white slides, frames or mattes. Insertion awaits decoding
+   and preserves real bitmap proportions.
+2. Whiteboard rendering/export preserves literal image colors rather than
+   globally inverting artwork. Owned neutral symbols and new automatic
+   foregrounds adapt to the canvas; arbitrary custom colors remain untouched.
+   Pre-release bundled Lucide artwork was pixel-tested on light canvas.
+3. Whiteboard conversion uses canonical, provider-safe icon resolution. Known
+   Azure App Service/SQL labels become official icons; explicit imported source
+   identity survives relabeling. Ordinary Lucide symbols do not fabricate cloud
+   identity metadata. Audited legacy aliases cover 49 of 53 template identities;
+   four genuine catalog gaps remain labeled generic components.
+4. Cloud Architecture supports nested Landing Zone, Subscription, Resource
+   Group, Region, Virtual Network, VPC and Subnet boundaries. Parent selection,
+   drag reparent/detach, minimum child extents, ancestor expansion, subtree
+   deletion, Undo/Redo and parent-first persistence/import are implemented.
+   These are design boundaries, not provisioned resources or network validation.
+
+### Integration findings and evidence
+
+- Full source checkpoint: 212 unit/contract tests, 8 PowerShell safety tests,
+  repository lint, strict TypeScript and a fresh standalone build passed.
+- A broad first candidate run found real template-alias and live-arrow
+  regressions. Both were corrected before release. Color reconciliation now
+  waits until native drawing/editing ends, preserving Excalidraw's live object
+  references; transient gesture state is not stored.
+- Tests were strengthened to verify complete retained image-file maps,
+  canonical normalized payloads and actual active IndexedDB/scratch ownership.
+  Invalid synthetic PNG bytes were replaced with CRC-valid fixtures.
+- AI readiness now disables the toolbar during checking and reports unavailable
+  or malformed status explicitly. Tests cover delayed success and both failures.
+- The corrected broad candidate passed 70/74 initially. Three new startup
+  assertions used the default five-second action budget while the workspace was
+  still inert; they now wait for the actual ready guard using the existing
+  30-second canvas-startup budget, without loosening behavioral assertions.
+- The remaining failure is the unchanged, previously documented snapshot
+  save-confirmation timing case. In isolated repeats it passed once and failed
+  once. All 74 distinct cases have passed across the run and corrective repeats,
+  but this is not a claim of a clean single broad run or a snapshot fix.
+- Final changed-feature acceptance and hosted results will be recorded below.
+
+### Research and intentional limits
+
+- Local excluded supplement:
+  `Audit Report/competition-and-canvas-fidelity.html`.
+- Fourteen capability comparisons, 32 source entries, explicit documented /
+  marketing / unverified / proposed labels, and a differentiated product plan.
+  Search, print, citation anchors, 1440/390 layouts and zero automatic external
+  requests were verified. No competitor account or authenticated editor was used.
+- No live AI inference, customer IaC execution or resource creation was used for
+  verification. Model background matching remains best effort, not guaranteed
+  transparency. Existing opaque generated images must be regenerated to change
+  their painted background.
+- Untagged legacy white text is preserved because it is indistinguishable from
+  intentionally chosen white text; users can explicitly change its native color.
+- AWS API Gateway, GCP Pub/Sub, GCP Cloud Load Balancing and Azure Business
+  Process Tracking lack specific bundled icons and are not replaced with
+  unrelated products. Broader prompt/IaC identity work remains in priority 5.
+- Native group nesting and fidelity are not equivalent to Lucid/Cloudairy
+  feature parity. Enterprise collaboration, drift, cost analysis, source-linked
+  AI diffs and stronger engineering handoffs remain on the roadmap.

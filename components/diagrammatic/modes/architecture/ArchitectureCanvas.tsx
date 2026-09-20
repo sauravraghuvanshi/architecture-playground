@@ -65,6 +65,7 @@ import {
 
 import type { CanvasTheme, IconLite } from "../../shared/types";
 import { MAX_PLAYBACK_STEP, parseArchitectureDocument } from "@/lib/architecture-document";
+import { absolutePosition, boundaryAtPoint, descendantIds, expandAncestors, GROUP_INSET, nodeSize, parentFirst, reparentNode } from "@/lib/architecture-hierarchy";
 
 // ─── Public types (preserved + extended for Phase 3) ──────────────────────
 
@@ -111,11 +112,12 @@ export interface ArchGroupNode {
   kind: "group";
   id: string;
   label: string;
-  /** Always absolute. Groups are never nested for now. */
+  /** Parent-relative when nested; absolute otherwise. */
   x: number;
   y: number;
   width: number;
   height: number;
+  parentId?: string;
   /** Optional named tier (Edge/Frontend/Gateway/Compute/Messaging/Data/Ops). */
   tier?: string;
 }
@@ -174,6 +176,8 @@ export interface ArchitectureSelection {
   nodeKind?: "icon" | "shape" | "group";
   subtitle?: string;
   tier?: string;
+  parentId?: string;
+  parentOptions?: Array<{ id: string; label: string }>;
   style?: ArchEdgeStyle;
   step?: number;
 }
@@ -183,6 +187,8 @@ export interface ArchitectureSelectionPatch {
   subtitle?: string;
   style?: ArchEdgeStyle;
   step?: number;
+  parentId?: string | null;
+  tier?: string;
 }
 
 interface Props {
@@ -333,9 +339,18 @@ const ShapeNode = memo(ShapeNodeImpl);
 interface GroupNodeData {
   label: string;
   tier?: string;
+  minWidth?: number;
+  minHeight?: number;
 }
 
 const TIER_STYLES: Record<string, { border: string; bg: string; headerBg: string; headerText: string; dot: string }> = {
+  "Landing Zone": { border: "border-sky-400", bg: "bg-sky-50/70", headerBg: "bg-sky-100", headerText: "text-sky-950", dot: "bg-sky-600" },
+  Subscription: { border: "border-slate-400", bg: "bg-slate-50/70", headerBg: "bg-slate-200", headerText: "text-slate-950", dot: "bg-slate-600" },
+  "Resource Group": { border: "border-amber-400", bg: "bg-amber-50/70", headerBg: "bg-amber-100", headerText: "text-amber-950", dot: "bg-amber-600" },
+  Region: { border: "border-slate-400", bg: "bg-slate-50/70", headerBg: "bg-slate-100", headerText: "text-slate-950", dot: "bg-slate-600" },
+  "Virtual Network": { border: "border-violet-400", bg: "bg-violet-50/70", headerBg: "bg-violet-100", headerText: "text-violet-950", dot: "bg-violet-600" },
+  VPC: { border: "border-violet-400", bg: "bg-violet-50/70", headerBg: "bg-violet-100", headerText: "text-violet-950", dot: "bg-violet-600" },
+  Subnet: { border: "border-emerald-400", bg: "bg-emerald-50/70", headerBg: "bg-emerald-100", headerText: "text-emerald-950", dot: "bg-emerald-600" },
   Edge:       { border: "border-sky-300",     bg: "bg-sky-50/70",     headerBg: "bg-sky-100",     headerText: "text-sky-900",     dot: "bg-sky-500" },
   Frontend:   { border: "border-indigo-300",  bg: "bg-indigo-50/70",  headerBg: "bg-indigo-100",  headerText: "text-indigo-900",  dot: "bg-indigo-500" },
   Gateway:    { border: "border-cyan-300",    bg: "bg-cyan-50/70",    headerBg: "bg-cyan-100",    headerText: "text-cyan-900",    dot: "bg-cyan-500" },
@@ -359,8 +374,10 @@ const GroupNodeImpl = ({ data, selected }: NodeProps) => {
     >
       <ConnectionHandles />
       <NodeResizer
-        minWidth={240}
-        minHeight={160}
+        minWidth={Math.max(240, d.minWidth ?? 0)}
+        minHeight={Math.max(160, d.minHeight ?? 0)}
+        maxWidth={100_000}
+        maxHeight={100_000}
         isVisible={selected}
         lineClassName="!border-sky-500"
         handleClassName="!bg-sky-500 !border-white"
@@ -368,7 +385,6 @@ const GroupNodeImpl = ({ data, selected }: NodeProps) => {
       {/* Header band — solid, prominent, always inside bounds */}
       <div
         className={`flex shrink-0 items-center gap-2 rounded-t-xl px-3 py-1.5 ${v.headerBg} ${v.headerText}`}
-        style={{ pointerEvents: "none" }}
       >
         <span className={`h-1.5 w-1.5 rounded-full ${v.dot}`} />
         <span className="text-[11px] font-bold uppercase tracking-[0.14em]">{tierName}</span>
@@ -522,7 +538,7 @@ function archToFlow(payload: ArchPayload): { nodes: Node[]; edges: Edge[] } {
   const groupIds = new Set(
     (payload.nodes ?? []).filter((n) => n.kind === "group").map((n) => n.id)
   );
-  const orderedNodes = [...payload.nodes].sort((left, right) => Number(right.kind === "group") - Number(left.kind === "group"));
+  const orderedNodes = parentFirst([...payload.nodes].sort((left, right) => Number(right.kind === "group") - Number(left.kind === "group")));
   const nodes: Node[] = orderedNodes.map((n) => {
     if (n.kind === "group") {
       return {
@@ -530,9 +546,10 @@ function archToFlow(payload: ArchPayload): { nodes: Node[]; edges: Edge[] } {
         type: "group",
         position: { x: n.x, y: n.y },
         data: { label: n.label, tier: n.tier },
-        style: { width: n.width, height: n.height },
+        style: { width: n.width, height: n.height, padding: 0, border: 0, background: "transparent" },
         zIndex: 0,
         selectable: true,
+        ...(n.parentId ? { parentId: n.parentId } : {}),
       };
     }
     if (n.kind === "shape") {
@@ -547,7 +564,7 @@ function archToFlow(payload: ArchPayload): { nodes: Node[]; edges: Edge[] } {
           height: n.height ?? 104,
         },
         zIndex: 2,
-        ...(parentId ? { parentId, extent: "parent" as const } : {}),
+        ...(parentId ? { parentId } : {}),
       };
     }
     const parentId = n.parentId && groupIds.has(n.parentId) ? n.parentId : undefined;
@@ -558,7 +575,7 @@ function archToFlow(payload: ArchPayload): { nodes: Node[]; edges: Edge[] } {
       data: { label: n.label, iconPath: n.iconPath, iconId: n.iconId, subtitle: n.subtitle, width: n.width, height: n.height },
       ...(n.width !== undefined || n.height !== undefined ? { style: { width: n.width, height: n.height } } : {}),
       zIndex: 2,
-      ...(parentId ? { parentId, extent: "parent" as const } : {}),
+      ...(parentId ? { parentId } : {}),
     };
   });
   const edges: Edge[] = (payload.edges ?? []).map((e) => ({
@@ -595,6 +612,7 @@ function flowToArch(nodes: Node[], edges: Edge[]): ArchPayload {
           y: n.position.y,
           width: w,
           height: h,
+          ...(n.parentId ? { parentId: n.parentId } : {}),
         };
       }
       if (n.type === "shape") {
@@ -854,9 +872,25 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
         if (change.resizing === false) resizingNodeIds.current.delete(change.id);
         return userResize && change.dimensions ? { ...change, setAttributes: true } : change;
       });
-      setNodes((nds) => applyNodeChanges(updates, nds));
+      const removed = descendantIds(nodes, changes.filter((change) => change.type === "remove").map((change) => change.id));
+      setNodes((current) => {
+        try {
+          let next = applyNodeChanges(updates, current).filter((node) => !removed.has(node.id));
+          for (const change of updates) {
+            if (change.type === "dimensions" && change.setAttributes && next.some((node) => node.id === change.id)) {
+              next = expandAncestors(next, change.id);
+            }
+          }
+          return next;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Unable to resize this boundary.";
+          queueMicrotask(() => reportError(message));
+          return current;
+        }
+      });
+      if (removed.size) setEdges((current) => current.filter((edge) => !removed.has(edge.source) && !removed.has(edge.target)));
     },
-    [snapshot]
+    [snapshot, nodes, reportError]
   );
 
   const onEdgesChange = useCallback(
@@ -906,33 +940,54 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
     [edges, snapshot, reportError]
   );
 
-  // Find the smallest group node whose bounding box contains the given
-  // (flow-space) point. Returns null if none.
   const groupAtPosition = useCallback(
     (flowX: number, flowY: number): Node | null => {
-      const groups = nodes.filter((n) => n.type === "group");
-      let best: Node | null = null;
-      let bestArea = Infinity;
-      for (const g of groups) {
-        const w = (g.measured?.width as number | undefined) ?? ((g.style?.width as number | undefined) ?? 280);
-        const h = (g.measured?.height as number | undefined) ?? ((g.style?.height as number | undefined) ?? 200);
-        if (
-          flowX >= g.position.x &&
-          flowX <= g.position.x + w &&
-          flowY >= g.position.y &&
-          flowY <= g.position.y + h
-        ) {
-          const area = w * h;
-          if (area < bestArea) {
-            bestArea = area;
-            best = g;
-          }
-        }
-      }
-      return best;
+      return boundaryAtPoint(nodes, flowX, flowY) ?? null;
     },
     [nodes]
   );
+
+  const describeNode = useCallback((node: Node): ArchitectureSelection => {
+    const excluded = descendantIds(nodes, [node.id]);
+    return {
+      kind: "node", id: node.id, label: String(node.data.label ?? ""),
+      nodeKind: node.type === "group" ? "group" : node.type === "shape" ? "shape" : "icon",
+      subtitle: typeof node.data.subtitle === "string" ? node.data.subtitle : undefined,
+      tier: typeof node.data.tier === "string" ? node.data.tier : undefined,
+      parentId: node.parentId,
+      parentOptions: nodes.filter((item) => item.type === "group" && !excluded.has(item.id))
+        .map((item) => ({ id: item.id, label: `${item.data.label || "Boundary"} (${item.data.tier || "Custom"})` })),
+    };
+  }, [nodes]);
+
+  const insertNode = useCallback((node: Node, parentId?: string) => {
+    try {
+      const next = reparentNode([...nodes.map((item) => ({ ...item, selected: false })), { ...node, selected: true }], node.id, parentId);
+      snapshot();
+      setNodes(next);
+      setEdges((current) => current.some((edge) => edge.selected)
+        ? current.map((edge) => ({ ...edge, selected: false })) : current);
+    } catch (error) {
+      reportError(error instanceof Error ? error.message : "Unable to add this component.");
+    }
+  }, [nodes, snapshot, reportError]);
+
+  const onNodeDragStop = useCallback((_event: React.MouseEvent, moved: Node, draggedNodes: Node[]) => {
+    // React Flow has already recorded the drag checkpoint; parent changes belong to it.
+    const draggedIds = new Set(draggedNodes.map((node) => node.id));
+    try {
+      let next = nodes.map((node) => draggedNodes.find((item) => item.id === node.id) ?? node);
+      for (const node of draggedNodes.length ? draggedNodes : [moved]) {
+        if (node.parentId && draggedIds.has(node.parentId)) continue;
+        const origin = absolutePosition(node, next), size = nodeSize(node);
+        const hit = boundaryAtPoint(next, origin.x + size.width / 2, origin.y + size.height / 2, descendantIds(next, [node.id]));
+        next = reparentNode(next, node.id, hit?.id);
+      }
+      setNodes(next);
+    } catch (error) {
+      reportError(error instanceof Error ? error.message : "Unable to move this component.");
+    }
+  }, [nodes, reportError]);
 
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
@@ -1005,21 +1060,18 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
       }
       const node = selectedNodes[0];
       if (node) {
-        const d = node.data as unknown as IconNodeData & ShapeNodeData & GroupNodeData;
-        onSelectionChange?.({
-          kind: "node",
-          id: node.id,
-          label: d.label ?? "",
-          nodeKind: node.type === "group" ? "group" : node.type === "shape" ? "shape" : "icon",
-          subtitle: d.subtitle,
-          tier: d.tier,
-        });
+        onSelectionChange?.(describeNode(node));
         return;
       }
       onSelectionChange?.(null);
     },
-    [onSelectionChange]
+    [onSelectionChange, describeNode]
   );
+
+  // Undo can change a parent/type without changing the selected node IDs.
+  useEffect(() => {
+    handleSelectionChange({ nodes: nodes.filter((node) => node.selected), edges: edges.filter((edge) => edge.selected) });
+  }, [nodes, edges, handleSelectionChange]);
 
   // ─── Sequence playback ────────────────────────────────────────────────
   const stopSequence = useCallback(() => {
@@ -1063,20 +1115,13 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
       dropIcon: (icon, clientX, clientY) => {
         const pos = screenToFlowPosition({ x: clientX, y: clientY });
         const groupHit = groupAtPosition(pos.x, pos.y);
-        snapshot();
-        const localPos = groupHit
-          ? { x: pos.x - groupHit.position.x - 60, y: pos.y - groupHit.position.y - 55 }
-          : { x: pos.x - 60, y: pos.y - 55 };
-        setNodes((nds) =>
-          nds.concat({
+        insertNode({
             id: `n_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
             type: "icon",
-            position: localPos,
+            position: { x: pos.x - 66, y: pos.y - 58 },
             data: { label: icon.label, iconPath: icon.path, iconId: icon.id },
             zIndex: 2,
-            ...(groupHit ? { parentId: groupHit.id, extent: "parent" as const } : {}),
-          })
-        );
+          }, groupHit?.id);
       },
       addIconAtCenter: (icon) => {
         if (!rfInstance) return;
@@ -1084,42 +1129,30 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
           x: window.innerWidth / 2,
           y: window.innerHeight / 2,
         });
-        // Click-to-add never auto-parents into a group — that caused the icon
-        // to render with negative local coords, hidden under the group surface.
-        // Drag-drop still parents intentionally via dropIcon.
+        const selectedGroup = nodes.find((node) => node.selected && node.type === "group");
         const jitter = () => (Math.random() - 0.5) * 80;
-        snapshot();
-        setNodes((nds) =>
-          nds.concat({
+        insertNode({
             id: `n_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
             type: "icon",
             position: { x: center.x - 60 + jitter(), y: center.y - 55 + jitter() },
             data: { label: icon.label, iconPath: icon.path, iconId: icon.id },
             zIndex: 2,
-          })
-        );
+          }, selectedGroup?.id);
       },
       dropShape: (shape, clientX, clientY) => {
         const pos = screenToFlowPosition({ x: clientX, y: clientY });
         const groupHit = groupAtPosition(pos.x, pos.y);
-        snapshot();
-        const localPos = groupHit
-          ? { x: pos.x - groupHit.position.x - 64, y: pos.y - groupHit.position.y - 52 }
-          : { x: pos.x - 64, y: pos.y - 52 };
-        setNodes((nds) =>
-          nds.concat({
+        insertNode({
             id: `s_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
             type: "shape",
-            position: localPos,
+            position: { x: pos.x - 64, y: pos.y - 52 },
             data: {
               label: shape === "person" ? "Actor" : shape === "internet" ? "Internet" : "Component",
               shape,
             },
             style: { width: 128, height: 104 },
             zIndex: 2,
-            ...(groupHit ? { parentId: groupHit.id, extent: "parent" as const } : {}),
-          })
-        );
+          }, groupHit?.id);
       },
       addShapeAtCenter: (shape) => {
         if (!rfInstance) return;
@@ -1127,9 +1160,8 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
           x: window.innerWidth / 2,
           y: window.innerHeight / 2,
         });
-        snapshot();
-        setNodes((nds) =>
-          nds.concat({
+        const selectedGroup = nodes.find((node) => node.selected && node.type === "group");
+        insertNode({
             id: `s_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
             type: "shape",
             position: { x: center.x - 64, y: center.y - 52 },
@@ -1139,8 +1171,7 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
             },
             style: { width: 128, height: 104 },
             zIndex: 2,
-          })
-        );
+          }, selectedGroup?.id);
       },
       addGroup: (label, tier) => {
         if (!rfInstance) return;
@@ -1148,20 +1179,22 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
           x: window.innerWidth / 2,
           y: window.innerHeight / 2,
         });
-        snapshot();
-        // Place the group OFFSET from the canvas center so it doesn't land
-        // directly on top of existing icons. zIndex stays low so icons render
-        // above the group surface.
-        setNodes((nds) =>
-          nds.concat({
+        const selectedGroup = nodes.find((node) => node.selected && node.type === "group");
+        const dimensions = tier === "Landing Zone" ? { width: 1160, height: 820 }
+          : tier === "Virtual Network" || tier === "VPC" ? { width: 920, height: 620 }
+          : tier === "Subnet" ? { width: 660, height: 400 }
+          : { width: 440, height: 220 };
+        const origin = selectedGroup ? absolutePosition(selectedGroup, nodes) : undefined;
+        insertNode({
             id: `g_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
             type: "group",
-            position: { x: center.x - 220, y: center.y + 80 },
+            position: origin
+              ? { x: origin.x + GROUP_INSET.x, y: origin.y + GROUP_INSET.y }
+              : { x: center.x - dimensions.width / 2, y: center.y + 80 },
             data: { label, tier: tier ?? "Custom" },
-            style: { width: 440, height: 220 },
+            style: { ...dimensions, padding: 0, border: 0, background: "transparent" },
             zIndex: 0,
-          })
-        );
+          }, selectedGroup?.id);
       },
       serialize: () => flowToArch(nodes, edges),
       hydrate: (payload) => {
@@ -1178,15 +1211,7 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
         const selNodeIds = new Set(nodes.filter((n) => n.selected).map((n) => n.id));
         const selEdgeIds = new Set(edges.filter((e) => e.selected).map((e) => e.id));
         if (selNodeIds.size === 0 && selEdgeIds.size === 0) return;
-        const removedNodeIds = new Set(
-          nodes
-            .filter(
-              (node) =>
-                selNodeIds.has(node.id) ||
-                (!!node.parentId && selNodeIds.has(node.parentId))
-            )
-            .map((node) => node.id)
-        );
+        const removedNodeIds = descendantIds(nodes, selNodeIds);
         snapshot();
         setNodes((nds) => nds.filter((node) => !removedNodeIds.has(node.id)));
         setEdges((eds) =>
@@ -1252,10 +1277,18 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
           reportError(`Playback order must be a whole number from 1 to ${MAX_PLAYBACK_STEP}.`);
           return;
         }
-        snapshot();
         if (node) {
-          setNodes((current) =>
-            current.map((candidate) =>
+          let next = nodes;
+          if (patch.parentId !== undefined) {
+            try {
+              next = reparentNode(nodes, id, patch.parentId ?? undefined);
+            } catch (error) {
+              reportError(error instanceof Error ? error.message : "Unable to change this boundary.");
+              return;
+            }
+          }
+          snapshot();
+          next = next.map((candidate) =>
               candidate.id === id
                 ? {
                     ...candidate,
@@ -1263,21 +1296,16 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
                       ...candidate.data,
                       ...(patch.label !== undefined ? { label: patch.label } : {}),
                       ...(patch.subtitle !== undefined ? { subtitle: patch.subtitle } : {}),
+                      ...(patch.tier !== undefined && node.type === "group" ? { tier: patch.tier } : {}),
                     },
                   }
                 : candidate
-            )
           );
-          onSelectionChange?.({
-            kind: "node",
-            id,
-            label: patch.label ?? String(node.data.label ?? ""),
-            nodeKind: node.type === "group" ? "group" : node.type === "shape" ? "shape" : "icon",
-            subtitle: patch.subtitle ?? (node.data.subtitle as string | undefined),
-            tier: node.data.tier as string | undefined,
-          });
+          setNodes(next);
+          onSelectionChange?.(describeNode(next.find((candidate) => candidate.id === id)!));
         }
         if (edge) {
+          snapshot();
           const currentData = (edge.data ?? {}) as LabeledEdgeData;
           const nextStyle = patch.style ?? currentData.archStyle ?? "flow";
           setEdges((current) =>
@@ -1308,16 +1336,8 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
       focusElement: (id) => {
         const node = nodes.find((candidate) => candidate.id === id);
         if (!node || !rfInstance) return;
-        const absolute = node.parentId
-          ? (() => {
-              const parent = nodes.find((candidate) => candidate.id === node.parentId);
-              return {
-                x: node.position.x + (parent?.position.x ?? 0),
-                y: node.position.y + (parent?.position.y ?? 0),
-              };
-            })()
-          : node.position;
-        rfInstance.setCenter(absolute.x + 64, absolute.y + 52, { zoom: 1.15, duration: 450 });
+        const absolute = absolutePosition(node, nodes), size = nodeSize(node);
+        rfInstance.setCenter(absolute.x + size.width / 2, absolute.y + size.height / 2, { zoom: 1.15, duration: 450 });
       },
       getExportBounds: () => {
         const bounds = getFlowNodesBounds(nodes);
@@ -1368,6 +1388,8 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
       getFlowNodesBounds,
       snapshot,
       groupAtPosition,
+      insertNode,
+      describeNode,
       playSequence,
       stopSequence,
       seq.isPlaying,
@@ -1389,11 +1411,19 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
       >
         <ReactFlow
           style={{ backgroundColor: canvasTheme === "light" ? "#f8fafc" : "#05080d" }}
-          nodes={nodes}
+          nodes={nodes.map((node) => {
+            if (node.type !== "group") return node;
+            const children = nodes.filter((child) => child.parentId === node.id);
+            return { ...node, data: { ...node.data,
+              minWidth: Math.max(240, ...children.map((child) => child.position.x + nodeSize(child).width + GROUP_INSET.x)),
+              minHeight: Math.max(160, ...children.map((child) => child.position.y + nodeSize(child).height + GROUP_INSET.x)),
+            } };
+          })}
           edges={edges}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           onNodesChange={onNodesChange}
+          onNodeDragStop={onNodeDragStop}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onSelectionChange={handleSelectionChange}

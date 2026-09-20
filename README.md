@@ -201,7 +201,8 @@ policies, agent configuration, and Azure diagnostics may still retain data.
 
 - 1,433 Azure, AWS, and GCP service icons
 - Generic component, actor, database, decision, document, and internet shapes
-- Tier/region/workload boundaries with child containment
+- Nested Landing Zone, Subscription, Resource Group, Region, Virtual Network,
+  VPC and Subnet boundaries, alongside application tiers
 - Four-way loose connection handles and selectable edge labels
 - Solid, dashed, and animated flow styles
 - Explicit synchronized playback stages
@@ -212,9 +213,31 @@ policies, agent configuration, and Azure diagnostics may still retain data.
   service/shape dimensions (including fractional values), labels, grouping,
   relative positions, and explicit playback stages. Older files without handle
   fields retain their default attachments.
-- Imports validate before replacing the current canvas. Native boundaries stay
-  flat; invalid or nested group references are rejected rather than detached.
-  Groups are hydrated before their children without changing coordinates.
+- Imports validate before replacing the current canvas. Nested groups load
+  parent-first without changing relative coordinates; missing parents, cycles
+  and self-parenting are rejected before mutation.
+
+Use **Boundary / Tier** to add a container. Selecting a boundary first adds the
+next boundary or component inside it. Drag existing components into/out of a
+boundary, or use **Properties > Parent boundary** to move or detach them.
+Moving a boundary carries its descendants; growing a nested boundary expands
+its ancestors, and resizing cannot hide its children. Deleting a boundary
+deletes its entire subtree and touching connections; one Undo restores it.
+Names and boundary types are independently editable in Properties.
+
+These are architecture-design boundaries, not provisioned infrastructure or
+proof of Azure network integration. A Landing Zone denotes broader governance
+and subscription design, not simply a virtual network. See Microsoft's
+[landing-zone guidance](https://learn.microsoft.com/azure/cloud-adoption-framework/ready/landing-zone/).
+Older clients that only support flat groups cannot open new nested diagrams;
+retain JSON exports before rolling back the application.
+
+Legacy template aliases are resolved with an audited provider-specific mapping,
+not fuzzy icon substitution. Tests cover 53 distinct template identities:
+49 have supported catalog mappings. AWS API Gateway, GCP Pub/Sub, GCP Cloud
+Load Balancing and Azure Business Process Tracking currently remain labeled
+generic components because their specific icons are absent from the bundled
+catalog. They are not represented by unrelated provider icons.
 
 ### Presentation-quality export
 
@@ -299,6 +322,13 @@ are reported independently so valid annotations can still be recovered.
 - Connected Flow arrow tool for drawing bound symbol-to-symbol paths
 - Animated GIF export that walks connected arrows in scene order
 - Azure OpenAI image generation and direct canvas insertion
+- Canvas-aware image instructions capture the effective theme/background and
+  foreground at request time, including custom backgrounds. Generated images
+  are inserted only after decoding, preserving their real aspect ratio.
+- Literal-color image rendering and PNG/GIF export: provider artwork and
+  multicolor images are not globally inverted for a dark editor theme.
+- Newly created automatic foregrounds and neutral bundled symbols adapt safely
+  to background changes; arbitrary custom colors are preserved.
 - Optional workshop-sketch, executive-presentation, and technical-blueprint
   style presets
 - Whiteboard-to-architecture conversion through the configured vision-capable
@@ -306,12 +336,31 @@ are reported independently so valid annotations can still be recovered.
   before explicitly replacing the architecture canvas
 - PNG export
 
-To convert a workshop sketch, select **Convert** in Whiteboard, then
-**Analyze Whiteboard**. Only this explicit action sends a metadata-free PNG to
-the configured Azure OpenAI deployment. Review the proposed structured diagram
+To convert a workshop sketch, select **To architecture** in Whiteboard, then
+**Analyze Whiteboard**. Only this explicit action sends a metadata-free PNG and
+bounded source identity/label evidence to the configured Azure OpenAI deployment.
+Review the proposed structured diagram
 and warnings, confirm replacement, and apply it. The original Whiteboard draft
 is retained; the conversion PNG is not persisted by Diagrammatic. Unknown
 services remain generic components rather than being guessed as cloud icons.
+Explicit known service names such as Azure App Service and Azure SQL Database
+resolve to the bundled official provider icons instead of generic primitives.
+Where the source carries canonical `iconId` or `serviceId` metadata, conversion
+preserves it even after relabeling and rejects missing/duplicate source
+associations. Ordinary hand-drawn symbols without that metadata still require
+recognition; the application does not invent a source identity for them.
+
+Image prompts request a flat canvas-matched illustration without photographed
+paper, a white slide, a frame or a matte. Background matching is a model
+instruction, not a guarantee of transparent pixels or perfect model compliance.
+Previously generated opaque pictures are not destructively rewritten; regenerate
+them with the new canvas-aware request when a different background is needed.
+Previously saved bundled Lucide icons retain their literal navy artwork and are
+readable on the light canvas without a destructive migration. Untagged legacy
+white text is preserved because it cannot be distinguished from intentional
+custom white text; select it and change its stroke/text color when needed.
+Current automated image checks use deterministic fixtures rather than live
+model calls.
 
 Every diagram mode includes an independently persisted White/Black canvas
 toggle. Structured diagrams default to a white document surface; Whiteboard and
@@ -582,8 +631,9 @@ cases across the main run and unchanged retests. The log
 preserves broader regression results, corrective retests and verification limits;
 live model inference was not invoked during this session.
 
-**Priorities 1-4 are deployed. Next: priority 5 - correct cloud service and
-provider identification.** See the
+**Priorities 1-4 are deployed.** The user selected a Whiteboard fidelity,
+conversion-icon and nested-boundary detour before resuming priority 5. That
+combined candidate is under production validation. See the
 [deployment plan](.azure/deployment-plan.md) for its validation and release state.
 The [Implementation roadmap](docs/implementation-roadmap.md) retains
 all 33 priority numbers, completed items, the full remaining backlog, and the

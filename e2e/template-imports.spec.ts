@@ -2,6 +2,46 @@ import { expect, test, type Page } from "@playwright/test";
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 
+const expectedTemplateIcons: Record<string, string | null> = JSON.parse(readFileSync(
+  path.join(process.cwd(), "scripts", "fixtures", "template-icon-identities.json"), "utf8",
+));
+const catalog: { icons: Array<{ id: string; path: string }> } = JSON.parse(readFileSync(
+  path.join(process.cwd(), "content", "cloud-icons.json"), "utf8",
+));
+const iconsById = new Map(catalog.icons.map((icon) => [icon.id, icon]));
+interface TemplateNode {
+  id: string;
+  type: string;
+  data: { iconId?: string; label: string };
+}
+
+async function expectTemplateIdentities(page: Page, nodes: TemplateNode[]) {
+  const services = nodes.filter((node) => node.type === "service");
+  for (const service of services) {
+    const legacyId = service.data.iconId ?? "";
+    expect(Object.hasOwn(expectedTemplateIcons, legacyId), `Audited identity: ${legacyId}`).toBe(true);
+    const canonicalId = expectedTemplateIcons[legacyId];
+    const node = page.locator(`.react-flow__node[data-id="${service.id}"]`);
+    await expect(node).toContainText(service.data.label);
+    if (canonicalId === null) {
+      await expect(node, `No bundled product icon for ${legacyId}`).toHaveClass(/react-flow__node-shape/);
+      await expect(node.locator("img")).toHaveCount(0);
+    } else {
+      await expect(node).toHaveClass(/react-flow__node-icon/);
+      const canonical = iconsById.get(canonicalId);
+      expect(canonical, `Bundled canonical asset for ${legacyId}`).toBeDefined();
+      await expect(node.locator("img")).toHaveAttribute("src", canonical!.path);
+    }
+  }
+  const iconCount = services.filter((node) => expectedTemplateIcons[node.data.iconId ?? ""] !== null).length;
+  await expect(page.locator(".react-flow__node-icon")).toHaveCount(iconCount);
+  await expect(page.locator(".react-flow__node-shape")).toHaveCount(services.length - iconCount);
+}
+
+function readTemplate(id: string): { graph: { nodes: TemplateNode[] } } {
+  return JSON.parse(readFileSync(path.join(process.cwd(), "content", "playground-templates", `${id}.json`), "utf8"));
+}
+
 async function importGalleryTemplate(page: Page, name: RegExp): Promise<Page> {
   await page.goto("/templates");
   await page.getByRole("button", { name }).click();
@@ -16,16 +56,14 @@ async function importGalleryTemplate(page: Page, name: RegExp): Promise<Page> {
 }
 
 async function expectLoadedIcons(page: Page) {
-  await page.waitForTimeout(500);
   const images = page.locator(".react-flow__node-icon img");
   expect(await images.count()).toBeGreaterThan(0);
-  const broken = await images.evaluateAll((elements) =>
-    elements.filter((element) => {
+  await expect.poll(() => images.evaluateAll((elements) =>
+    elements.every((element) => {
       const image = element as HTMLImageElement;
-      return image.complete && image.naturalWidth === 0;
-    }).length
-  );
-  expect(broken).toBe(0);
+      return image.complete && image.naturalWidth > 0;
+    })
+  ), { timeout: 15_000 }).toBe(true);
 }
 
 test.describe("Template gallery imports", () => {
@@ -37,6 +75,7 @@ test.describe("Template gallery imports", () => {
     const workspace = await importGalleryTemplate(page, /3-Tier on Azure/);
     await expect(workspace.locator(".react-flow__node-icon")).toHaveCount(6);
     await expect(workspace.locator(".react-flow__edge")).toHaveCount(5);
+    await expectTemplateIdentities(workspace, readTemplate("3-tier-azure").graph.nodes);
     await expectLoadedIcons(workspace);
 
     const positions = await workspace.locator(".react-flow__node-icon").evaluateAll((nodes) =>
@@ -51,8 +90,12 @@ test.describe("Template gallery imports", () => {
   test("imports grouped multi-cloud nodes inside their provider boundaries", async ({ page }) => {
     const workspace = await importGalleryTemplate(page, /Multi-cloud Data Pipeline/);
     await expect(workspace.locator(".react-flow__node-group")).toHaveCount(3);
-    await expect(workspace.locator(".react-flow__node-icon")).toHaveCount(6);
+    // API Gateway and Pub/Sub have no product assets in this bundled catalog.
+    // Keep them explicit primitives rather than unrelated Cloud Control API or integration icons.
+    await expect(workspace.locator(".react-flow__node-icon")).toHaveCount(4);
+    await expect(workspace.locator(".react-flow__node-shape")).toHaveCount(2);
     await expect(workspace.locator(".react-flow__edge")).toHaveCount(5);
+    await expectTemplateIdentities(workspace, readTemplate("multi-cloud-data").graph.nodes);
     await expectLoadedIcons(workspace);
 
     const containment = await workspace.evaluate(() => {
@@ -111,7 +154,7 @@ test.describe("Template gallery imports", () => {
       .map((file) =>
         JSON.parse(readFileSync(path.join(templatesDir, file), "utf8")) as {
           id: string;
-          graph: { nodes: unknown[]; edges: unknown[] };
+          graph: { nodes: TemplateNode[]; edges: unknown[] };
         }
       );
 
@@ -134,6 +177,7 @@ test.describe("Template gallery imports", () => {
       await expect(workspace.locator(".react-flow__edge"), `${template.id} edge shape`).toHaveCount(
         template.graph.edges.length
       );
+      await expectTemplateIdentities(workspace, template.graph.nodes);
       await expectLoadedIcons(workspace);
     }
     await workspace.close();

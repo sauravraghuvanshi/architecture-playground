@@ -18,7 +18,7 @@ import { useEffect, useRef, useState } from "react";
 import { Loader2, Sparkles, X } from "lucide-react";
 import type { DiagrammaticMode } from "./types";
 import { consumeSseResponse } from "@/lib/sse-client";
-import { IMAGE_STYLES } from "@/lib/image-styles";
+import { IMAGE_STYLES, imageCanvasContextSchema, type ImageCanvasContext } from "@/lib/image-styles";
 import {
   DESIGN_DISCLAIMER,
   DESIGN_REFERENCES,
@@ -66,7 +66,7 @@ const SUGGESTED: Record<DiagrammaticMode, string[]> = {
   whiteboard: [
     "Hand-drawn cloud architecture sketch with three tiers and arrows between them",
     "Whiteboard diagram of a 3-actor sequence: user, app, database",
-    "Concept sketch: a notebook page with arrows linking 'idea → prototype → ship'",
+    "Concept sketch with arrows linking 'idea → prototype → ship' directly on the canvas",
   ],
 };
 
@@ -76,10 +76,12 @@ interface Props {
   onClose: () => void;
   onResult: (graph: unknown) => void | Promise<void>;
   /** Whiteboard-only. Receives a base64 image (no data: prefix) + mime type. */
-  onImageResult?: (b64: string, mime: string) => void;
+  onImageResult?: (b64: string, mime: string, canvas: ImageCanvasContext) => void | Promise<void>;
+  /** Read the live canvas at submission, not a render-time or draft snapshot. */
+  getImageCanvasContext?: () => ImageCanvasContext;
 }
 
-export function AiPromptModal({ mode, open, onClose, onResult, onImageResult }: Props) {
+export function AiPromptModal({ mode, open, onClose, onResult, onImageResult, getImageCanvasContext }: Props) {
   const isImageMode = mode === "whiteboard";
   const [prompt, setPrompt] = useState("");
   const [size, setSize] = useState<ImageSize>("1024x1024");
@@ -164,12 +166,14 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult }: 
     }
     const ac = new AbortController();
     abortRef.current = ac;
-    let resolved = false;
+    let resultB64: string | undefined;
     try {
+      if (!getImageCanvasContext) throw new Error("Whiteboard canvas context is not available. Wait for the canvas and retry.");
+      const canvas = imageCanvasContextSchema.parse(getImageCanvasContext());
       const res = await fetch("/api/ai/image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: trimmed, size, style: imageStyle }),
+        body: JSON.stringify({ prompt: trimmed, size, style: imageStyle, canvas }),
         signal: ac.signal,
       });
       if (!res.ok) {
@@ -201,10 +205,7 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult }: 
           }
           if (parsed.type === "result") {
             if (parsed.b64) {
-              onImageResult(parsed.b64, "image/png");
-              resolved = true;
-              setPrompt("");
-              onClose();
+              resultB64 = parsed.b64;
             } else if (parsed.url) {
               setError("Server returned a URL response; only base64 is supported by the whiteboard inserter.");
             } else {
@@ -213,7 +214,15 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult }: 
           }
         },
       });
-      if (!resolved && !ac.signal.aborted) {
+      if (resultB64 && !ac.signal.aborted) {
+        // Use exactly the bytes returned, and retain the captured request
+        // surface even if the user changes themes while generation runs.
+        await onImageResult(resultB64, "image/png", canvas);
+        if (!ac.signal.aborted) {
+          setPrompt("");
+          onClose();
+        }
+      } else if (!ac.signal.aborted) {
         // Stream closed without a terminal event.
         setError((prev) => prev ?? "Image generation ended without a result");
       }
@@ -323,6 +332,7 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult }: 
                 {IMAGE_STYLES.map((style) => <option key={style.id} value={style.id}>{style.label}</option>)}
               </select>
               <p className="mt-2 text-[11px] text-slate-400">Your prompt is sent to the configured AI service. Avoid secrets and personal data. Generated images remain in your browser draft; review them before sharing.</p>
+              <p className="mt-1 text-[11px] text-slate-400">Images are requested on the current canvas background, without paper or frames. Background matching is best effort, not transparency; image pixels do not recolor when you switch themes.</p>
             </div>
           )}
           {isImageMode && (

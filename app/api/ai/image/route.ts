@@ -1,6 +1,6 @@
 /**
  * POST /api/ai/image
- *   { prompt: string, size?: "1024x1024"|"1024x1536"|"1536x1024" }
+ *   { prompt, size?, style?, canvas?: { theme, backgroundColor, foregroundColor } }
  *
  * Generates an image via Azure OpenAI's gpt-image-2 deployment.
  *
@@ -122,7 +122,7 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
   }
-  const { size } = parsed.data;
+  const { size, canvas } = parsed.data;
   const prompt = buildImagePrompt(parsed.data);
 
   const config = getImageAiConfig();
@@ -201,9 +201,9 @@ export async function POST(req: Request) {
       }
       const elapsed = Math.round((Date.now() - t0) / 1000);
       if (first.b64_json) {
-        send({ type: "result", b64: first.b64_json, size, elapsed });
+        send({ type: "result", b64: first.b64_json, size, elapsed, canvas });
       } else if (first.url) {
-        send({ type: "result", url: first.url, size, elapsed });
+        send({ type: "result", url: first.url, size, elapsed, canvas });
       } else {
         fail("Model returned no image data", 502);
       }

@@ -1,4 +1,5 @@
 import { exportToBlob } from "@excalidraw/excalidraw";
+import { whiteboardExportState } from "@/lib/whiteboard-appearance";
 
 interface WhiteboardElement {
   id?: string;
@@ -66,8 +67,7 @@ export async function exportWhiteboardFlowGif({
     const png = await exportToBlob({
       elements: frame.elements as never[],
       appState: {
-        ...appState,
-        exportBackground: true,
+        ...whiteboardExportState(appState),
         viewBackgroundColor: backgroundColor,
       } as never,
       files: files as never,

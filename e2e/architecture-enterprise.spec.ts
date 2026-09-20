@@ -32,6 +32,8 @@ test.describe("Enterprise architecture studio", () => {
     const nodes = page.locator(".react-flow__node-icon");
     const source = nodes.first().locator('.react-flow__handle[data-handlepos="bottom"]');
     const target = nodes.last().locator('.react-flow__handle[data-handlepos="top"]');
+    // Initial fit-view animates; measure only after the handle is stable.
+    await source.hover();
     const sourceBox = await source.boundingBox();
     const targetBox = await target.boundingBox();
     if (!sourceBox || !targetBox) throw new Error("Connection handles are unavailable");

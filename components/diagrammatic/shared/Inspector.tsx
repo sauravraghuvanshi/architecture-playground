@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { MAX_PLAYBACK_STEP } from "@/lib/architecture-document";
+import { ARCHITECTURE_TIERS } from "@/lib/architecture-hierarchy";
 import type {
   ArchitectureSelection,
   ArchitectureSelectionPatch,
@@ -232,6 +233,34 @@ function SelectionProperties({
             placeholder="Public endpoint, private subnet…"
           />
         </Field>
+      )}
+
+      {selection.kind === "node" && (
+        <Field label="Parent boundary" hint="Keeps nested children together">
+          <select aria-label="Parent boundary" value={selection.parentId ?? ""}
+            onChange={(event) => onUpdate?.(selection.id, { parentId: event.target.value || null })}
+            className="w-full rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-2 text-xs text-white focus:border-cyan-400">
+            <option value="">Canvas (no parent)</option>
+            {selection.parentOptions?.map((parent) => <option key={parent.id} value={parent.id}>{parent.label}</option>)}
+          </select>
+        </Field>
+      )}
+
+      {selection.kind === "node" && selection.nodeKind === "group" && (
+        <>
+          <Field label="Boundary type">
+            <select aria-label="Boundary type" value={selection.tier ?? "Custom"}
+              onChange={(event) => onUpdate?.(selection.id, { tier: event.target.value })}
+              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-2 text-xs text-white focus:border-cyan-400">
+              {selection.tier && !ARCHITECTURE_TIERS.some((tier) => tier === selection.tier) && <option>{selection.tier}</option>}
+              {ARCHITECTURE_TIERS.map((tier) => <option key={tier}>{tier}</option>)}
+            </select>
+          </Field>
+          <p className="text-[10px] leading-relaxed text-slate-400">
+            Boundaries document design intent. Nesting does not provision Azure resources or validate network integration.
+            Deleting a boundary also deletes its nested contents; Undo restores them.
+          </p>
+        </>
       )}
 
       {selection.kind === "edge" && (

@@ -21,12 +21,27 @@ import {
   exportToBlob,
   convertToExcalidrawElements,
   CaptureUpdateAction,
+  newElementWith,
 } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import { z } from "zod";
 import type { BaseCanvasHandle } from "../../shared/modeRegistry";
 import type { CanvasTheme } from "../../shared/types";
 import { exportWhiteboardFlowGif } from "./export-gif";
+import {
+  colorWhiteboardSymbol,
+  decodeWhiteboardImage,
+  fitWhiteboardImage,
+  isNeutralWhiteboardSymbol,
+  isWhiteboardInteractionActive,
+  reconcileWhiteboardForeground,
+  whiteboardAppearance,
+  whiteboardExportState,
+  whiteboardForeground,
+  whiteboardSurfaceColor,
+  type ForegroundElement,
+} from "@/lib/whiteboard-appearance";
+import type { ImageCanvasContext } from "@/lib/image-styles";
 
 export interface WhiteboardPayload {
   elements: unknown[];
@@ -88,7 +103,8 @@ interface ExcalidrawAPI {
  *  images into the scene. Implemented by WhiteboardCanvas; consumers should
  *  feature-detect via `"insertImage" in handle`. */
 export interface WhiteboardCanvasHandle extends BaseCanvasHandle {
-  insertImage: (b64: string, mime: string, opts?: { width?: number; height?: number }) => void;
+  insertImage: (b64: string, mime: string, opts?: { width?: number; height?: number; canvas?: ImageCanvasContext }) => Promise<void>;
+  getImageCanvasContext: () => ImageCanvasContext;
   insertSvgAsset: (svg: string, label: string) => void;
   activateFlowArrow: () => void;
 }
@@ -163,18 +179,24 @@ const VOLATILE_APP_STATE_KEYS = [
   "cursorY",
   "draggingElement",
   "editingElement",
+  "editingTextElement",
   "editingGroupId",
   "editingLinearElement",
   "elementLocked",
   "lastPointerDownWith",
+  "newElement",
   "multiElement",
   "openDialog",
   "openMenu",
   "openPopup",
   "openSidebar",
   "resizingElement",
+  "isResizing",
+  "isRotating",
+  "selectedElementsAreBeingDragged",
   "selectedElementIds",
   "selectedGroupIds",
+  "selectedLinearElement",
   "selectionElement",
   "showHyperlinkPopup",
 ] as const;
@@ -195,14 +217,20 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
   if (typeof window !== "undefined") scrubExternalWhiteboardHash();
   const apiRef = useRef<ExcalidrawAPI | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
-  const canvasBackground = canvasTheme === "light" ? "#f8fafc" : "#05080d";
-  const canvasStroke = canvasTheme === "light" ? "#0f172a" : "#f8fafc";
+  const initialAppearance = whiteboardAppearance(canvasTheme, value.appState);
+  const foregroundRef = useRef(initialAppearance.foregroundColor);
+  const knownElementsRef = useRef(new Set((value.elements as ForegroundElement[] ?? []).map((element) => element.id)));
+  const canvasThemeRef = useRef(canvasTheme);
   const [initialData] = useState(() => ({
     elements: (value.elements ?? []) as never[],
     appState: {
       ...sanitizeAppState(value.appState),
-      viewBackgroundColor: canvasBackground,
-      currentItemStrokeColor: canvasStroke,
+      viewBackgroundColor: initialAppearance.backgroundColor,
+      currentItemStrokeColor: value.appState?.currentItemStrokeColor &&
+        !["#0f172a", "#f8fafc"].includes(String(value.appState.currentItemStrokeColor).toLowerCase())
+        ? value.appState.currentItemStrokeColor : initialAppearance.foregroundColor,
+      theme: "light",
+      exportWithDarkMode: false,
     } as never,
     files: (value.files ?? {}) as never,
     scrollToContent: true,
@@ -217,35 +245,83 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
       registeredApi.updateScene({
         captureUpdate: CaptureUpdateAction.NEVER,
         appState: {
-          viewBackgroundColor: canvasBackground,
-          currentItemStrokeColor: canvasStroke,
+          theme: "light",
+          exportWithDarkMode: false,
           openSidebar: null,
         },
       });
     });
-  }, [canvasBackground, canvasStroke]);
+  }, []);
 
   useEffect(() => {
-    apiRef.current?.updateScene({
+    const api = apiRef.current;
+    if (!api || canvasThemeRef.current === canvasTheme) return;
+    canvasThemeRef.current = canvasTheme;
+    const state = api.getAppState();
+    const appearance = whiteboardAppearance(canvasTheme, state);
+    api.updateScene({
       captureUpdate: CaptureUpdateAction.NEVER,
       appState: {
-        viewBackgroundColor: canvasBackground,
-        currentItemStrokeColor: canvasStroke,
+        viewBackgroundColor: appearance.backgroundColor,
+        currentItemStrokeColor: state.currentItemStrokeColor === foregroundRef.current
+          ? appearance.foregroundColor : state.currentItemStrokeColor,
+        theme: "light",
+        exportWithDarkMode: false,
         openSidebar: null,
       },
     });
-  }, [canvasBackground, canvasStroke]);
+  }, [canvasTheme]);
 
   const onAnyChange = useCallback((
     elements?: readonly unknown[],
     appState?: object,
     files?: Record<string, unknown>
   ) => {
-    if (!onChange || !apiRef.current) return;
+    if (!apiRef.current) return;
     const api = apiRef.current;
     const nextElements = [...(elements ?? api.getSceneElements())];
-    const nextAppState = appStateForPersistence(appState ?? api.getAppState());
+    const liveAppState = (appState ?? api.getAppState()) as Record<string, unknown>;
+    const nextAppState = appStateForPersistence(liveAppState);
     const nextFiles = files ?? api.getFiles();
+    const interacting = isWhiteboardInteractionActive(liveAppState);
+    const foreground = whiteboardForeground(whiteboardSurfaceColor(String(nextAppState.viewBackgroundColor ?? initialAppearance.backgroundColor), canvasTheme));
+    let changed = false;
+    const additions: Parameters<ExcalidrawAPI["addFiles"]>[0] = [];
+    const themedElements = (nextElements as ForegroundElement[]).map((element) => {
+      if (interacting) return element;
+      let next = reconcileWhiteboardForeground(element, foreground, foregroundRef.current, !knownElementsRef.current.has(element.id));
+      const symbol = element.customData?.diagrammaticSymbol as { svg?: string; fileId?: string } | undefined;
+      if (element.type === "image" && symbol?.svg && symbol.fileId && isNeutralWhiteboardSymbol(symbol.svg)) {
+        const fileId = `${symbol.fileId}-${foreground.slice(1)}`;
+        if (element.fileId !== fileId) {
+          if (!nextFiles[fileId]) additions.push({
+            id: fileId, mimeType: "image/svg+xml",
+            dataURL: `data:image/svg+xml;base64,${utf8ToBase64(colorWhiteboardSymbol(symbol.svg, foreground))}`,
+            created: Date.now(),
+          });
+          next = { ...next, fileId };
+        }
+      }
+      if (next === element) return element;
+      changed = true;
+      return newElementWith(element as never, next as never);
+    });
+    const automaticStroke = nextAppState.currentItemStrokeColor === foregroundRef.current;
+    const updateStroke = !interacting && automaticStroke && foreground !== foregroundRef.current;
+    if (!interacting) {
+      foregroundRef.current = foreground;
+      knownElementsRef.current = new Set((nextElements as ForegroundElement[]).map((element) => element.id));
+    }
+    if (changed || updateStroke) {
+      if (additions.length) api.addFiles(additions);
+      api.updateScene({
+        ...(changed ? { elements: themedElements } : {}),
+        ...(updateStroke ? { appState: { currentItemStrokeColor: foreground } } : {}),
+        captureUpdate: CaptureUpdateAction.NEVER,
+      });
+      return;
+    }
+    if (!onChange) return;
     const signature = JSON.stringify({
       elements: nextElements,
       appState: nextAppState,
@@ -261,7 +337,7 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
         files: nextFiles,
       });
     });
-  }, [onChange]);
+  }, [onChange, initialAppearance.backgroundColor, canvasTheme]);
 
   const insertImageData = useCallback(
     (
@@ -273,6 +349,8 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
         idPrefix?: string;
         clientX?: number;
         clientY?: number;
+        symbolSvg?: string;
+        canvas?: ImageCanvasContext;
       }
     ) => {
       const api = apiRef.current;
@@ -316,6 +394,8 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
           height,
           fileId: fileId as never,
           status: "saved",
+          ...(opts?.symbolSvg ? { customData: { diagrammaticSymbol: { svg: opts.symbolSvg, fileId } } } : {}),
+          ...(opts?.canvas ? { customData: { diagrammaticImageCanvas: opts.canvas } } : {}),
         },
       ] as never);
       api.updateScene({
@@ -358,12 +438,14 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
       try {
         const asset = JSON.parse(raw) as { svg?: string; label?: string };
         if (!asset.svg || !asset.label) return;
-        insertImageData(utf8ToBase64(asset.svg), "image/svg+xml", {
+        const owned = isNeutralWhiteboardSymbol(asset.svg);
+        insertImageData(utf8ToBase64(colorWhiteboardSymbol(asset.svg, foregroundRef.current)), "image/svg+xml", {
           width: 180,
           height: 180,
           idPrefix: `symbol-${asset.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
           clientX: event.clientX,
           clientY: event.clientY,
+          ...(owned ? { symbolSvg: asset.svg } : {}),
         });
       } catch {
         // Ignore malformed external drag payloads.
@@ -391,9 +473,17 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
       const data = parsed.data;
       const files = Object.values(data.files ?? {});
       if (files.length) api.addFiles(files);
+      knownElementsRef.current = new Set((data.elements as ForegroundElement[]).map((element) => element.id));
+      const appearance = whiteboardAppearance(canvasTheme, data.appState);
+      foregroundRef.current = appearance.foregroundColor;
       api.updateScene({
         elements: data.elements,
-        appState: sanitizeAppState(data.appState),
+        appState: {
+          ...sanitizeAppState(data.appState),
+          viewBackgroundColor: appearance.backgroundColor,
+          theme: "light",
+          exportWithDarkMode: false,
+        },
         captureUpdate: CaptureUpdateAction.NEVER,
       });
       api.history.clear();
@@ -409,14 +499,14 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
       if (format === "gif") {
         return exportWhiteboardFlowGif({
           elements: api.getSceneElements(),
-          appState: api.getAppState(),
+          appState: whiteboardExportState(api.getAppState()),
           files: api.getFiles(),
-          backgroundColor: canvasBackground,
+          backgroundColor: String(api.getAppState().viewBackgroundColor ?? initialAppearance.backgroundColor),
         });
       }
       return exportToBlob({
         elements: api.getSceneElements() as never[],
-        appState: { ...api.getAppState(), exportBackground: true, exportEmbedScene: false } as never,
+        appState: whiteboardExportState(api.getAppState()) as never,
         files: api.getFiles() as never,
         mimeType: "image/png",
       });
@@ -427,20 +517,33 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
      * an image element via `convertToExcalidrawElements` so it's a real
      * Excalidraw element (selectable, exportable, undoable).
      */
-    insertImage: (
+    getImageCanvasContext: () => {
+      const api = apiRef.current;
+      if (!api) throw new Error("Whiteboard is not ready to generate an image.");
+      const backgroundColor = whiteboardSurfaceColor(String(api.getAppState().viewBackgroundColor ?? initialAppearance.backgroundColor), canvasTheme);
+      return { theme: canvasTheme, backgroundColor, foregroundColor: whiteboardForeground(backgroundColor) };
+    },
+    insertImage: async (
       b64: string,
       mime: string,
-      opts?: { width?: number; height?: number }
-    ) =>
-      insertImageData(b64, mime, { ...opts, idPrefix: "ai-img" }),
+      opts?: { width?: number; height?: number; canvas?: ImageCanvasContext }
+    ) => {
+      const api = apiRef.current;
+      if (!api) throw new Error("Whiteboard is not ready to insert an image.");
+      const decoded = await decodeWhiteboardImage(`data:${mime};base64,${b64}`);
+      if (apiRef.current !== api) throw new Error("The Whiteboard changed while decoding the image. Please retry.");
+      const dimensions = fitWhiteboardImage(decoded.width, decoded.height, opts?.width ?? 480, opts?.height ?? 480);
+      insertImageData(b64, mime, { ...opts, ...dimensions, idPrefix: "ai-img" });
+    },
     insertSvgAsset: (svg: string, label: string) =>
-      insertImageData(utf8ToBase64(svg), "image/svg+xml", {
+      insertImageData(utf8ToBase64(colorWhiteboardSymbol(svg, foregroundRef.current)), "image/svg+xml", {
         width: 180,
         height: 180,
         idPrefix: `symbol-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+        ...(isNeutralWhiteboardSymbol(svg) ? { symbolSvg: svg } : {}),
       }),
     activateFlowArrow: () => apiRef.current?.setActiveTool({ type: "arrow" }),
-  }), [canvasBackground, insertImageData, value]);
+  }), [canvasTheme, initialAppearance.backgroundColor, insertImageData, value]);
 
   const blockExternalWhiteboardShortcuts = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -471,7 +574,7 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
         excalidrawAPI={registerExcalidrawApi}
         initialData={initialData}
         onChange={onAnyChange}
-        theme="dark"
+        theme="light"
         UIOptions={{ canvasActions: { saveToActiveFile: false, loadScene: false, export: false, saveAsImage: true, toggleTheme: false, changeViewBackgroundColor: true, clearCanvas: true } }}
       >
         <MainMenu>

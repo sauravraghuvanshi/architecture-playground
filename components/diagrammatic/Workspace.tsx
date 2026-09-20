@@ -40,8 +40,10 @@ import { StatusBar } from "./shared/StatusBar";
 import { KeyboardHints } from "./shared/KeyboardHints";
 import { promptToArchitecture } from "@/lib/prompt-to-arch";
 import { parseArchitectureDocument } from "@/lib/architecture-document";
+import { parentFirst } from "@/lib/architecture-hierarchy";
 import { generatedArchitectureSchema } from "@/lib/ai-mode-prompts";
 import WhiteboardConvertModal from "./shared/WhiteboardConvertModal";
+import { collectWhiteboardConversionSource, resolveConversionIcon } from "@/lib/whiteboard-conversion";
 import DiagramLibraryModal from "./shared/DiagramLibraryModal";
 import { useDiagramDocuments } from "./shared/useDiagramDocuments";
 import { MODE_REGISTRY } from "./shared/modeCatalog";
@@ -56,6 +58,7 @@ import {
   KANBAN_EMPTY_PAYLOAD,
 } from "./shared/modeDefaults";
 import type { BaseCanvasHandle } from "./shared/modeRegistry";
+import type { WhiteboardCanvasHandle } from "./modes/whiteboard/Canvas";
 import { AiPromptModal } from "./shared/AiPromptModal";
 import { CommentsPanel } from "./shared/CommentsPanel";
 import { VersionsPanel } from "./shared/VersionsPanel";
@@ -179,6 +182,7 @@ export function Workspace({
     Partial<Record<DiagrammaticMode, CanvasTheme>>
   >({});
   const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
+  const [aiStatusError, setAiStatusError] = useState<string | null>(null);
   const [edgeStyle, setEdgeStyle] = useState<ArchEdgeStyle>("flow");
   const [selection, setSelection] = useState<ArchitectureSelection | null>(null);
   const [exportNotice, setExportNotice] = useState<{
@@ -576,7 +580,10 @@ export function Workspace({
   useEffect(() => {
     let cancelled = false;
     fetch("/api/ai/status")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`AI availability check failed (HTTP ${r.status}).`);
+        return r.json();
+      })
       .then(
         (result: {
           configured?: boolean;
@@ -585,18 +592,26 @@ export function Workspace({
           imageSource?: AiStatus["imageSource"];
           reviewAgentConfigured?: boolean;
         }) => {
+          if (!result || typeof result !== "object" ||
+            [result.configured, result.diagramConfigured, result.imageConfigured].some((flag) => flag !== undefined && typeof flag !== "boolean") ||
+            (typeof result.configured !== "boolean" &&
+              (typeof result.diagramConfigured !== "boolean" || typeof result.imageConfigured !== "boolean"))) {
+            throw new Error("The AI availability response is invalid.");
+          }
           if (!cancelled) {
             setAiStatus({
-              diagramConfigured: result.diagramConfigured ?? !!result.configured,
-              imageConfigured: result.imageConfigured ?? !!result.configured,
+              diagramConfigured: typeof result.diagramConfigured === "boolean" ? result.diagramConfigured : result.configured === true,
+              imageConfigured: typeof result.imageConfigured === "boolean" ? result.imageConfigured : result.configured === true,
               imageSource: result.imageSource,
               reviewAgentConfigured: result.reviewAgentConfigured === true,
             });
           }
         }
       )
-      .catch(() => {
+      .catch((cause: unknown) => {
         if (!cancelled) {
+          console.error("AI availability check failed.", cause);
+          setAiStatusError("AI availability could not be checked. Reload to try again.");
           setAiStatus({ diagramConfigured: false, imageConfigured: false, reviewAgentConfigured: false });
         }
       });
@@ -846,14 +861,14 @@ export function Workspace({
         onImportArchitecture={mode === "architecture" ? () => importInputRef.current?.click() : undefined}
         onConvertWhiteboard={mode === "whiteboard" ? () => setConvertOpen(true) : undefined}
         aiDisabledReason={
-          aiStatus &&
+          aiStatusError ?? (!aiStatus ? "Checking AI availability..." :
           !(mode === "whiteboard"
             ? aiStatus.imageConfigured
             : aiStatus.diagramConfigured)
             ? mode === "whiteboard"
               ? "AI image generation is not configured."
               : "AI diagram generation is not configured. Set Azure OpenAI env vars on the server."
-            : undefined
+            : undefined)
         }
         onToggleComments={() => {
           setCommentsOpen((v) => !v);
@@ -1137,15 +1152,16 @@ export function Workspace({
           }
           setSaved(false);
         }}
-        onImageResult={(b64, mime) => {
-          // Whiteboard-only: insert AI-generated image at viewport center.
-          // Feature-detect the optional handle method so we don't crash if
-          // the active mode's canvas doesn't implement it.
-          const handle = otherCanvasRef.current as (BaseCanvasHandle & { insertImage?: (b64: string, mime: string) => void }) | null;
-          if (handle?.insertImage) {
-            handle.insertImage(b64, mime);
-            setSaved(false);
-          }
+        getImageCanvasContext={() => {
+          const handle = otherCanvasRef.current as WhiteboardCanvasHandle | null;
+          if (!handle?.getImageCanvasContext) throw new Error("Whiteboard is not ready.");
+          return handle.getImageCanvasContext();
+        }}
+        onImageResult={async (b64, mime, canvas) => {
+          const handle = otherCanvasRef.current as WhiteboardCanvasHandle | null;
+          if (!handle?.insertImage) throw new Error("Whiteboard is not ready.");
+          await handle.insertImage(b64, mime, { canvas });
+          setSaved(false);
         }}
       />
       <ArchitectureReviewModal
@@ -1162,6 +1178,8 @@ export function Workspace({
       />
       <WhiteboardConvertModal
         open={convertOpen && mode === "whiteboard"}
+        icons={icons}
+        getSourceNodes={() => collectWhiteboardConversionSource(otherCanvasRef.current?.serialize())}
         onClose={() => setConvertOpen(false)}
         hasExistingArchitecture={archPayload.nodes.length > 0}
         getImage={async () => {
@@ -1277,10 +1295,13 @@ interface PlaygroundLikeGraph {
 }
 
 const VARIANT_TO_TIER: Record<string, string> = {
-  vpc: "Edge",
-  region: "Edge",
-  subnet: "Frontend",
-  "resource-group": "Compute",
+  vpc: "VPC",
+  vnet: "Virtual Network",
+  "landing-zone": "Landing Zone",
+  subscription: "Subscription",
+  region: "Region",
+  subnet: "Subnet",
+  "resource-group": "Resource Group",
   project: "Compute",
   custom: "Custom",
 };
@@ -1304,6 +1325,7 @@ function playgroundGraphToArchPayload(
       ])
   );
   const absoluteChildParents = new Set<string>();
+  const nestedGroups = graph.nodes.some((node) => node.type === "group" && node.parentId);
   for (const [groupId, group] of groups) {
     const children = (graph.nodes ?? []).filter((node) => node.parentId === groupId);
     const fits = (x: number, y: number, width = 132, height = 116) =>
@@ -1311,7 +1333,7 @@ function playgroundGraphToArchPayload(
       y >= 0 &&
       x + width <= group.width + 24 &&
       y + height <= group.height + 24;
-    if (
+    if (!nestedGroups &&
       children.some(
         (child) =>
           !fits(child.position.x, child.position.y, child.width, child.height) &&
@@ -1321,12 +1343,11 @@ function playgroundGraphToArchPayload(
       absoluteChildParents.add(groupId);
     }
   }
-  const orderedNodes = [...(graph.nodes ?? [])].sort(
+  const orderedNodes = parentFirst([...(graph.nodes ?? [])].sort(
     (a, b) => Number(b.type === "group") - Number(a.type === "group")
-  );
+  ));
   for (const n of orderedNodes) {
     if (n.type === "group") {
-      if (n.parentId) throw new Error("Nested template groups are not supported by Cloud Architecture. Use the legacy playground for this hierarchy.");
       const variant = (n.data?.variant as string) ?? "custom";
       nodes.push({
         kind: "group",
@@ -1337,6 +1358,7 @@ function playgroundGraphToArchPayload(
         height: n.height ?? 220,
         label: (n.data?.label as string) ?? "Group",
         tier: VARIANT_TO_TIER[variant] ?? "Custom",
+        ...(n.parentId ? { parentId: n.parentId } : {}),
       });
     } else if (n.type === "service") {
       const iconId = (n.data?.iconId as string) ?? "";
@@ -1344,20 +1366,19 @@ function playgroundGraphToArchPayload(
       const parent = n.parentId ? groups.get(n.parentId) : undefined;
       const usesAbsoluteCoordinates =
         !!n.parentId && absoluteChildParents.has(n.parentId) && !!parent;
-      const resolvedIcon = resolveTemplateIcon(
+      const resolvedIcon = resolveConversionIcon({
         iconId,
         label,
-        (n.data?.cloud as string | undefined) ?? iconId.split("/")[0],
-        icons
-      );
+        cloud: typeof n.data?.cloud === "string" ? n.data.cloud : undefined,
+      }, icons);
       nodes.push({
-        kind: "icon",
+        ...(resolvedIcon
+          ? { kind: "icon" as const, iconId: resolvedIcon.id, iconPath: resolvedIcon.path }
+          : { kind: "shape" as const, shape: "rectangle" as const }),
         id: n.id,
         x: usesAbsoluteCoordinates && parent ? n.position.x - parent.x : n.position.x,
         y: usesAbsoluteCoordinates && parent ? n.position.y - parent.y : n.position.y,
         label,
-        iconId: resolvedIcon?.id ?? iconId,
-        iconPath: resolvedIcon?.path ?? "",
         ...(n.width !== undefined ? { width: n.width } : {}),
         ...(n.height !== undefined ? { height: n.height } : {}),
         ...(typeof n.data.description === "string" ? { subtitle: n.data.description } : {}),
@@ -1380,84 +1401,6 @@ function playgroundGraphToArchPayload(
   }));
 
   return { nodes, edges };
-}
-
-const TEMPLATE_ICON_ALIASES: Record<string, string> = {
-  entraid: "azureactivedirectory",
-  appinsight: "applicationinsight",
-  blobstorage: "storageaccountblob",
-  iam: "identityandaccessmanagement",
-  s3: "simplestorageservice",
-  apigateway: "cloudcontrolapi",
-  pubsub: "integrationservice",
-  cloudloadbalancing: "networking",
-};
-
-function iconFingerprint(value: string): string {
-  const basename = value.split("/").at(-1) ?? value;
-  return basename
-    .toLowerCase()
-    .replace(/^\d+-icon-service-/, "")
-    .split(/[^a-z0-9]+/)
-    .filter(Boolean)
-    .filter(
-      (token) =>
-        !["azure", "aws", "gcp", "google", "amazon", "microsoft", "icon"].includes(token)
-    )
-    .map((token) => {
-      if (token.endsWith("ies") && token.length > 4) return `${token.slice(0, -3)}y`;
-      if (token.endsWith("ses") && token.length > 4) return token.slice(0, -1);
-      if (token.endsWith("s") && token.length > 3) return token.slice(0, -1);
-      return token;
-    })
-    .join("");
-}
-
-function resolveTemplateIcon(
-  legacyId: string,
-  label: string,
-  provider: string | undefined,
-  icons: IconLite[]
-): IconLite | undefined {
-  const exact = icons.find((icon) => icon.id === legacyId);
-  if (exact) return exact;
-
-  const candidates = provider ? icons.filter((icon) => icon.cloud === provider) : icons;
-  const idTerm = iconFingerprint(legacyId);
-  const labelTerm = iconFingerprint(label);
-  const terms = new Set(
-    [idTerm, labelTerm, TEMPLATE_ICON_ALIASES[idTerm], TEMPLATE_ICON_ALIASES[labelTerm]].filter(
-      (term): term is string => !!term
-    )
-  );
-
-  let best: { icon: IconLite; score: number } | undefined;
-  for (const icon of candidates) {
-    const candidateId = iconFingerprint(icon.id);
-    const candidateLabel = iconFingerprint(icon.label);
-    let score = 0;
-    for (const term of terms) {
-      if (candidateId === term || candidateLabel === term) score = Math.max(score, 500);
-      else if (candidateId.endsWith(term) || candidateLabel.startsWith(term)) {
-        score = Math.max(score, 420);
-      } else if (
-        term.length >= 5 &&
-        (candidateId.includes(term) ||
-          candidateLabel.includes(term) ||
-          term.includes(candidateLabel))
-      ) {
-        score = Math.max(score, 300 - Math.abs(candidateLabel.length - term.length));
-      }
-    }
-    if (
-      !best ||
-      score > best.score ||
-      (score === best.score && icon.label.length < best.icon.label.length)
-    ) {
-      best = { icon, score };
-    }
-  }
-  return best && best.score >= 200 ? best.icon : undefined;
 }
 
 // ─── Export helpers ────────────────────────────────────────────────────────

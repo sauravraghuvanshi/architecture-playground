@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ArchPayload } from "../components/diagrammatic/modes/architecture/ArchitectureCanvas";
+import { parentFirst } from "./architecture-hierarchy.ts";
 
 export const MAX_PLAYBACK_STEP = 100_000;
 const id = z.string().min(1).max(200);
@@ -16,7 +17,7 @@ const schema = z.object({
   nodes: z.array(z.union([
     z.object({ ...position, ...child, kind: z.literal("icon").optional(), iconId: z.string().max(1000), iconPath: z.string().max(2000) }),
     z.object({ ...position, ...child, kind: z.literal("shape"), shape: z.enum(["rectangle", "circle", "diamond", "database", "person", "document", "internet"]) }),
-    z.object({ ...position, kind: z.literal("group"), parentId: z.never().optional(), width: z.number().positive().max(100_000), height: z.number().positive().max(100_000), tier: z.string().max(200).optional() }),
+    z.object({ ...position, kind: z.literal("group"), parentId: id.optional(), width: z.number().positive().max(100_000), height: z.number().positive().max(100_000), tier: z.string().max(200).optional() }),
   ])).max(500),
   edges: z.array(z.object({
     id, source: id, target: id, label: z.string().max(1000).optional(),
@@ -45,5 +46,6 @@ export function parseArchitectureDocument(value: unknown): ArchPayload {
   if (payload.edges.some((edge) => !nodeIds.has(edge.source) || !nodeIds.has(edge.target))) {
     throw new Error("Every connection must reference existing nodes.");
   }
+  parentFirst(payload.nodes);
   return payload;
 }

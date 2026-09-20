@@ -1,8 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
+import { readCanvasPayload } from "./read-canvas-payload";
+import { waitForWorkspace } from "./wait-for-workspace";
 
 test.describe.configure({ timeout: 90_000 });
 
-const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZQmcAAAAASUVORK5CYII=";
+const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgqLjyHwAEFAJMURtfXQAAAABJRU5ErkJggg==";
 const architecture = {
   nodes: [
     { id: "boundary", kind: "group", label: "Compute", tier: "Compute", x: 0, y: 0, width: 440, height: 220 },
@@ -13,15 +15,12 @@ const architecture = {
 };
 
 async function draft(page: Page, mode: "architecture" | "whiteboard") {
-  return page.evaluate((mode) => {
-    const key = mode === "architecture" ? "diagrammatic.draft" : "diagrammatic.draft.whiteboard";
-    return JSON.parse(localStorage.getItem(key) ?? "{}").payload as {
+  return await readCanvasPayload(page, mode) as {
       nodes?: Array<{ id: string; width?: number; height?: number; x: number; y: number }>;
       edges?: Array<{ id: string; style: string; label: string; step: number }>;
       elements?: Array<{ id: string; fileId?: string; isDeleted?: boolean }>;
       files?: Record<string, { dataURL: string }>;
     } | undefined;
-  }, mode);
 }
 
 async function undo(page: Page) {
@@ -32,6 +31,7 @@ async function redo(page: Page) {
 }
 async function openArchitecture(page: Page) {
   await page.goto("/diagrammatic?mode=architecture");
+  await waitForWorkspace(page);
   await page.getByLabel("Architecture JSON file").setInputFiles({
     name: "history.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(architecture)),
   });
@@ -124,6 +124,7 @@ test("architecture resize is a single reversible gesture and preserves its child
   await group.click({ position: { x: 20, y: 15 } });
   const handle = group.locator(".react-flow__resize-control.handle.bottom.right");
   await expect(handle).toBeVisible();
+  await handle.hover();
   const box = await handle.boundingBox();
   if (!box) throw new Error("Resize control is unavailable");
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);

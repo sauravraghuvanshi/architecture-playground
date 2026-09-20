@@ -1,7 +1,8 @@
 import { expect, test } from "@playwright/test";
 
+// Deterministic, CRC-valid blue PNG fixture, not live model output.
 const ONE_PIXEL_PNG =
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZQmcAAAAASUVORK5CYII=";
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgqLjyHwAEFAJMURtfXQAAAABJRU5ErkJggg==";
 
 test.describe("Whiteboard AI", () => {
   test.beforeEach(async ({ page }) => {
