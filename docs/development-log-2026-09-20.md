@@ -377,3 +377,33 @@ the deployment target. Engineering and delegated work used GPT-6 Astra.
   `c4b91a44d33066e9aceb011a086d57f445a95d0f` and
   `refs/checkpoints/deferred-competitor-a7e748c4`. It resumes only in stage 3.
 - Completed numbered priorities: 1-5 and 11. **Priority 6 is next.**
+
+## Priority 6 continuation - offline IaC correctness
+
+Candidate implementation (not yet deployed):
+
+- Reproduced actual Terraform parsing failures, invalid leading-digit Bicep
+  symbols and duplicate ARM resource names. Installed checksum-verified portable
+  validators in session storage, without modifying the user's global tools.
+- Both editors now share generation. Naming version 2 uses bounded labels and
+  stable IDs with collision handling; all formats use the same explicit
+  3-10 character namespace and target an existing resource group.
+- Added Node 22 Function runtime prerequisites, isolated keyless host storage,
+  scoped host identity/role, workspace-backed Application Insights and a VNet
+  workload subnet. Workload permissions, private integration and code remain
+  explicit customer responsibilities, not inferred from edges.
+- Replaced divergent CLI per-resource snippets with a matching Bicep companion.
+  Preview is the default; `--deploy` is a distinct explicit write action after
+  What-If. PowerShell remains preview-only with no write mode.
+- Added executable validation of 17 synthetic graphs using Bicep 0.47.16,
+  Terraform 1.16.3 and AzureRM 5.6.0. All passed with zero provider errors/warnings,
+  including a real FNV hash collision. No Terraform plan/apply, customer What-If
+  or Azure resource deployment was executed.
+- Current local evidence: 231/231 unit/contracts, lint, strict types, standalone
+  build and 39/39 production-build browser cases. UI notice/warnings inspected.
+  Script safety subsequently passed 62/62 Bash and 26/26 PowerShell cases.
+  A trailing-newline namespace bug found by actual PowerShell execution was
+  fixed using absolute regex anchors. The final rebuild and all ten deployment
+  browser cases passed again. Release/hosted verification is still pending.
+- Deferred competitor work remains untouched. Priority 7 follows only after
+  priority 6 is released and verified.

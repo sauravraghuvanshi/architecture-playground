@@ -1,4 +1,6 @@
 import { azureResourceKind, type AzureResourceKind } from "../../../lib/service-identity.ts";
+import { emitTerraformDraft } from "./terraform-emitter.ts";
+import { emitAzureCliDraft } from "./azure-cli-emitter.ts";
 
 export type ArchitectureCodeFormat = "bicep" | "terraform" | "azure-cli" | "powershell";
 
@@ -44,17 +46,24 @@ const FORMAT_META: Record<
   powershell: { filename: "preview.ps1", language: "powershell" },
 };
 
-function safeIdentifier(value: string, index: number): string {
-  const normalized = value.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 20);
-  return `${normalized || "resource"}${index + 1}`;
+const HOST_BLOB_OWNER_ROLE = "b7e6dc6d-f1e8-4753-8033-0f276bb0955b";
+const NODE_RUNTIME = "22";
+const AZURERM_VERSION = "~> 5.6";
+
+function nameHash(value: string): string {
+  let hash = 2166136261;
+  for (const character of value) hash = Math.imul(hash ^ character.codePointAt(0)!, 16777619) >>> 0;
+  return hash.toString(36).padStart(7, "0");
 }
 
-function safeResourceName(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 24) || "resource";
+function allocateName(node: ArchitectureNode, used: Set<string>): string {
+  const normalized = node.label.normalize("NFKD").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const prefix = (/^[a-z]/.test(normalized) ? normalized : `r${normalized}`).slice(0, 3).padEnd(3, "r");
+  let salt = 0;
+  let name = `${prefix}${nameHash(node.id)}`;
+  while (used.has(name)) name = `${prefix}${nameHash(`${node.id}:${++salt}`)}`;
+  used.add(name);
+  return name;
 }
 
 function detectKind(node: ArchitectureNode): ResourceKind | null {
@@ -71,16 +80,22 @@ function detectResources(payload: ArchitecturePayload): {
   );
   const resources: DetectedResource[] = [];
   const warnings: string[] = [];
-  for (const [index, node] of serviceNodes.entries()) {
+  if (serviceNodes.some((node) => typeof node.id !== "string" || !node.id.trim()) ||
+      new Set(serviceNodes.map((node) => node.id)).size !== serviceNodes.length) {
+    throw new Error("Every service needs a unique, nonempty diagram ID before code generation.");
+  }
+  const usedNames = new Set<string>();
+  for (const node of [...serviceNodes].sort((left, right) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0)) {
     const kind = detectKind(node);
     if (!kind) {
       warnings.push(`No deployable mapping for "${node.label}" (${node.iconId}).`);
       continue;
     }
+    const name = allocateName(node, usedNames);
     resources.push({
       id: node.id,
-      name: safeResourceName(node.label),
-      variable: safeIdentifier(node.label, index),
+      name,
+      variable: `r${name}`,
       kind,
     });
   }
@@ -90,8 +105,14 @@ function detectResources(payload: ArchitecturePayload): {
     )
   ) {
     warnings.push(
-      "Managed identities are created without data-plane role assignments because diagram edges do not encode operation or permission semantics. Add least-privilege roles before workload deployment."
+      "Workload data-plane permissions are not inferred from diagram edges. Add least-privilege roles before workload deployment; required Function host-storage permissions are generated separately."
     );
+  }
+  if (resources.length) {
+    warnings.push("Naming version 2 derives bounded names from labels and stable node IDs. Use the same globally unique 3-10 character lowercase alphanumeric environmentName/AZURE_SUFFIX in every format. Review name changes before targeting existing resources.");
+  }
+  if (resources.some((resource) => resource.kind === "functions")) {
+    warnings.push("Function drafts use Node 22 on a Dedicated plan with separate keyless host storage and a scoped managed identity. Host storage has authenticated public endpoints; configure private connectivity explicitly if required. Additional trigger/binding permissions are not inferred, and function code is not deployed.");
   }
   return { resources, warnings, totalServiceNodes: serviceNodes.length };
 }
@@ -111,6 +132,10 @@ export interface GeneratedArmTemplate {
           type: "string",
           defaultValue: "[resourceGroup().location]",
           metadata: { description: "Azure region for regional resources." },
+        },
+        environmentName: {
+          type: "string", minLength: 3, maxLength: 10,
+          metadata: { description: "Globally unique namespace: 3-10 lowercase letters/digits, beginning with a letter. Use the same value in every export format." },
         },
       };
       if (kinds.has("sql")) {
@@ -136,7 +161,7 @@ export interface GeneratedArmTemplate {
         armResources.push({
           type: "Microsoft.Web/serverfarms",
           apiVersion: "2024-04-01",
-          name: "csa-plan",
+          name: armName("csa-plan"),
           location: "[parameters('location')]",
           sku: { name: "P0v3", tier: "PremiumV3", capacity: 1 },
           kind: "linux",
@@ -157,12 +182,12 @@ export interface GeneratedArmTemplate {
           metadata: {
             _generator: {
               name: "Diagrammatic CSA Workspace",
-              version: "1.0",
+              version: "2.0",
             },
           },
           parameters,
           variables: {
-            uniqueSuffix: "[uniqueString(subscription().subscriptionId, resourceGroup().id)]",
+            uniqueSuffix: "[parameters('environmentName')]",
           },
           resources: armResources,
           outputs: {
@@ -187,21 +212,38 @@ export interface GeneratedArmTemplate {
       switch (kind) {
         case "app-service":
         case "functions":
-          return [{
+          return [...(kind === "functions" ? functionArmSupport(resource) : []), {
             type: "Microsoft.Web/sites",
             apiVersion: "2024-04-01",
             name: armName(name),
             location,
             kind: kind === "functions" ? "functionapp,linux" : "app,linux",
-            identity: { type: "SystemAssigned" },
-            dependsOn: ["[resourceId('Microsoft.Web/serverfarms', 'csa-plan')]"],
+            identity: kind === "functions" ? {
+              type: "SystemAssigned, UserAssigned",
+              userAssignedIdentities: { [`[${functionIdentityId(name)}]`]: {} },
+            } : { type: "SystemAssigned" },
+            dependsOn: [
+              "[resourceId('Microsoft.Web/serverfarms', concat('csa-plan-', variables('uniqueSuffix')))]",
+              ...(kind === "functions" ? [`[${functionRoleId(name)}]`] : []),
+            ],
             properties: {
-              serverFarmId: "[resourceId('Microsoft.Web/serverfarms', 'csa-plan')]",
+              serverFarmId: "[resourceId('Microsoft.Web/serverfarms', concat('csa-plan-', variables('uniqueSuffix')))]",
               httpsOnly: true,
               siteConfig: {
                 minTlsVersion: "1.2",
                 ftpsState: "Disabled",
                 alwaysOn: true,
+                linuxFxVersion: `NODE|${NODE_RUNTIME}`,
+                ...(kind === "functions" ? { appSettings: [
+                  { name: "FUNCTIONS_EXTENSION_VERSION", value: "~4" },
+                  { name: "FUNCTIONS_WORKER_RUNTIME", value: "node" },
+                  { name: "AzureWebJobsStorage__credential", value: "managedidentity" },
+                  { name: "AzureWebJobsStorage__clientId", value: `[reference(${functionIdentityId(name)}, '2023-01-31').clientId]` },
+                  ...["blob", "queue", "table"].map((service) => ({
+                    name: `AzureWebJobsStorage__${service}ServiceUri`,
+                    value: `[reference(${functionStorageId(name)}, '2023-05-01').primaryEndpoints.${service}]`,
+                  })),
+                ] } : {}),
               },
             },
           }];
@@ -243,11 +285,12 @@ export interface GeneratedArmTemplate {
           return [{
             type: "Microsoft.Storage/storageAccounts",
             apiVersion: "2023-05-01",
-            name: `[take(replace(concat('${name}', variables('uniqueSuffix')), '-', ''), 24)]`,
+            name: `[concat('${name}', variables('uniqueSuffix'))]`,
             location,
             sku: { name: "Standard_ZRS" },
             kind: "StorageV2",
             properties: {
+              supportsHttpsTrafficOnly: true,
               allowBlobPublicAccess: false,
               allowSharedKeyAccess: false,
               minimumTlsVersion: "TLS1_2",
@@ -336,7 +379,7 @@ export interface GeneratedArmTemplate {
         case "aks":
           return [{
             type: "Microsoft.ContainerService/managedClusters",
-            apiVersion: "2024-10-01",
+            apiVersion: "2025-05-01",
             name: armName(name),
             location,
             identity: { type: "SystemAssigned" },
@@ -344,6 +387,7 @@ export interface GeneratedArmTemplate {
             properties: {
               dnsPrefix: name,
               enableRBAC: true,
+              nodeProvisioningProfile: { mode: "Manual" },
               agentPoolProfiles: [{
                 name: "system",
                 count: 3,
@@ -379,15 +423,62 @@ export interface GeneratedArmTemplate {
           }];
         case "app-insights":
           return [{
+            type: "Microsoft.OperationalInsights/workspaces",
+            apiVersion: "2023-09-01",
+            name: armName(`${name}logs`), location,
+            properties: { sku: { name: "PerGB2018" }, retentionInDays: 30, features: { enableLogAccessUsingOnlyResourcePermissions: true } },
+          }, {
             type: "Microsoft.Insights/components",
             apiVersion: "2020-02-02",
             name: armName(name),
             location,
             kind: "web",
-            properties: { Application_Type: "web", DisableLocalAuth: true },
+            dependsOn: [`[resourceId('Microsoft.OperationalInsights/workspaces', concat('${name}logs-', variables('uniqueSuffix')))]`],
+            properties: {
+              Application_Type: "web", DisableLocalAuth: true,
+              WorkspaceResourceId: `[resourceId('Microsoft.OperationalInsights/workspaces', concat('${name}logs-', variables('uniqueSuffix')))]`,
+            },
           }];
       }
     }
+
+function functionStorageId(name: string): string {
+  return `resourceId('Microsoft.Storage/storageAccounts', concat('${name}host', variables('uniqueSuffix')))`;
+}
+
+function functionIdentityId(name: string): string {
+  return `resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', concat('${name}hostid-', variables('uniqueSuffix')))`;
+}
+
+function functionRoleName(name: string): string {
+  return `guid(${functionStorageId(name)}, ${functionIdentityId(name)}, '${HOST_BLOB_OWNER_ROLE}')`;
+}
+
+function functionRoleId(name: string): string {
+  return `extensionResourceId(${functionStorageId(name)}, 'Microsoft.Authorization/roleAssignments', ${functionRoleName(name)})`;
+}
+
+function functionArmSupport({ name }: DetectedResource): Array<Record<string, unknown>> {
+  return [{
+    type: "Microsoft.Storage/storageAccounts", apiVersion: "2023-05-01",
+    name: `[concat('${name}host', variables('uniqueSuffix'))]`,
+    location: "[parameters('location')]", kind: "StorageV2", sku: { name: "Standard_LRS" },
+    properties: { supportsHttpsTrafficOnly: true, minimumTlsVersion: "TLS1_2", allowBlobPublicAccess: false, allowSharedKeyAccess: false, publicNetworkAccess: "Enabled" },
+  }, {
+    type: "Microsoft.ManagedIdentity/userAssignedIdentities", apiVersion: "2023-01-31",
+    name: armName(`${name}hostid`), location: "[parameters('location')]",
+  }, {
+    type: "Microsoft.Authorization/roleAssignments", apiVersion: "2022-04-01",
+    name: `[${functionRoleName(name)}]`, scope: `[${functionStorageId(name)}]`,
+    dependsOn: [`[${functionStorageId(name)}]`, `[${functionIdentityId(name)}]`],
+    properties: {
+      roleDefinitionId: `[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '${HOST_BLOB_OWNER_ROLE}')]`,
+      principalId: `[reference(${functionIdentityId(name)}, '2023-01-31').principalId]`,
+      principalType: "ServicePrincipal",
+    },
+  }];
+}
+
 function uniqueKinds(resources: DetectedResource[]): Set<ResourceKind> {
   return new Set(resources.map((resource) => resource.kind));
 }
@@ -400,10 +491,12 @@ function emitBicep(resources: DetectedResource[]): string {
     "@description('Azure region for regional resources')",
     "param location string = resourceGroup().location",
     "",
-    "@description('Short environment suffix used for globally unique names')",
-    "param environmentName string = 'csa'",
+    "@description('Globally unique namespace: 3-10 lowercase letters/digits, beginning with a letter; use the same value in every format')",
+    "@minLength(3)",
+    "@maxLength(10)",
+    "param environmentName string",
     "",
-    "var uniqueSuffix = uniqueString(subscription().subscriptionId, resourceGroup().id, environmentName)",
+    "var uniqueSuffix = environmentName",
     "",
   ];
 
@@ -426,7 +519,7 @@ function emitBicep(resources: DetectedResource[]): string {
   if (kinds.has("app-service") || kinds.has("functions")) {
     lines.push(
       "resource appServicePlan 'Microsoft.Web/serverfarms@2024-04-01' = {",
-      "  name: '${environmentName}-plan-${uniqueSuffix}'",
+      "  name: 'csa-plan-${uniqueSuffix}'",
       "  location: location",
       "  sku: { name: 'P0v3', tier: 'PremiumV3', capacity: 1 }",
       "  kind: 'linux'",
@@ -442,25 +535,72 @@ function emitBicep(resources: DetectedResource[]): string {
   return lines.join("\n").trimEnd() + "\n";
 }
 
+function functionBicepSupport({ name, variable }: DetectedResource): string {
+  return `resource ${variable}HostStorage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
+  name: '${name}host\${uniqueSuffix}'
+  location: location
+  sku: { name: 'Standard_LRS' }
+  kind: 'StorageV2'
+  properties: {
+    supportsHttpsTrafficOnly: true
+    minimumTlsVersion: 'TLS1_2'
+    allowBlobPublicAccess: false
+    allowSharedKeyAccess: false
+    publicNetworkAccess: 'Enabled'
+  }
+}
+
+resource ${variable}HostIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: '${name}hostid-\${uniqueSuffix}'
+  location: location
+}
+
+resource ${variable}HostRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(${variable}HostStorage.id, ${variable}HostIdentity.id, '${HOST_BLOB_OWNER_ROLE}')
+  scope: ${variable}HostStorage
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '${HOST_BLOB_OWNER_ROLE}')
+    principalId: ${variable}HostIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+`;
+}
+
 function bicepResource(resource: DetectedResource): string {
   const { kind, name, variable } = resource;
   const globalName = `${name}-\${uniqueSuffix}`;
   switch (kind) {
     case "app-service":
     case "functions":
-      return `resource ${variable} 'Microsoft.Web/sites@2024-04-01' = {
+      return `${kind === "functions" ? functionBicepSupport(resource) : ""}resource ${variable} 'Microsoft.Web/sites@2024-04-01' = {
   name: '${globalName}'
   location: location
   kind: '${kind === "functions" ? "functionapp,linux" : "app,linux"}'
-  identity: { type: 'SystemAssigned' }
-  properties: {
+  identity: ${kind === "functions" ? `{
+    type: 'SystemAssigned, UserAssigned'
+    userAssignedIdentities: {
+      '\${${variable}HostIdentity.id}': {}
+    }
+  }` : "{ type: 'SystemAssigned' }"}
+${kind === "functions" ? `  dependsOn: [${variable}HostRole]\n` : ""}  properties: {
     serverFarmId: appServicePlan.id
     httpsOnly: true
     siteConfig: {
       minTlsVersion: '1.2'
       ftpsState: 'Disabled'
       alwaysOn: true
-    }
+      linuxFxVersion: 'NODE|${NODE_RUNTIME}'
+${kind === "functions" ? `      appSettings: [
+        { name: 'FUNCTIONS_EXTENSION_VERSION', value: '~4' }
+        { name: 'FUNCTIONS_WORKER_RUNTIME', value: 'node' }
+        { name: 'AzureWebJobsStorage__credential', value: 'managedidentity' }
+        { name: 'AzureWebJobsStorage__clientId', value: ${variable}HostIdentity.properties.clientId }
+        { name: 'AzureWebJobsStorage__blobServiceUri', value: ${variable}HostStorage.properties.primaryEndpoints.blob }
+        { name: 'AzureWebJobsStorage__queueServiceUri', value: ${variable}HostStorage.properties.primaryEndpoints.queue }
+        { name: 'AzureWebJobsStorage__tableServiceUri', value: ${variable}HostStorage.properties.primaryEndpoints.table }
+      ]\n` : ""}    }
   }
 }`;
     case "sql":
@@ -490,11 +630,12 @@ resource ${variable} 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
 }`;
     case "storage":
       return `resource ${variable} 'Microsoft.Storage/storageAccounts@2023-05-01' = {
-  name: take(replace('${name}\${uniqueSuffix}', '-', ''), 24)
+  name: '${name}\${uniqueSuffix}'
   location: location
   sku: { name: 'Standard_ZRS' }
   kind: 'StorageV2'
   properties: {
+    supportsHttpsTrafficOnly: true
     allowBlobPublicAccess: false
     allowSharedKeyAccess: false
     minimumTlsVersion: 'TLS1_2'
@@ -568,7 +709,7 @@ resource ${variable} 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
   }
 }`;
     case "aks":
-      return `resource ${variable} 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
+      return `resource ${variable} 'Microsoft.ContainerService/managedClusters@2025-05-01' = {
   name: '${globalName}'
   location: location
   identity: { type: 'SystemAssigned' }
@@ -576,6 +717,7 @@ resource ${variable} 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
   properties: {
     dnsPrefix: '${name}'
     enableRBAC: true
+    nodeProvisioningProfile: { mode: 'Manual' }
     agentPoolProfiles: [{
       name: 'system'
       count: 3
@@ -599,290 +741,35 @@ resource ${variable} 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
       return `resource ${variable} 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   name: '${globalName}'
   location: location
-        properties: {
-          sku: { name: 'PerGB2018' }
-          retentionInDays: 30
-          features: { enableLogAccessUsingOnlyResourcePermissions: true }
-        }
-      }`;
+  properties: {
+    sku: { name: 'PerGB2018' }
+    retentionInDays: 30
+    features: { enableLogAccessUsingOnlyResourcePermissions: true }
+  }
+}`;
     case "app-insights":
-      return `resource ${variable} 'Microsoft.Insights/components@2020-02-02' = {
+      return `resource ${variable}Workspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
+  name: '${name}logs-\${uniqueSuffix}'
+  location: location
+  properties: {
+    sku: { name: 'PerGB2018' }
+    retentionInDays: 30
+    features: { enableLogAccessUsingOnlyResourcePermissions: true }
+  }
+}
+
+resource ${variable} 'Microsoft.Insights/components@2020-02-02' = {
   name: '${globalName}'
   location: location
   kind: 'web'
-  properties: { Application_Type: 'web', DisableLocalAuth: true }
+  properties: {
+    Application_Type: 'web'
+    DisableLocalAuth: true
+    WorkspaceResourceId: ${variable}Workspace.id
+  }
 }`;
   }
 }
-
-function emitTerraform(resources: DetectedResource[]): string {
-  const kinds = uniqueKinds(resources);
-  const lines = [
-    'terraform {',
-    '  required_version = ">= 1.7.0"',
-    "  required_providers {",
-    '    azurerm = { source = "hashicorp/azurerm", version = "~> 4.0" }',
-    '    random  = { source = "hashicorp/random", version = "~> 3.6" }',
-    "  }",
-    "}",
-    "",
-    'provider "azurerm" {',
-    "  features {}",
-    "}",
-    "",
-    'variable "location" { type = string, default = "centralindia" }',
-    'variable "resource_group_name" { type = string, default = "rg-csa-architecture" }',
-  ];
-  if (kinds.has("sql")) {
-    lines.push(
-      'variable "sql_admin_object_id" { type = string }',
-      'variable "sql_admin_login" { type = string, default = "Azure SQL Administrators" }'
-    );
-  }
-  if (kinds.has("apim")) {
-    lines.push('variable "publisher_email" { type = string }');
-  }
-  lines.push(
-    "",
-    'resource "random_string" "suffix" { length = 6, special = false, upper = false }',
-    "",
-    'resource "azurerm_resource_group" "main" {',
-    "  name     = var.resource_group_name",
-    "  location = var.location",
-    "}",
-    ""
-  );
-  if (kinds.has("app-service") || kinds.has("functions")) {
-    lines.push(
-      'resource "azurerm_service_plan" "main" {',
-      '  name                = "plan-csa-${random_string.suffix.result}"',
-      "  resource_group_name = azurerm_resource_group.main.name",
-      "  location            = azurerm_resource_group.main.location",
-      '  os_type             = "Linux"',
-      '  sku_name            = "P0v3"',
-      "}",
-      ""
-    );
-  }
-  for (const resource of resources) {
-    lines.push(terraformResource(resource), "");
-  }
-  return lines.join("\n").trimEnd() + "\n";
-}
-
-function terraformResource(resource: DetectedResource): string {
-  const { kind, name, variable } = resource;
-  const common = `  resource_group_name = azurerm_resource_group.main.name
-  location            = azurerm_resource_group.main.location`;
-  switch (kind) {
-    case "app-service":
-    case "functions":
-      return `resource "azurerm_linux_${kind === "functions" ? "function_app" : "web_app"}" "${variable}" {
-  name                = "${name}-\${random_string.suffix.result}"
-${common}
-  service_plan_id     = azurerm_service_plan.main.id
-  https_only          = true
-  identity { type = "SystemAssigned" }
-  site_config {
-    minimum_tls_version = "1.2"
-    ftps_state          = "Disabled"
-  }
-}`;
-    case "sql":
-      return `resource "azurerm_mssql_server" "${variable}_server" {
-  name                         = "${name}-sql-\${random_string.suffix.result}"
-${common}
-  version                      = "12.0"
-  minimum_tls_version          = "1.2"
-  public_network_access_enabled = false
-  azuread_administrator {
-    login_username              = var.sql_admin_login
-    object_id                   = var.sql_admin_object_id
-    azuread_authentication_only = true
-  }
-}
-
-resource "azurerm_mssql_database" "${variable}" {
-  name      = "${name}"
-  server_id = azurerm_mssql_server.${variable}_server.id
-  sku_name  = "S0"
-}`;
-    case "storage":
-      return `resource "azurerm_storage_account" "${variable}" {
-  name                          = substr(replace("${name}\${random_string.suffix.result}", "-", ""), 0, 24)
-${common}
-  account_tier                  = "Standard"
-  account_replication_type      = "ZRS"
-  min_tls_version               = "TLS1_2"
-  shared_access_key_enabled     = false
-  public_network_access_enabled = false
-  allow_nested_items_to_be_public = false
-}`;
-    case "apim":
-      return `resource "azurerm_api_management" "${variable}" {
-  name                = "${name}-\${random_string.suffix.result}"
-${common}
-  publisher_name      = "CSA Architecture"
-  publisher_email     = var.publisher_email
-  sku_name            = "Developer_1"
-  identity { type = "SystemAssigned" }
-}`;
-    case "openai":
-      return `resource "azurerm_cognitive_account" "${variable}" {
-  name                  = "${name}-\${random_string.suffix.result}"
-${common}
-  kind                  = "OpenAI"
-  sku_name              = "S0"
-  custom_subdomain_name = "${name}-\${random_string.suffix.result}"
-  local_auth_enabled    = false
-  public_network_access_enabled = false
-  identity { type = "SystemAssigned" }
-}`;
-    case "key-vault":
-      return `data "azurerm_client_config" "current" {}
-
-resource "azurerm_key_vault" "${variable}" {
-  name                       = "${name}-\${random_string.suffix.result}"
-${common}
-  tenant_id                  = data.azurerm_client_config.current.tenant_id
-  sku_name                   = "standard"
-  enable_rbac_authorization  = true
-  purge_protection_enabled   = true
-  public_network_access_enabled = false
-}`;
-    case "front-door":
-      return `resource "azurerm_cdn_frontdoor_profile" "${variable}" {
-  name                = "${name}-\${random_string.suffix.result}"
-  resource_group_name = azurerm_resource_group.main.name
-  sku_name            = "Standard_AzureFrontDoor"
-}`;
-    case "service-bus":
-      return `resource "azurerm_servicebus_namespace" "${variable}" {
-  name                          = "${name}-\${random_string.suffix.result}"
-${common}
-  sku                           = "Standard"
-  local_auth_enabled            = false
-  public_network_access_enabled = false
-  minimum_tls_version           = "1.2"
-}`;
-    case "cosmos":
-      return `resource "azurerm_cosmosdb_account" "${variable}" {
-  name                          = "${name}-\${random_string.suffix.result}"
-${common}
-  offer_type                    = "Standard"
-  kind                          = "GlobalDocumentDB"
-  local_authentication_disabled = true
-  public_network_access_enabled = false
-  consistency_policy { consistency_level = "Session" }
-  geo_location { location = var.location, failover_priority = 0 }
-}`;
-    case "aks":
-      return `resource "azurerm_kubernetes_cluster" "${variable}" {
-  name                = "${name}-\${random_string.suffix.result}"
-${common}
-  dns_prefix          = "${name}"
-  sku_tier            = "Standard"
-  default_node_pool { name = "system", node_count = 3, vm_size = "Standard_D4ds_v5" }
-  identity { type = "SystemAssigned" }
-  role_based_access_control_enabled = true
-}`;
-    case "vnet":
-      return `resource "azurerm_virtual_network" "${variable}" {
-  name                = "${name}-\${random_string.suffix.result}"
-${common}
-  address_space       = ["10.0.0.0/16"]
-}`;
-    case "log-analytics":
-      return `resource "azurerm_log_analytics_workspace" "${variable}" {
-  name                = "${name}-\${random_string.suffix.result}"
-${common}
-  sku                 = "PerGB2018"
-  retention_in_days   = 30
-}`;
-    case "app-insights":
-      return `resource "azurerm_application_insights" "${variable}" {
-  name                = "${name}-\${random_string.suffix.result}"
-${common}
-  application_type    = "web"
-  local_authentication_disabled = true
-}`;
-  }
-}
-
-function emitAzureCli(resources: DetectedResource[]): string {
-  const kinds = uniqueKinds(resources);
-  const lines = [
-    "#!/usr/bin/env bash",
-    "set -euo pipefail",
-    "",
-    'LOCATION="${AZURE_LOCATION:-centralindia}"',
-    'RESOURCE_GROUP="${AZURE_RESOURCE_GROUP:-rg-csa-architecture}"',
-    'SUFFIX="${AZURE_SUFFIX:-$RANDOM}"',
-    "",
-    "az account show --output none",
-    'az group create --name "$RESOURCE_GROUP" --location "$LOCATION" --output none',
-    "",
-  ];
-  if (kinds.has("sql")) {
-    lines.push(
-      ': "${SQL_ADMIN_OBJECT_ID:?Set SQL_ADMIN_OBJECT_ID to a Microsoft Entra group object ID}"',
-      'SQL_ADMIN_LOGIN="${SQL_ADMIN_LOGIN:-Azure SQL Administrators}"',
-      ""
-    );
-  }
-  if (kinds.has("apim")) {
-    lines.push(': "${APIM_PUBLISHER_EMAIL:?Set APIM_PUBLISHER_EMAIL}"', "");
-  }
-  if (kinds.has("app-service") || kinds.has("functions")) {
-    lines.push(
-      'az appservice plan create --name "plan-csa-$SUFFIX" --resource-group "$RESOURCE_GROUP" --location "$LOCATION" --is-linux --sku P0V3 --output none',
-      ""
-    );
-  }
-  for (const resource of resources) {
-    lines.push(cliResource(resource), "");
-  }
-  return lines.join("\n").trimEnd() + "\n";
-}
-
-function cliResource({ kind, name }: DetectedResource): string {
-  const globalName = `${name}-$SUFFIX`;
-  switch (kind) {
-    case "app-service":
-      return `az webapp create --name "${globalName}" --resource-group "$RESOURCE_GROUP" --plan "plan-csa-$SUFFIX" --runtime "NODE:20-lts" --output none
-az webapp identity assign --name "${globalName}" --resource-group "$RESOURCE_GROUP" --output none
-az webapp config set --name "${globalName}" --resource-group "$RESOURCE_GROUP" --min-tls-version 1.2 --ftps-state Disabled --output none`;
-    case "functions":
-      return `# Function Apps also require a secure storage account; review before deployment.
-az functionapp create --name "${globalName}" --resource-group "$RESOURCE_GROUP" --plan "plan-csa-$SUFFIX" --runtime node --runtime-version 20 --functions-version 4 --assign-identity --output none`;
-    case "sql":
-      return `az sql server create --name "${name}-sql-$SUFFIX" --resource-group "$RESOURCE_GROUP" --location "$LOCATION" --enable-ad-only-auth --external-admin-name "$SQL_ADMIN_LOGIN" --external-admin-sid "$SQL_ADMIN_OBJECT_ID" --external-admin-principal-type Group --output none
-az sql db create --name "${name}" --server "${name}-sql-$SUFFIX" --resource-group "$RESOURCE_GROUP" --service-objective S0 --output none`;
-    case "storage":
-      return `az storage account create --name "\${SUFFIX//-/}${name.replace(/-/g, "")}" --resource-group "$RESOURCE_GROUP" --location "$LOCATION" --sku Standard_ZRS --kind StorageV2 --min-tls-version TLS1_2 --allow-blob-public-access false --allow-shared-key-access false --public-network-access Disabled --output none`;
-    case "apim":
-      return `az apim create --name "${globalName}" --resource-group "$RESOURCE_GROUP" --location "$LOCATION" --publisher-name "CSA Architecture" --publisher-email "$APIM_PUBLISHER_EMAIL" --sku-name Developer --enable-managed-identity true --output none`;
-    case "openai":
-      return `az cognitiveservices account create --name "${globalName}" --resource-group "$RESOURCE_GROUP" --location "$LOCATION" --kind OpenAI --sku S0 --custom-domain "${globalName}" --assign-identity --yes --output none`;
-    case "key-vault":
-      return `az keyvault create --name "${globalName}" --resource-group "$RESOURCE_GROUP" --location "$LOCATION" --enable-rbac-authorization true --enable-purge-protection true --public-network-access Disabled --output none`;
-    case "front-door":
-      return `az afd profile create --profile-name "${globalName}" --resource-group "$RESOURCE_GROUP" --sku Standard_AzureFrontDoor --output none`;
-    case "service-bus":
-      return `az servicebus namespace create --name "${globalName}" --resource-group "$RESOURCE_GROUP" --location "$LOCATION" --sku Standard --disable-local-auth true --minimum-tls-version 1.2 --public-network-access Disabled --output none`;
-    case "cosmos":
-      return `az cosmosdb create --name "${globalName}" --resource-group "$RESOURCE_GROUP" --locations regionName="$LOCATION" failoverPriority=0 --default-consistency-level Session --disable-key-based-metadata-write-access true --enable-public-network false --output none`;
-    case "aks":
-      return `az aks create --name "${globalName}" --resource-group "$RESOURCE_GROUP" --location "$LOCATION" --node-count 3 --node-vm-size Standard_D4ds_v5 --enable-managed-identity --enable-aad --enable-azure-rbac --generate-ssh-keys --output none`;
-    case "vnet":
-      return `az network vnet create --name "${globalName}" --resource-group "$RESOURCE_GROUP" --location "$LOCATION" --address-prefixes 10.0.0.0/16 --subnet-name workload --subnet-prefixes 10.0.1.0/24 --output none`;
-    case "log-analytics":
-      return `az monitor log-analytics workspace create --workspace-name "${globalName}" --resource-group "$RESOURCE_GROUP" --location "$LOCATION" --retention-time 30 --output none`;
-    case "app-insights":
-      return `az monitor app-insights component create --app "${globalName}" --resource-group "$RESOURCE_GROUP" --location "$LOCATION" --kind web --application-type web --output none`;
-  }
-}
-
 function emitPowerShell(resources: DetectedResource[]): string {
   const lines = [
     "# Preview only: no resource creation, update, deletion, sign-in or context switching.",
@@ -912,10 +799,10 @@ function emitPowerShell(resources: DetectedResource[]): string {
     "  throw 'Set AZURE_RESOURCE_GROUP to an existing resource group. This script will not create it.'",
     "}",
     "$ResourceGroupName = $env:AZURE_RESOURCE_GROUP.Trim()",
-    "if ($env:AZURE_SUFFIX -notmatch '^[a-zA-Z0-9][a-zA-Z0-9-]{0,23}$') {",
-    "  throw 'Set AZURE_SUFFIX to a stable 1-24 character letter/digit/hyphen suffix starting with a letter or digit.'",
+    "if ($env:AZURE_SUFFIX -cnotmatch '\\A[a-z][a-z0-9]{2,9}\\z') {",
+    "  throw 'Set AZURE_SUFFIX to a globally unique 3-10 character lowercase letter/digit namespace starting with a letter.'",
     "}",
-    "$Parameters = @{ environmentName = \"csa-$env:AZURE_SUFFIX\" }",
+    "$Parameters = @{ environmentName = $env:AZURE_SUFFIX }",
   );
   if (resources.some((resource) => resource.kind === "sql")) {
     lines.push(
@@ -985,10 +872,11 @@ export function generateArchitectureCode(
       output = emitBicep(resources);
       break;
     case "terraform":
-      output = emitTerraform(resources);
+      output = emitTerraformDraft(resources, { nodeRuntime: NODE_RUNTIME, providerVersion: AZURERM_VERSION });
       break;
     case "azure-cli":
-      output = emitAzureCli(resources);
+      output = emitAzureCliDraft({ sql: resources.some((resource) => resource.kind === "sql"), apim: resources.some((resource) => resource.kind === "apim") });
+      if (resources.length) warnings.push("Download the matching main.bicep beside deploy.sh. The CLI wrapper validates the existing subscription/group and previews by default. --deploy is an explicit write action after What-If; review the template and permissions first.");
       break;
     case "powershell":
       output = emitPowerShell(resources);

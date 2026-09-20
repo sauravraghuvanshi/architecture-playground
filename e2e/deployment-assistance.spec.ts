@@ -1,5 +1,5 @@
 import { expect, test, type BrowserContext, type Download, type Page } from "@playwright/test";
-import { generateArchitectureCode } from "../components/diagrammatic/csa/architecture-codegen";
+import { generateArchitectureCode, generateArmTemplate } from "../components/diagrammatic/csa/architecture-codegen";
 import type { ArchPayload } from "../components/diagrammatic/modes/architecture/ArchitectureCanvas";
 
 const architecture: ArchPayload = {
@@ -33,9 +33,11 @@ interface MockOptions {
   generationStatus?: number;
   generationBody?: unknown;
   publicationStatus?: number;
+  architecture?: ArchPayload;
 }
 
 async function openDeployment(page: Page, context: BrowserContext, options: MockOptions = {}) {
+  const imported = options.architecture ?? architecture;
   const requests = { generation: [] as unknown[], publication: [] as unknown[], unexpected: [] as string[] };
   await context.route("**/api/ai/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -77,9 +79,9 @@ async function openDeployment(page: Page, context: BrowserContext, options: Mock
   await page.getByRole("button", { name: "Import architecture JSON" }).click();
   await (await chooser).setFiles({
     name: "deployment-evidence.json", mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(architecture)),
+    buffer: Buffer.from(JSON.stringify(imported)),
   });
-  await expect(page.locator(".react-flow__node").filter({ hasText: "Customer web app" })).toBeVisible();
+  await expect(page.locator(".react-flow__node")).toHaveCount(imported.nodes.length);
   await page.getByRole("button", { name: "Deploy architecture to Azure" }).click();
   const modal = page.getByRole("dialog", { name: "Deploy architecture to Azure" });
   await expect(modal).toBeVisible();
@@ -95,6 +97,55 @@ async function downloadText(download: Download) {
 }
 
 test.describe("Deployment assistance with mocked named-agent responses", () => {
+  test("offline CLI downloads the matching template and discloses its explicit write flag without running it", async ({ page, context }) => {
+    const { modal, requests } = await openDeployment(page, context);
+    await modal.getByRole("button", { name: "Azure CLI", exact: true }).click();
+    await modal.getByRole("button", { name: "Use offline starter export (no AI)", exact: true }).click();
+    await expect(modal.getByRole("note")).toContainText("previews by default");
+    await expect(modal.getByRole("note")).toContainText("--deploy is an explicit resource-write action");
+    await expect(modal.getByRole("button", { name: "Open Azure Review + Create" })).toBeDisabled();
+    for (const [button, filename, format] of [
+      ["Download code", "deploy.sh", "azure-cli"],
+      ["Download companion Bicep", "main.bicep", "bicep"],
+    ] as const) {
+      const [download] = await Promise.all([
+        page.waitForEvent("download"), modal.getByRole("button", { name: button, exact: true }).click(),
+      ]);
+      expect(download.suggestedFilename()).toBe(filename);
+      expect(await downloadText(download)).toBe(generateArchitectureCode(architecture, format).output);
+    }
+    expect(requests).toEqual({ generation: [], publication: [], unexpected: [] });
+  });
+
+  test("repeated Function labels export unique keyless prerequisites and a reviewable ARM companion", async ({ page, context }) => {
+    const functions: ArchPayload = {
+      nodes: ["one", "two"].map((id, index) => ({
+        kind: "icon", id, label: "123 Function workload", x: index * 240, y: 80,
+        iconId: "azure/application/function-app", iconPath: "/cloud-icons/azure/application/function-app.svg",
+      })), edges: [],
+    };
+    const { modal, requests } = await openDeployment(page, context, { architecture: functions });
+    for (const format of ["Bicep", "Terraform"] as const) {
+      await modal.getByRole("button", { name: format, exact: true }).click();
+      await modal.getByRole("button", { name: "Use offline starter export (no AI)", exact: true }).click();
+      await expect(modal).toContainText("Naming version 2");
+      await expect(modal).toContainText("authenticated public endpoints");
+      const [download] = await Promise.all([
+        page.waitForEvent("download"), modal.getByRole("button", { name: "Download code", exact: true }).click(),
+      ]);
+      expect(await downloadText(download)).toBe(generateArchitectureCode(functions, format === "Bicep" ? "bicep" : "terraform").output);
+      await expect(modal.getByRole("button", { name: "Download ARM template", exact: true })).toBeEnabled();
+    }
+    const [download] = await Promise.all([
+      page.waitForEvent("download"), modal.getByRole("button", { name: "Download ARM template", exact: true }).click(),
+    ]);
+    const template = JSON.parse(await downloadText(download));
+    expect(template).toEqual(generateArmTemplate(functions).template);
+    expect(template.resources.filter((item: { type: string }) => item.type === "Microsoft.Storage/storageAccounts")).toHaveLength(2);
+    expect(template.resources.filter((item: { type: string }) => item.type === "Microsoft.Authorization/roleAssignments")).toHaveLength(2);
+    expect(requests).toEqual({ generation: [], publication: [], unexpected: [] });
+  });
+
   test("offline PowerShell downloads only a preview and the matching Bicep without publishing or invoking AI", async ({ page, context }) => {
     const { modal, requests } = await openDeployment(page, context);
     await modal.getByRole("button", { name: "PowerShell", exact: true }).click();

@@ -89,28 +89,32 @@ function DeploymentSession({ payload, onClose, intent = "deploy" }: Omit<Props, 
 
   const offline = () => {
     reset();
-    const selected = azureOnlyDeploymentPayload(payload);
-    const code = generateArchitectureCode(selected.payload, format);
-    if (code.supportedNodes === 0) {
-      setError(["No supported Azure service identities were found. No draft or deployment artifact was generated.", ...selected.warnings, ...code.warnings].join(" "));
-      return;
-    }
-    const generated = generateArmTemplate(selected.payload);
-    let armTemplate: ArmTemplate | undefined;
-    const warnings = [...selected.warnings, ...code.warnings, ...generated.warnings];
-    if (generated.supportedNodes > 0) {
-      try {
-        armTemplate = parseArmTemplate(generated.template);
-      } catch {
-        warnings.push("The offline ARM template is outside the supported safe handoff subset. Code export remains available for manual review; Portal publishing is disabled.");
+    try {
+      const selected = azureOnlyDeploymentPayload(payload);
+      const code = generateArchitectureCode(selected.payload, format);
+      if (code.supportedNodes === 0) {
+        setError(["No supported Azure service identities were found. No draft or deployment artifact was generated.", ...selected.warnings, ...code.warnings].join(" "));
+        return;
       }
+      const generated = generateArmTemplate(selected.payload);
+      let armTemplate: ArmTemplate | undefined;
+      const warnings = [...new Set([...selected.warnings, ...code.warnings, ...generated.warnings])];
+      if (generated.supportedNodes > 0) {
+        try {
+          armTemplate = parseArmTemplate(generated.template);
+        } catch {
+          warnings.push("The offline ARM template is outside the supported safe handoff subset. Code export remains available for manual review; Portal publishing is disabled.");
+        }
+      }
+      setPreview({
+        source: "offline", format, code: code.output, armTemplate, warnings,
+        filename: code.filename,
+        ...(format === "powershell" || format === "azure-cli" ? { companionBicep: generateArchitectureCode(selected.payload, "bicep").output } : {}),
+        assumptions: ["Explicitly selected deterministic offline starter mappings. No Foundry agent was called; this is not runtime AI generation."],
+      });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Offline generation failed. No artifact was generated.");
     }
-    setPreview({
-      source: "offline", format, code: code.output, armTemplate, warnings,
-      filename: code.filename,
-      ...(format === "powershell" ? { companionBicep: generateArchitectureCode(selected.payload, "bicep").output } : {}),
-      assumptions: ["Explicitly selected deterministic offline starter mappings. No Foundry agent was called; this is not runtime AI generation."],
-    });
   };
 
   const text = showArm && preview?.armTemplate ? JSON.stringify(preview.armTemplate, null, 2) : preview?.code ?? "";
@@ -210,6 +214,12 @@ function DeploymentSession({ payload, onClose, intent = "deploy" }: Omit<Props, 
                   Offline PowerShell preview only. Download preview.ps1 and its companion main.bicep into the same folder and review both.
                   Use an existing resource group and explicitly matching subscription. This script cannot deploy resources;
                   -Confirm authorizes only preview, not deployment. Other formats and Foundry scripts remain unverified drafts.
+                </p>
+              )}
+              {preview.source === "offline" && preview.format === "azure-cli" && (
+                <p role="note" className="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-xs">
+                  Download deploy.sh and the matching main.bicep together. The CLI script previews by default against an existing group and matching subscription.
+                  Running with --deploy is an explicit resource-write action after What-If. PowerShell remains preview-only.
                 </p>
               )}
               <div className="flex gap-2">

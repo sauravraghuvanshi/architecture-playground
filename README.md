@@ -517,7 +517,9 @@ Before running the script in your own approved environment:
   select the intended subscription separately.
 - Set `AZURE_SUBSCRIPTION_ID` to that subscription's GUID,
   `AZURE_RESOURCE_GROUP` to an **existing** group, and `AZURE_SUFFIX` to a stable
-  1-24 character alphanumeric/hyphen value starting with a letter or digit.
+  globally unique **3-10 character lowercase letter/digit namespace starting
+  with a letter**. This is the literal `environmentName` in Bicep/ARM and
+  `environment_name` in Terraform; no `csa-` prefix is added.
 - Optionally set `AZURE_LOCATION`; otherwise the existing group's location is
   used. SQL mappings additionally require a valid `SQL_ADMIN_OBJECT_ID` and
   optionally `SQL_ADMIN_LOGIN`; API Management requires `APIM_PUBLISHER_EMAIL`.
@@ -536,6 +538,49 @@ The ARM Portal artifact is separate; code/ARM equivalence remains unverified.
 See Microsoft's [What-If guidance](https://learn.microsoft.com/azure/azure-resource-manager/bicep/deploy-what-if)
 and [PowerShell What-If result cmdlet](https://learn.microsoft.com/powershell/module/az.resources/get-azresourcegroupdeploymentwhatifresult).
 
+## Offline infrastructure drafts
+
+Both editors share the same deterministic Azure mappings, naming allocation and
+resource prerequisites. Naming version 2 uses a bounded label prefix plus a hash
+of the stable diagram node ID, with collision checks. Duplicate labels, leading
+digits and non-ASCII names no longer produce duplicate resource declarations or
+invalid language symbols. **Names change from earlier exports.** Review all name
+changes before targeting existing resources, preserve diagram IDs and the
+namespace, and do not switch deployment tools without a state/import plan.
+
+All formats target an explicitly selected **existing resource group**:
+
+- Bicep/ARM require `environmentName`; Terraform requires `subscription_id`,
+  `resource_group_name` and `environment_name`. Regional resources default to
+  the existing group's location. Bicep/ARM enforce namespace length; users must
+  also follow the documented lowercase alphanumeric character rule. Terraform
+  and the scripts enforce the full rule.
+- Terraform emits AzureRM `~> 5.6` syntax. Retain its generated provider lock
+  file in your own reviewed deployment project.
+- Azure CLI export is a Bash wrapper, not a second set of resource definitions.
+  Download `deploy.sh` and its matching `main.bicep` together. Azure CLI and
+  standalone Bicep must be installed separately. It validates local input and
+  compilation, checks the existing login's subscription, and previews with
+  What-If by default. **`--deploy` explicitly enables resource writes after a
+  successful preview.** It never signs in, switches subscriptions or creates
+  the resource group. No script is executed by Diagrammatic.
+- Functions use Node 22 / runtime 4 on a Linux Dedicated plan, separate keyless
+  host storage, and a host-scoped user-assigned identity with Storage Blob Data
+  Owner. App Service also uses Node 22. Function host storage has authenticated
+  public endpoints; private connectivity, trigger-specific roles, workload
+  permissions and function code are not inferred or deployed.
+- Application Insights includes a Log Analytics workspace prerequisite. VNets
+  include a starter workload subnet. SQL remains Microsoft Entra-only.
+
+These are reviewable **starter drafts**, not complete production workloads.
+They do not infer network integration from boundaries/edges, globally available
+names, regional SKU/quota availability, Front Door routes, AI model deployments,
+workload code or private endpoints. Other data services keep restricted public
+network defaults and need an explicitly designed access path. Compiler/schema
+checks cannot prove live deployability, working connectivity or cost/security
+compliance. Model-generated artifacts are separate and are not certified by the
+offline emitter tests.
+
 ## Test
 
 ```powershell
@@ -550,6 +595,23 @@ Run `npm run test:powershell-preview` with PowerShell 7 (`pwsh`) installed to
 parse and execute generated scripts against **local command mocks only**. This
 test suite requires no Azure credentials, Az modules, Bicep installation or cloud
 access and refuses unexpected commands. Temporary script fixtures are removed.
+
+Run `npm run test:azure-cli-draft` with Bash installed (`BASH_CLI` can select
+the executable; Git Bash is supported on Windows). It tests generated scripts
+against isolated Azure CLI/Bicep mocks, including failure paths and explicit
+deployment consent. No Azure service is contacted.
+
+Run `npm run test:iac-compilers` with separately installed Bicep and Terraform.
+Set `BICEP_CLI` and `TERRAFORM_CLI` to executable paths if not on `PATH`.
+The gate builds 17 synthetic graphs (14 individual kinds, all kinds, repeated
+kinds, and edge-case labels), compares ARM resource inventories, and runs
+Terraform `fmt -check` and provider-backed `validate`. Terraform
+`init -backend=false` downloads the public provider; no Azure credentials,
+`plan`, `apply`, What-If, or customer resource deployment are used. Temporary
+fixtures/provider files are removed. Verified tool versions: Bicep 0.47.16,
+Terraform 1.16.3 and AzureRM 5.6.0. Semantic generator tests also run in
+`test:playground`; these compiler checks are not a runtime validation of every
+future customer export.
 
 The regression suites cover:
 

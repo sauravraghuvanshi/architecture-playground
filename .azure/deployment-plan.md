@@ -1,9 +1,113 @@
 # Azure Deployment Plan
 
-> **Status:** Deployed
+> **Status:** Validated
 
 Generated: 2026-08-12
 Updated: 2026-09-20 (Asia/Kolkata)
+
+## Priority 6 - Repair offline infrastructure-code generation
+
+- **Baseline:** Application `98e130c`, verified and deployed; documentation
+  `168e609`. Deferred competitor work remains isolated and excluded.
+- **Scope:** Native and legacy generated artifact syntax, duplicate declarations,
+  safe/unique names and symbols, Function App prerequisites, and consistent
+  configuration across ARM/Bicep/Terraform/CLI/preview surfaces.
+- **Plan:** Reproduce failures with real local parsers/compilers; ground fixes
+  in current official schemas; reuse one emitter model where practical; test
+  supported single-resource and mixed/repeated-service graphs; validate the
+  app build and browser downloads; deploy the application and verify hosted.
+- **Safety boundary:** No Terraform apply/plan, Azure deployment, resource-group
+  creation or customer What-If execution for generator testing. Preserve
+  Entra-only SQL and the PowerShell preview-only contract.
+- **Recipe:** Existing application-only GitHub Actions/App Service pipeline.
+  No application infrastructure, role or model configuration changes.
+- **State:** Implemented and validated. Approved application-only release is
+  ready for the existing pipeline; hosted verification follows deployment.
+
+### Priority 6 reproduced failures and implementation decisions
+
+- Portable local validators were missing. Installed official, checksum-verified
+  Terraform 1.16.3 and Bicep 0.47.16 in the session tools directory, not system
+  paths. Current AzureRM release is 5.6.0.
+- Real Terraform parsing rejects one-line multi-argument variables/resources
+  and nested blocks. Bicep rejects leading-digit symbols. ARM duplicate-label
+  fixtures produce duplicate site and storage resource names.
+- Use a shared deterministic per-node naming allocation with collision checks,
+  valid symbols and bounded service names. A common explicit namespace/suffix
+  will be used across output formats; generated naming changes require review.
+- Keep all generated formats aligned to an explicitly selected existing resource
+  group. Terraform reads it; CLI validates it. No implicit group creation.
+- Use Node 22 / Functions runtime 4, verified against the Functions template tool.
+  Dedicated-plan Functions get a separate keyless host storage account and a
+  scoped user-assigned identity/Blob Data Owner role before app creation; retain
+  system identity for separately approved workload access. Additional trigger
+  permissions and private networking are not inferred.
+- Reuse the native emitter from legacy export rather than maintain a second
+  divergent implementation. CLI will use the matching Bicep companion, preview
+  by default and require an explicit deploy flag for writes; PowerShell remains
+  preview-only with no deployment mode.
+- Validate syntax/schema with real tools and assert dependency/configuration
+  consistency. No Terraform plan/apply or live Azure deployment of fixtures.
+
+### Priority 6 implementation and local proof
+
+- Shared names are deterministic under node reordering and bounded for storage,
+  vaults and other mapped resources. Invalid/duplicate service IDs stop generation.
+- All 14 supported kinds, one combined graph, a repeated-kind graph and unusual
+  labels passed real Bicep 0.47.16 builds, native/compiled ARM inventory checks,
+  Terraform 1.16.3 formatting and AzureRM 5.6.0 validation: 17/17 fixtures,
+  no provider-validation warnings/errors.
+- Nine new production-imported contracts cover safe ARM broker acceptance,
+  naming/determinism, legacy/native parity, Function identity/storage/roles,
+  workspace/subnet prerequisites, common configuration and credential exclusion.
+  The ARM broker accepts the new scoped host roles without changing restrictions.
+- Local validation does not establish global name availability, regional
+  capacity, live policy compliance, workload deployment or connectivity.
+  The supported outputs remain explicitly reviewed starter drafts.
+
+### Priority 6 - All validation checks pass
+
+- [x] Core application-only validation: owner-scoped GitHub access and unchanged
+  Actions target; package build and local HTTP readiness verified. Generated
+  customer IaC is not the application infrastructure and is not submitted to
+  Azure validate/What-If as part of this release.
+- [x] Docker build: not applicable to this existing standalone ZIP deployment.
+- [x] Azure policy/resource diff: not applicable; no infrastructure, SKU,
+  subscription, region or role changes to the hosted application.
+- [x] `npm run test:playground`: 231/231 unit/contract cases.
+- [x] `npm run test:iac-compilers`: 17/17 compiler/provider fixtures, including
+  repeated labels, Unicode, leading digits and an actual FNV hash collision.
+- [x] `npm run lint`, strict TypeScript and standalone `npm run build`.
+- [x] Production-build local browser regression: 39/39, including exact CLI,
+  Bicep, Terraform and ARM downloads, repeated Functions and publication consent.
+- [x] Visual inspection of offline CLI notice and Function warnings.
+- [x] Final mocked CLI/PowerShell execution safety suites: 62/62 Bash and
+  26/26 PowerShell; 88/88 combined. They execute generated scripts against
+  isolated command mocks, not Azure.
+- [x] Static role review: host Blob Data Owner is scoped to each dedicated
+  Function host storage account; no application role or infrastructure changes.
+- [x] Existing application-only Actions pipeline and remote baseline `168e609`;
+  competitor checkpoint `c4b91a44` remains isolated.
+- [x] Validation workflow completed and final evidence recorded.
+
+### Priority 6 - Section 7: Validation Proof
+
+The commands above completed successfully against the current candidate.
+The initial browser command used backslash paths that Playwright treated as
+regular-expression escapes and found no tests; filename selectors corrected
+the invocation. All 39 selected cases subsequently passed in 1.1 minutes.
+Compiler fixtures only downloaded the public provider and ran local checks;
+no generated customer deployment/What-If or real AI inference was performed.
+Hosted verification is pending application release, not implied by local tests.
+
+The executable safety suite found a real PowerShell edge case: the .NET `$`
+anchor accepted a namespace ending in a newline. Absolute `\A`/`\z` anchors now
+reject it before context/resource access, with the regression retained.
+The final rebuilt standalone application returned HTTP 200 with AI disabled;
+all ten deployment-assistance browser cases passed again against that build.
+An initial concurrent lint scan raced temporary mock-directory cleanup; scratch
+roots now live under ignored `node_modules/.cache`. The 62-case CLI suite and
+concurrent full lint then passed without the race. Strict types and build passed.
 
 ## Priority 5 - Canonical service and provider identification
 

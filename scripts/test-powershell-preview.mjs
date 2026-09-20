@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { delimiter, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { generateArchitectureCode } from "../components/diagrammatic/csa/architecture-codegen.ts";
@@ -11,6 +11,10 @@ const node = (id, iconId) => ({ id, kind: "icon", label: id, iconId });
 const simple = { nodes: [node("app", "azure/application/application-service")], edges: [] };
 const full = { nodes: [...simple.nodes, node("sql", "azure/databases/sql-database"), node("apim", "azure/integration/api-management")], edges: [] };
 const harness = fileURLToPath(new URL("./test-preview-powershell.ps1", import.meta.url));
+const pwsh = (process.env.PATH || "").split(delimiter)
+  .map((directory) => join(directory, process.platform === "win32" ? "pwsh.exe" : "pwsh"))
+  .find((path) => existsSync(path));
+assert.ok(pwsh, "PowerShell 7 (pwsh) must be installed separately to run the preview suite.");
 const requiredEnv = {
   AZURE_SUBSCRIPTION_ID: "11111111-1111-1111-1111-111111111111",
   AZURE_RESOURCE_GROUP: "existing-customer-group",
@@ -21,19 +25,25 @@ const requiredEnv = {
 };
 
 function execute(scenario = "success", { payload = full, env = {}, template = "targetScope = 'resourceGroup'\n" } = {}) {
-  const directory = mkdtempSync(join(tmpdir(), "diagrammatic-preview-test-"));
+  const directory = join(process.cwd(), `.test-powershell-preview-${randomUUID()}`);
+  mkdirSync(directory);
   try {
     const result = generateArchitectureCode(payload, "powershell");
     const previewPath = join(directory, "preview.ps1");
     writeFileSync(previewPath, result.output);
     if (template !== null) writeFileSync(join(directory, "main.bicep"), template);
-    const environment = { ...process.env };
-    for (const name of Object.keys(environment)) {
-      if (/^(AZURE_|SQL_ADMIN_|APIM_)/.test(name)) delete environment[name];
+    const environment = {};
+    for (const name of ["SystemRoot", "WINDIR", "ComSpec", "PATHEXT"]) {
+      if (process.env[name]) environment[name] = process.env[name];
     }
-    Object.assign(environment, requiredEnv, env);
-    const child = spawnSync("pwsh", ["-NoLogo", "-NoProfile", "-NonInteractive", "-File", harness, "-PreviewPath", previewPath, "-Scenario", scenario], {
-      encoding: "utf8", env: environment, timeout: 20_000,
+    Object.assign(environment, requiredEnv, env, {
+      PATH: directory, HOME: directory, USERPROFILE: directory,
+      TMP: directory, TEMP: directory, TMPDIR: directory,
+      AZURE_CONFIG_DIR: join(directory, "azure-config"),
+      PSModulePath: directory,
+    });
+    const child = spawnSync(pwsh, ["-NoLogo", "-NoProfile", "-NonInteractive", "-File", harness, "-PreviewPath", previewPath, "-Scenario", scenario], {
+      cwd: directory, encoding: "utf8", env: environment, timeout: 20_000,
     });
     assert.ifError(child.error);
     assert.equal(child.status, 0, child.stderr || child.stdout);
@@ -56,7 +66,7 @@ test("offline PowerShell uses only a read-only What-If API against the explicitl
   assert.equal(preview.mode, "Incremental");
   assert.equal(preview.skipPrompt, true);
   assert.deepEqual(preview.parameters, {
-    location: "westeurope", environmentName: "csa-review",
+    location: "westeurope", environmentName: "review",
     sqlAdminObjectId: requiredEnv.SQL_ADMIN_OBJECT_ID,
     sqlAdminLogin: requiredEnv.SQL_ADMIN_LOGIN, publisherEmail: requiredEnv.APIM_PUBLISHER_EMAIL,
   });
@@ -68,9 +78,13 @@ test("all local preflight failures stop before Azure context or resource reads",
   const cases = [
     { template: null }, { template: "" },
     { env: { AZURE_SUBSCRIPTION_ID: "" } }, { env: { AZURE_SUBSCRIPTION_ID: "not-a-guid" } },
+    { env: { AZURE_SUBSCRIPTION_ID: "00000000-0000-0000-0000-000000000000" } },
     { env: { AZURE_RESOURCE_GROUP: " " } }, { env: { AZURE_SUFFIX: "" } },
     { env: { SQL_ADMIN_OBJECT_ID: "" } }, { env: { SQL_ADMIN_OBJECT_ID: "invalid" } },
+    { env: { SQL_ADMIN_OBJECT_ID: "00000000-0000-0000-0000-000000000000" } },
     { env: { APIM_PUBLISHER_EMAIL: "" } }, { env: { APIM_PUBLISHER_EMAIL: "invalid" } },
+    { env: { APIM_PUBLISHER_EMAIL: "owner@example" } },
+    { env: { APIM_PUBLISHER_EMAIL: "Owner <owner@example.test>" } },
   ];
   for (const input of cases) {
     const result = execute("success", input);
@@ -115,7 +129,29 @@ test("an unanswered confirmation cannot fall through to any remote operation", (
 test("simple previews do not require unrelated SQL or APIM inputs and allow an explicit location", () => {
   const result = execute("success", { payload: simple, env: { SQL_ADMIN_OBJECT_ID: "", APIM_PUBLISHER_EMAIL: "", AZURE_LOCATION: "centralindia" } });
   assert.equal(result.error, null);
-  assert.deepEqual(result.calls.at(-1).parameters, { location: "centralindia", environmentName: "csa-review" });
+  assert.deepEqual(result.calls.at(-1).parameters, { location: "centralindia", environmentName: "review" });
+});
+
+for (const suffix of ["a", "ab", "abcdefghijk", "Review", "abC", "1ab", "ab-", "ab_", "a.b", "éab", " abc", "abc ", "abc\n", "$(id)"]) {
+  test(`PowerShell rejects invalid namespace ${JSON.stringify(suffix)} before context or resource reads`, () => {
+    const result = execute("success", { env: { AZURE_SUFFIX: suffix } });
+    assert.match(result.error, /3-10 character lowercase letter\/digit namespace/);
+    assert.deepEqual(result.calls, []);
+  });
+}
+
+for (const suffix of ["abc", "a01", "a123456789"]) {
+  test(`PowerShell accepts valid namespace ${suffix} and passes it literally`, () => {
+    const result = execute("success", { payload: simple, env: { AZURE_SUFFIX: suffix } });
+    assert.equal(result.error, null);
+    assert.deepEqual(result.calls.at(-1).parameters, { location: "westeurope", environmentName: suffix });
+  });
+}
+
+test("PowerShell supplies the SQL administrator display-name default without requiring a secret", () => {
+  const result = execute("success", { env: { SQL_ADMIN_LOGIN: "" } });
+  assert.equal(result.error, null);
+  assert.equal(result.calls.at(-1).parameters.sqlAdminLogin, "Azure SQL Administrators");
 });
 
 test("unsupported diagrams cannot contact Azure under a preview-success label", () => {

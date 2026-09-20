@@ -97,8 +97,8 @@ test("renaming an App Service never changes resource kinds, providers or require
     assert.doesNotMatch(generateArchitectureCode(graph, "bicep").output, /functionapp,linux/);
     assert.match(generateArchitectureCode(graph, "terraform").output, /azurerm_linux_web_app/);
     assert.doesNotMatch(generateArchitectureCode(graph, "terraform").output, /azurerm_linux_function_app/);
-    assert.match(generateArchitectureCode(graph, "azure-cli").output, /az webapp create/);
-    assert.doesNotMatch(generateArchitectureCode(graph, "azure-cli").output, /az functionapp create/);
+    assert.match(generateArchitectureCode(graph, "azure-cli").output, /TEMPLATE_FILE="\$SCRIPT_DIR\/main.bicep"/);
+    assert.doesNotMatch(generateArchitectureCode(graph, "azure-cli").output, /az (webapp|functionapp) create|SQL_ADMIN_OBJECT_ID/);
     assert.doesNotMatch(generateArchitectureCode(graph, "powershell").output, /SQL_ADMIN_OBJECT_ID/);
   }
 });
@@ -138,7 +138,10 @@ test("legacy IaC uses the same canonical identity and blocks zero-mapping artifa
   });
   for (const framework of ["bicep", "terraform"]) {
     const app = emitIac(graph(appId, "SQL Database"), framework);
-    assert.equal(app.warnings.length, 0);
+    assert.deepEqual(app.warnings, generateArchitectureCode({
+      nodes: [{ id: "n", kind: "icon", iconId: appId, label: "SQL Database", cloud: "azure" }], edges: [],
+    }, framework).warnings);
+    assert.match(app.warnings.join(" "), /Naming version 2/);
     assert.match(app.output, framework === "bicep" ? /Microsoft.Web\/sites/ : /azurerm_linux_web_app/);
     for (const [id, cloud] of [["aws/compute/lambda", "aws"], ["azure/application/app-service-api", "azure"], [appId, "aws"]]) {
       const unsupported = emitIac(graph(id, "Azure App Service", cloud), framework);

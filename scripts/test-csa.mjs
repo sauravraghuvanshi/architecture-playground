@@ -53,8 +53,9 @@ test("CSA codegen emits Entra-only Bicep without credentials", () => {
   assert.match(result.output, /azureADOnlyAuthentication: true/);
   assert.doesNotMatch(result.output, /administratorLoginPassword/);
   assert.match(result.output, /SystemAssigned/);
-  assert.equal(result.warnings.length, 2);
+  assert.equal(result.warnings.length, 3);
   assert.match(result.warnings.join(" "), /least-privilege roles/);
+  assert.match(result.warnings.join(" "), /Naming version 2/);
 });
 
 test("CSA codegen emits Terraform, CLI, and What-If PowerShell", () => {
@@ -62,7 +63,10 @@ test("CSA codegen emits Terraform, CLI, and What-If PowerShell", () => {
   const cli = generateArchitectureCode(payload, "azure-cli");
   const powershell = generateArchitectureCode(payload, "powershell");
   assert.match(terraform.output, /azuread_authentication_only = true/);
-  assert.match(cli.output, /--enable-ad-only-auth/);
+  assert.match(cli.output, /TEMPLATE_FILE="\$SCRIPT_DIR\/main.bicep"/);
+  assert.match(cli.output, /az deployment group what-if/);
+  assert.match(cli.output, /sqlAdminObjectId=\$SQL_ADMIN_OBJECT_ID/);
+  assert.match(generateArchitectureCode(payload, "bicep").output, /azureADOnlyAuthentication: true/);
   assert.match(powershell.output, /Get-AzResourceGroupDeploymentWhatIfResult/);
   assert.doesNotMatch(powershell.output, /New-AzResourceGroup|Connect-AzAccount/);
   assert.equal(powershell.filename, "preview.ps1");

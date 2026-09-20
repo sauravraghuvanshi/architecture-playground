@@ -152,6 +152,26 @@ What-If requires permissions and has evaluation limitations; preview does not
 imply authorization to create resources. Portal publication and final deployment
 approval remain separate from preview/download.
 
+The offline CLI export uses the matching Bicep companion, validates and compiles
+it locally, checks the selected subscription without switching it, and targets
+an existing group. Its default is What-If only; unlike PowerShell, an explicit
+`--deploy` flag enables resource writes after preview succeeds. The application
+never runs this script. Download/preview is not deployment approval.
+
+Offline naming version 2 requires the same explicit namespace in every format:
+3-10 lowercase letters/digits beginning with a letter. Terraform and scripts
+validate this rule; ARM/Bicep enforce length and document the remaining rule.
+Names differ from earlier exports and require review before touching existing
+resources. Compiler-backed synthetic tests are not a policy or deployability
+certification and do not execute generated customer infrastructure.
+
+Function drafts provision separate keyless host storage and a user-assigned
+identity with Blob Data Owner scoped only to that storage account. This
+prerequisite requires permission to assign the role. It is not permission for
+the function's application workload or other triggers. Authenticated public
+host endpoints are explicit; private integration requires separate design.
+The existing untrusted ARM handoff restrictions are unchanged.
+
 Generated code and ARM templates are unverified drafts. The application validates
 bounded template structure, evidence mappings, and a restricted handoff subset;
 it is not an ARM compiler, policy evaluator, or proof of deployability. It rejects

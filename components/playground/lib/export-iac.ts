@@ -1,267 +1,31 @@
-/**
- * Infrastructure-as-Code emitters.
- *
- * Strategy: a small registry maps canonical service identity to a set of
- * resource templates per IaC framework (`bicep`, `terraform`). The emitter
- * walks the graph, looks up each service node, and renders the corresponding
- * snippet. Unsupported identities are reported explicitly; no artifact is
- * emitted when none can be mapped. Drafts still require independent validation.
- *
- * This is a starter — covers the most common Azure resources used by our
- * built-in templates. Easy to extend by adding entries to `IAC_REGISTRY`.
- */
 import type { PlaygroundGraph, ServiceNodeData } from "./types";
-import { azureResourceKind, type AzureResourceKind } from "../../../lib/service-identity.ts";
+import { generateArchitectureCode } from "../../diagrammatic/csa/architecture-codegen.ts";
 
 export type IacFramework = "bicep" | "terraform";
-
-interface IacResource {
-  bicep?: (name: string, props: Record<string, string | number | boolean>) => string;
-  terraform?: (name: string, props: Record<string, string | number | boolean>) => string;
-}
-
-function safeName(s: string): string {
-  return (s || "resource")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "")
-    .slice(0, 24) || "resource";
-}
-
-function tfName(s: string): string {
-  return (s || "resource")
-    .toLowerCase()
-    .replace(/[^a-z0-9_]+/g, "_")
-    .replace(/^_+|_+$/g, "") || "resource";
-}
-
-const IAC_REGISTRY: Array<{ kind: AzureResourceKind; resource: IacResource }> = [
-  // App Service / Web App
-  {
-    kind: "app-service",
-    resource: {
-      bicep: (n) => `resource ${safeName(n)} 'Microsoft.Web/sites@2023-12-01' = {
-  name: '${safeName(n)}'
-  location: location
-  properties: {
-    serverFarmId: appServicePlan.id
-    httpsOnly: true
-  }
-}`,
-      terraform: (n) => `resource "azurerm_linux_web_app" "${tfName(n)}" {
-  name                = "${tfName(n)}"
-  resource_group_name = azurerm_resource_group.main.name
-  location            = azurerm_resource_group.main.location
-  service_plan_id     = azurerm_service_plan.main.id
-  site_config {}
-}`,
-    },
-  },
-  // SQL Database
-  {
-    kind: "sql",
-    resource: {
-      bicep: (n) => `resource ${safeName(n)} 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
-  parent: sqlServer
-  name: '${safeName(n)}'
-  location: location
-  sku: { name: 'S0' }
-}`,
-      terraform: (n) => `resource "azurerm_mssql_database" "${tfName(n)}" {
-  name      = "${tfName(n)}"
-  server_id = azurerm_mssql_server.main.id
-  sku_name  = "S0"
-}`,
-    },
-  },
-  // Storage
-  {
-    kind: "storage",
-    resource: {
-      bicep: (n) => `resource ${safeName(n)} 'Microsoft.Storage/storageAccounts@2023-05-01' = {
-  name: '${safeName(n)}sa'
-  location: location
-  sku: { name: 'Standard_LRS' }
-  kind: 'StorageV2'
-}`,
-      terraform: (n) => `resource "azurerm_storage_account" "${tfName(n)}" {
-  name                     = "${tfName(n)}sa"
-  resource_group_name      = azurerm_resource_group.main.name
-  location                 = azurerm_resource_group.main.location
-  account_tier             = "Standard"
-  account_replication_type = "LRS"
-}`,
-    },
-  },
-  // API Management
-  {
-    kind: "apim",
-    resource: {
-      bicep: (n) => `resource ${safeName(n)} 'Microsoft.ApiManagement/service@2023-09-01-preview' = {
-  name: '${safeName(n)}'
-  location: location
-  sku: { name: 'Developer', capacity: 1 }
-  properties: {
-    publisherEmail: 'admin@example.com'
-    publisherName: 'Architecture Playground'
-  }
-}`,
-      terraform: (n) => `resource "azurerm_api_management" "${tfName(n)}" {
-  name                = "${tfName(n)}"
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-  publisher_name      = "Architecture Playground"
-  publisher_email     = "admin@example.com"
-  sku_name            = "Developer_1"
-}`,
-    },
-  },
-  // Azure OpenAI / Cognitive Services
-  {
-    kind: "openai",
-    resource: {
-      bicep: (n) => `resource ${safeName(n)} 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
-  name: '${safeName(n)}'
-  location: location
-  kind: 'OpenAI'
-  sku: { name: 'S0' }
-  properties: { customSubDomainName: '${safeName(n)}' }
-}`,
-      terraform: (n) => `resource "azurerm_cognitive_account" "${tfName(n)}" {
-  name                = "${tfName(n)}"
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-  kind                = "OpenAI"
-  sku_name            = "S0"
-}`,
-    },
-  },
-  // Key Vault
-  {
-    kind: "key-vault",
-    resource: {
-      bicep: (n) => `resource ${safeName(n)} 'Microsoft.KeyVault/vaults@2024-04-01-preview' = {
-  name: '${safeName(n)}'
-  location: location
-  properties: {
-    sku: { family: 'A', name: 'standard' }
-    tenantId: subscription().tenantId
-    enableRbacAuthorization: true
-  }
-}`,
-      terraform: (n) => `resource "azurerm_key_vault" "${tfName(n)}" {
-  name                       = "${tfName(n)}"
-  location                   = azurerm_resource_group.main.location
-  resource_group_name        = azurerm_resource_group.main.name
-  tenant_id                  = data.azurerm_client_config.current.tenant_id
-  sku_name                   = "standard"
-  enable_rbac_authorization  = true
-}`,
-    },
-  },
-  // Front Door / CDN
-  {
-    kind: "front-door",
-    resource: {
-      bicep: (n) => `resource ${safeName(n)} 'Microsoft.Cdn/profiles@2024-02-01' = {
-  name: '${safeName(n)}'
-  location: 'Global'
-  sku: { name: 'Standard_AzureFrontDoor' }
-}`,
-      terraform: (n) => `resource "azurerm_cdn_frontdoor_profile" "${tfName(n)}" {
-  name                = "${tfName(n)}"
-  resource_group_name = azurerm_resource_group.main.name
-  sku_name            = "Standard_AzureFrontDoor"
-}`,
-    },
-  },
-];
-
-function findResource(iconId: string, cloud?: string): IacResource | undefined {
-  const kind = azureResourceKind(iconId, cloud);
-  return IAC_REGISTRY.find((entry) => entry.kind === kind)?.resource;
-}
 
 interface EmitResult {
   output: string;
   warnings: string[];
 }
 
-export function emitBicep(graph: PlaygroundGraph): EmitResult {
-  const warnings: string[] = [];
-  let supported = 0;
-  const lines: string[] = [
-    "// Generated by Architecture Playground",
-    `// ${graph.metadata?.name ?? "Architecture"} — ${new Date().toISOString()}`,
-    "",
-    "@description('Azure region')",
-    "param location string = resourceGroup().location",
-    "",
-    "// NOTE: Some resources reference shared parents (appServicePlan, sqlServer)",
-    "// that you'll need to define above based on your environment.",
-    "",
-  ];
-  for (const n of graph.nodes) {
-    if (n.type !== "service") continue;
-    const d = n.data as ServiceNodeData;
-    const res = findResource(d.iconId, d.cloud);
-    if (res?.bicep) {
-      supported++;
-      lines.push(res.bicep(d.label || n.id, d.properties ?? {}));
-      lines.push("");
-    } else {
-      warnings.push(`No Bicep template for "${d.iconId}" (${d.label || n.id})`);
-      lines.push(`// TODO: implement ${d.iconId} (${d.label || n.id})`);
-      lines.push("");
-    }
+/** Both editors use the same identity, naming, prerequisite and configuration model. */
+export function emitIac(graph: PlaygroundGraph, framework: IacFramework): EmitResult {
+  try {
+    const nodes = graph.nodes.filter((node) => node.type === "service").map((node) => {
+      const data = node.data as ServiceNodeData;
+      return { id: node.id, kind: "icon" as const, label: data.label || node.id, iconId: data.iconId, cloud: data.cloud };
+    });
+    const result = generateArchitectureCode({ nodes, edges: graph.edges }, framework);
+    return { output: result.output, warnings: result.warnings };
+  } catch (error) {
+    return { output: "", warnings: [error instanceof Error ? error.message : "The architecture could not be converted safely. No artifact was generated."] };
   }
-  if (!supported) warnings.unshift("No supported Azure service identities were found. No deployable artifact was generated.");
-  return { output: supported ? lines.join("\n") : "", warnings };
+}
+
+export function emitBicep(graph: PlaygroundGraph): EmitResult {
+  return emitIac(graph, "bicep");
 }
 
 export function emitTerraform(graph: PlaygroundGraph): EmitResult {
-  const warnings: string[] = [];
-  let supported = 0;
-  const lines: string[] = [
-    "# Generated by Architecture Playground",
-    `# ${graph.metadata?.name ?? "Architecture"} — ${new Date().toISOString()}`,
-    "",
-    'terraform {',
-    '  required_providers {',
-    '    azurerm = { source = "hashicorp/azurerm", version = "~> 4.0" }',
-    '  }',
-    '}',
-    "",
-    'provider "azurerm" { features {} }',
-    "",
-    'data "azurerm_client_config" "current" {}',
-    "",
-    'resource "azurerm_resource_group" "main" {',
-    '  name     = "rg-architecture-playground"',
-    '  location = "East US"',
-    '}',
-    "",
-    "# NOTE: parent resources like azurerm_service_plan / azurerm_mssql_server",
-    "# are referenced but not declared — add them to match your topology.",
-    "",
-  ];
-  for (const n of graph.nodes) {
-    if (n.type !== "service") continue;
-    const d = n.data as ServiceNodeData;
-    const res = findResource(d.iconId, d.cloud);
-    if (res?.terraform) {
-      supported++;
-      lines.push(res.terraform(d.label || n.id, d.properties ?? {}));
-      lines.push("");
-    } else {
-      warnings.push(`No Terraform template for "${d.iconId}" (${d.label || n.id})`);
-      lines.push(`# TODO: implement ${d.iconId} (${d.label || n.id})`);
-      lines.push("");
-    }
-  }
-  if (!supported) warnings.unshift("No supported Azure service identities were found. No deployable artifact was generated.");
-  return { output: supported ? lines.join("\n") : "", warnings };
-}
-
-export function emitIac(graph: PlaygroundGraph, framework: IacFramework): EmitResult {
-  return framework === "bicep" ? emitBicep(graph) : emitTerraform(graph);
+  return emitIac(graph, "terraform");
 }
