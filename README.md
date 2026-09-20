@@ -540,6 +540,13 @@ and [PowerShell What-If result cmdlet](https://learn.microsoft.com/powershell/mo
 
 ## Offline infrastructure drafts
 
+AI-generated deployment artifacts have a separate
+[engineering validation report](docs/engineering-validation.md): real parser
+diagnostics, canonical resource coverage, selected prerequisites and bounded
+code/ARM comparison. Failed or unverified checks cannot silently become a passed
+handoff. PowerShell is explicitly unverified where a safe parser is unavailable;
+no model-authored script or customer infrastructure is executed.
+
 Architecture JSON uses a [shared versioned model](docs/architecture-model.md).
 It retains declared region/SKU/environment, relationships, requirements,
 evidence and original design intent across canvas editing, history, save/reload,
@@ -595,8 +602,14 @@ npm run lint
 npx tsc --noEmit
 npm run test:playground
 npm run test:e2e
+npm run build:validators
+npm run test:artifact-parsers
 npm run build
 ```
+
+Trusted artifact validators require .NET SDK 10.0.400 and Go 1.27.1 for builds;
+the deployed application includes the compiled helpers, not the SDKs. See the
+[build and isolation contract](docs/engineering-validation.md#build-and-test).
 
 Run `npm run test:powershell-preview` with PowerShell 7 (`pwsh`) installed to
 parse and execute generated scripts against **local command mocks only**. This

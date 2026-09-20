@@ -473,3 +473,25 @@ Released as `bd095946e0c78005cdc5e6c2f161e11d0f8af266`:
   definition authoring is JSON-based.
 - Completed priorities: **1-7 and 11**. **Priority 8 is next**. The deferred
   competitor checkpoint remains untouched until stage 3.
+
+## Priority 8 continuation - independent engineering validation
+
+Implemented and locally verified; deployment and hosted acceptance pending:
+
+- Reproduced five accepted bad drafts: malformed Bicep/HCL, wrong canonical
+  resource identity, missing plan prerequisites and code/ARM inventory mismatch.
+- Added official Bicep and HCL parser-only helpers with pinned dependencies,
+  bounded isolated processes and no artifact evaluation. Bash uses controlled
+  no-execute syntax mode. PowerShell is deliberately reported unverified because
+  its public parser can perform module/assembly/DSC resolution.
+- Added canonical resource coverage, selected prerequisite/correspondence checks,
+  a downloadable independent report and complete-set server revalidation before
+  AI template publication. Failed/unverified checks cannot authorize publication.
+- Local gate: **247/247 application contracts, 17/17 parser/policy cases, native
+  Go tests, lint/types/build and 77/77 production-build browser cases**.
+  All five original probes are rejected by the actual HTTP validator.
+- Added locked native helper builds, source/platform fingerprints, retained
+  dependency notices and a no-model/no-deployment hosted CI smoke.
+- Latest user boundary: **finish task 8, deploy and verify it, update today's
+  summary/lessons/backlog, then stop**. Priority 9 is for the next requested
+  session, not tonight. Work has continued into September 21 IST.

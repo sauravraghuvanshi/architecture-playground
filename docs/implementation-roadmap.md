@@ -38,9 +38,10 @@ They are not the 47 finding IDs in the original local HTML audit.
 - Handle **one numbered priority at a time**.
 - Plan, implement, test, complete readiness checks, deploy through the existing
   application workflow, then verify the deployed behavior.
-- The latest user instruction authorizes autonomous continuation through the
-  remaining numbered priorities after each implementation is tested, deployed
-  and verified. Do not pause for a new number while that authorization stands.
+- **Latest user cutoff:** complete through priority 8 today, including deployment
+  and hosted verification, then stop. Do not begin priority 9 or any other new
+  priority today. Update the Markdown session summary, lessons and remaining
+  backlog so work can resume tomorrow when requested.
 - Competitor-audit product additions are stage 3, after the numbered backlog.
   Preserve their local WIP without mixing it into earlier priority releases.
 - Do not sacrifice verification to a time estimate; accurately record blockers
@@ -146,8 +147,9 @@ resource creation was performed.
 
 ## Next task: priority 8 handoff
 
-Continue autonomously under the latest user instruction. Validate AI-generated
-engineering artifacts without executing untrusted customer code or infrastructure.
+Complete priority 8 under the latest user instruction, then stop for today.
+Validate AI-generated engineering artifacts without executing untrusted customer
+code or infrastructure. Priority 9 and later work are for tomorrow, not this run.
 
 - Starting points: [deployment contracts](../lib/deployment-assistance.ts),
   [generation route](../app/api/ai/deploy/route.ts), the deployment preview UI,
@@ -161,7 +163,7 @@ engineering artifacts without executing untrusted customer code or infrastructur
 - Generated drafts remain distinct from permission to deploy customer resources.
   No generated customer IaC is to be executed against Azure during testing.
 - Plan -> implement -> test -> validate -> deploy the application -> hosted
-  verification, then proceed to the next numbered priority without asking.
+  verification, then document today's work and stop after priority 8.
 - Deferred competitor work remains pinned at
   `refs/checkpoints/deferred-competitor-a7e748c4` (stash `c4b91a44`); do not apply
   it during the numbered backlog.

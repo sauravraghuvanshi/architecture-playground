@@ -2,6 +2,8 @@ import { expect, test, type BrowserContext, type Download, type Page } from "@pl
 import { generateArchitectureCode, generateArmTemplate } from "../components/diagrammatic/csa/architecture-codegen";
 import type { ArchPayload } from "../components/diagrammatic/modes/architecture/ArchitectureCanvas";
 import { parseArchitectureDocument } from "../lib/architecture-document";
+import { parseArmTemplate } from "../lib/deployment-assistance";
+import type { EngineeringValidation } from "../lib/engineering-validation-contract";
 
 const architecture: ArchPayload = {
   nodes: [{
@@ -12,22 +14,28 @@ const architecture: ArchPayload = {
   }],
   edges: [],
 };
-const armTemplate = {
-  $schema: "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-  contentVersion: "1.0.0.0",
-  resources: [{
-    type: "Microsoft.Web/sites", apiVersion: "2024-04-01",
-    name: "customer-app", location: "westeurope", properties: { httpsOnly: true },
-  }],
-};
-const generatedCode = "param location string = 'westeurope'\n// Mocked Foundry response for browser acceptance.\n";
+const armTemplate = parseArmTemplate(generateArmTemplate(architecture).template);
+const generatedCode = generateArchitectureCode(architecture, "bicep").output;
+function mockValidation(canPublish = true): EngineeringValidation {
+  return {
+    version: 1, profile: "azure-static-v1", artifactHash: "a".repeat(64), checkedAt: "2026-09-20T00:00:00.000Z",
+    status: canPublish ? "passed-static-checks" : "needs-review", canPublish,
+    checks: (["syntax", "resource-mappings", "coverage", "prerequisites", "artifact-consistency", "azure-environment"] as const).map((id) => ({
+      id, status: id === "azure-environment" || (!canPublish && (id === "syntax" || id === "artifact-consistency")) ? "not-verified" : "passed",
+      summary: "Deterministic browser fixture; parser correctness is tested separately.", details: [],
+    })),
+    coverage: [{ nodeId: "app", label: "Customer web app", status: "mapped", resourceTypes: ["Microsoft.Web/serverfarms", "Microsoft.Web/sites"], reason: "Fixture declaration coverage." }],
+    parser: { name: "browser-fixture", version: "1" }, disclaimer: "Static checks do not prove deployability. Nothing executed.",
+  };
+}
 const agentDraft = {
   source: "foundry-agent", format: "bicep", code: generatedCode,
   armTemplate,
   warnings: ["Confirm the App Service plan and run What-If before deployment."],
   assumptions: ["The workload owner will select a supported region and SKU."],
-  resourceMappings: [{ nodeId: "app", resourceType: "Microsoft.Web/sites", resourceName: "customer-app" }],
+  resourceMappings: armTemplate.resources.map((resource) => ({ nodeId: "app", resourceType: resource.type, resourceName: resource.name })),
   excludedNodeIds: [], disclaimer: "Unverified draft; nothing executed.",
+  validation: mockValidation(),
 };
 
 interface MockOptions {
@@ -192,13 +200,15 @@ test.describe("Deployment assistance with mocked named-agent responses", () => {
   });
 
   test("Foundry PowerShell remains an unverified draft and never inherits the offline preview guarantee", async ({ page, context }) => {
-    const draft = { ...agentDraft, format: "powershell", code: "# Synthetic agent script - not executed.\nWrite-Host 'Review me'\n" };
+    const draft = { ...agentDraft, format: "powershell", code: "# Synthetic agent script - not executed.\nWrite-Host 'Review me'\n", validation: mockValidation(false) };
     const { modal, requests } = await openDeployment(page, context, { generationBody: draft });
     await modal.getByRole("button", { name: "PowerShell", exact: true }).click();
     await modal.getByRole("button", { name: "Generate with Foundry agent" }).click();
     await expect(modal.getByText("Runtime Foundry agent draft", { exact: true })).toBeVisible();
     await expect(modal.getByRole("note")).toHaveCount(0);
     await expect(modal.getByRole("button", { name: "Download companion Bicep" })).toHaveCount(0);
+    await expect(modal.getByRole("region", { name: "Engineering validation report" })).toContainText("checks remain unverified");
+    await expect(modal.getByRole("checkbox")).toBeDisabled();
     const [download] = await Promise.all([
       page.waitForEvent("download"), modal.getByRole("button", { name: "Download code", exact: true }).click(),
     ]);
@@ -221,6 +231,13 @@ test.describe("Deployment assistance with mocked named-agent responses", () => {
     }]);
     await expect(modal.getByText(agentDraft.warnings[0], { exact: true })).toBeVisible();
     await expect(modal.getByText(agentDraft.assumptions[0], { exact: true })).toBeVisible();
+    const validationPanel = modal.getByRole("region", { name: "Engineering validation report" });
+    await expect(validationPanel).toContainText("Supported static checks passed");
+    await expect(validationPanel).toContainText("azure-environment: not-verified");
+    const [validationDownload] = await Promise.all([
+      page.waitForEvent("download"), modal.getByRole("button", { name: "Download validation report", exact: true }).click(),
+    ]);
+    expect(JSON.parse(await downloadText(validationDownload))).toEqual(agentDraft.validation);
 
     const codeDownload = page.waitForEvent("download");
     await modal.getByRole("button", { name: "Download code", exact: true }).click();
@@ -246,7 +263,9 @@ test.describe("Deployment assistance with mocked named-agent responses", () => {
     const popup = await popupEvent;
     await expect(popup).toHaveURL(/^https:\/\/portal\.azure\.com\//);
     await expect(popup).toHaveTitle("Mock Azure Portal");
-    expect(requests.publication).toEqual([{ source: "foundry-agent", consent: true, armTemplate }]);
+    expect(requests.publication).toEqual([{ source: "foundry-agent", consent: true, payload: parseArchitectureDocument(architecture), artifact: {
+      format: "bicep", code: generatedCode.trim(), armTemplate, resourceMappings: agentDraft.resourceMappings,
+    } }]);
     await expect(modal.getByRole("status")).toContainText("nothing has been deployed");
     expect(requests.unexpected).toEqual([]);
     await popup.close();
@@ -323,5 +342,15 @@ test.describe("Deployment assistance with mocked named-agent responses", () => {
     expect(requests.generation).toHaveLength(2);
     expect(requests.publication).toHaveLength(0);
     expect(requests.unexpected).toEqual([]);
+  });
+
+  test("missing independent validation cannot expose a usable AI draft or publication", async ({ page, context }) => {
+    const { validation: ignored, ...withoutValidation } = agentDraft;
+    void ignored;
+    const { modal, requests } = await openDeployment(page, context, { generationBody: withoutValidation });
+    await modal.getByRole("button", { name: "Generate with Foundry agent" }).click();
+    await expect(modal.getByRole("alert")).toContainText("independent validation report is missing or invalid");
+    await expect(modal.getByRole("button", { name: "Download code", exact: true })).toHaveCount(0);
+    expect(requests.publication).toEqual([]);
   });
 });

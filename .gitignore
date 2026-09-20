@@ -61,3 +61,7 @@ task/
 *.db-journal
 
 scripts/.screenshots/
+
+# Trusted parser helper build intermediates
+tools/artifact-validation/**/bin/
+tools/artifact-validation/**/obj/

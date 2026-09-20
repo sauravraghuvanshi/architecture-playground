@@ -1,0 +1,36 @@
+Diagrammatic trusted artifact parser adapters
+
+These adapters parse submitted text without compiling or executing it.
+The adapter source belongs to this repository; dependency source is unmodified.
+
+Bicep parser:
+  Azure.Bicep.Core 0.47.16
+  Microsoft Corporation
+  License: MIT
+  Source: https://github.com/Azure/bicep/tree/v0.47.16
+  Locked NuGet dependencies: dotnet/packages.lock.json
+
+HCL parser:
+  github.com/hashicorp/hcl/v2 v2.25.0
+  HashiCorp
+  License: MPL-2.0
+  Source: https://github.com/hashicorp/hcl/tree/v2.25.0
+  Locked Go dependencies: hcl/go.mod and hcl/go.sum
+
+Go runtime/toolchain:
+  Go 1.27.1, Go Authors
+  License: BSD-3-Clause
+  Source: https://go.dev/dl/
+
+.NET runtime:
+  .NET 10, Microsoft Corporation and contributors
+  Runtime dependency notices are copied from restored packages when packaging.
+  Source: https://github.com/dotnet/runtime
+
+GNU Bash is used from the host installation; it is not redistributed by this
+application. PowerShell's loading-capable public parser is not used for
+untrusted artifact validation.
+
+Package-provided license/notice files are retained in the adjacent licenses
+directory. See the dependency locks and linked source repositories for exact
+versions and corresponding source.

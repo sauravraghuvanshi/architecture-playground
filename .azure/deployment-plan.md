@@ -1,9 +1,164 @@
 # Azure Deployment Plan
 
-> **Status:** Deployed and Verified
+> **Status:** Validated
 
 Generated: 2026-08-12
-Updated: 2026-09-20 (Asia/Kolkata)
+Updated: 2026-09-21 (Asia/Kolkata; continuation of the September 20 session)
+
+## Priority 8 - Validated AI-generated engineering handoff
+
+- **Baseline:** Application `bd09594`, deployed and verified 71/71 hosted;
+  documentation close-out `07c9c3a`. Competitor work remains deferred.
+- **Scope:** Truthful validation of generated code and ARM artifacts, canonical
+  diagram/resource mappings, resource prerequisites and cross-artifact consistency.
+  Clearly distinguish passed, failed, partial and unavailable validation.
+- **Plan:** Reproduce current acceptance gaps; research safe language validation
+  options; establish bounded, non-executing checks and coverage reporting; wire
+  generation, preview/download and publication; add adversarial fixtures and
+  browser gates; validate/build/release via existing pipeline and verify hosted.
+- **Safety boundary:** Never execute model-authored scripts, Terraform plan/apply,
+  customer What-If or infrastructure deployment. Do not let compiler helpers read
+  arbitrary server files, resolve remote modules or access Azure credentials.
+  Structural parsing alone must not be labelled compiler/provider verification.
+- **Recipe:** Existing application-only GitHub Actions/App Service pipeline.
+  No customer infrastructure or model endpoint/identity changes.
+- **State:** Implemented and validated; ready for the existing application-only
+  deployment pipeline and its native-Linux/hosted parser gates.
+- **Latest user cutoff:** finish this priority, deploy and verify it, update
+  today's Markdown summary/lessons/backlog, then stop. Do not start priority 9
+  or competitor work today.
+
+### Priority 8 reproduced acceptance gaps
+
+The current production-imported draft parser accepts all five synthetic probes:
+
+1. Malformed Bicep text.
+2. Malformed Terraform/HCL text.
+3. A VM resource mapped to the canonical App Service diagram identity.
+4. An App Service with no plan prerequisite/reference.
+5. Parameter-only code paired with an ARM template claiming a service resource.
+
+No probe was executed as a script, compiled against customer files, submitted to
+Azure or published. These expose missing artifact validation, not live resource
+changes. Existing checks only cover response shape, restricted ARM content and
+one-to-one resource-map rows.
+
+- The publication endpoint currently accepts only ARM JSON for Foundry drafts,
+  losing code/evidence context. Server-side revalidation must bind the reviewed
+  artifact set; a client/model-supplied "passed" flag cannot authorize handoff.
+- Reuse canonical resource identity and the 14 existing trusted offline mapping
+  kinds for initial supported coverage; do not infer types from display labels
+  or treat primitive/unknown service nodes as proven provisionable resources.
+- Syntax parsing, compiler/type checks, resource inventory consistency,
+  prerequisite coverage, and environment validation must be distinct results.
+  Unsupported or unavailable checks must not silently become passes.
+- Microsoft's [What-If guidance](https://learn.microsoft.com/azure/azure-resource-manager/bicep/deploy-what-if)
+  distinguishes static Template validation from provider/permission preflight
+  and documents unresolved-expression/short-circuit limits. This release must
+  not claim that local parsing proves availability, policy, permission or runtime
+  deployment success. No live What-If will be run for these tests.
+- Safe JS/WASM grammar/compiler options are being researched. A normal Bicep
+  compiler can load files/modules during compilation, so simply spawning it on
+  arbitrary model text on the application host is not an acceptable shortcut.
+
+### Priority 8 validation architecture
+
+- Use pinned **official parser-only APIs**: Azure.Bicep.Core 0.47.16 lexer/parser
+  in a trusted .NET adapter, and HashiCorp HCL v2.25.0 byte parsing in a trusted
+  Go adapter. Never instantiate the full Bicep compiler or evaluate HCL
+  expressions. Tree-sitter grammar acceptance alone is too permissive to serve
+  as the authoritative gate; the older CDKTF wrapper is sunset.
+- Build immutable parser helpers in controlled CI/local tooling, not during
+  HTTP requests. Requests pass bounded text through stdin, never source paths,
+  executable names, switches, module locations or package installation commands.
+  Helpers have scrubbed environments, bounded output/time and process isolation.
+- Official PowerShell parser behavior and Bash non-executing syntax mode are
+  receiving a separate safety check before selection. Imperative script/ARM
+  equivalence will not be inferred from a successful syntax parse.
+- Separate syntax diagnostics, supported resource mapping/coverage, prerequisite
+  checks and bounded static code/ARM comparison. Computed/dynamic constructs
+  outside the comparison profile remain explicitly indeterminate, not passes.
+  No parser result establishes provider schema, quota, RBAC or deployability.
+- Generation and Portal publication must use server-derived checks over the
+  complete reviewed code/ARM/evidence set. Client/model validation flags are
+  never trusted. Preserve existing explicit publication consent and offline
+  deterministic export provenance.
+- Changes remain application-only; no cloud validator resource or new role is
+  provisioned. Node 20 lifecycle modernization remains recorded for priority 16;
+  this feature does not certify the overall platform's runtime lifecycle.
+
+### Priority 8 implementation checkpoint
+
+- Go was missing locally. Installed official Go 1.27.1 in session storage,
+  verified its SHA-256 against the official release manifest, and left global
+  PATH untouched. Existing .NET SDK 10.0.400 matches the selected Bicep release.
+- Implemented the official HCL byte-parser adapter with bounded input/tokens,
+  nesting and AST projection. It never evaluates expressions or reads module/file
+  targets from submitted code. Native tests and four Node bridge integration
+  tests passed, including real syntax rejection, cancellation, unavailable
+  helpers and a two-process concurrency bound.
+- Added initial derived-check/coverage contracts and canonical primary/support
+  resource policies. Seven policy tests pass, covering all 14 existing mapping
+  kinds and rejection of wrong service types, missing prerequisites and forged
+  success/publication flags.
+- NuGet v3 failed locally with a TLS handshake error. The official NuGet v2
+  feed restored the pinned library successfully without disabling certificate
+  validation. Dependency locks are being retained for reproducible builds.
+- Bicep now uses the official string-only lexer/parser and syntax AST. GNU Bash
+  uses fixed noninteractive no-execute arguments, a fresh environment, and
+  rejects stderr warnings. PowerShell's public parser was found to perform
+  loading/resolution; it is deliberately not invoked on model text.
+- The server derives six separate checks and explicit coverage. Failed checks
+  get at most one correction; unverified checks stay review-only. Publication
+  revalidates the full code/ARM/mappings/evidence set rather than trusting flags
+  or a disconnected ARM-only request. The UI displays/downloads the report.
+- Trusted helpers are locked, built and native-smoke-tested in the existing
+  pipeline; the standalone package checks source/platform fingerprints and
+  retains dependency notices. New hosted static smoke performs no AI call,
+  publication or resource deployment.
+- Final local proof: 247/247 existing contracts, 17/17 real parser/policy
+  integration cases, native Go tests, lint/types/standalone build and **77/77
+  production-build browser cases**. The actual new endpoint rejects all five
+  reproduced acceptance gaps. Report UI was visually inspected.
+- Scope remains bounded static checks, not full compiler/provider or deployment
+  equivalence. Scripts, computed/unsupported expressions, unresolved Function
+  roles and unproven declared requirements remain explicitly unverified.
+- Release/hosted verification remain open. Stop after completing this priority
+  and today's documentation; do not begin priority 9.
+
+### Priority 8 - All validation checks pass
+
+- [x] Existing application-only Actions target and owner-authorized repository.
+- [x] `npm run test:playground`: 247/247.
+- [x] `npm run test:artifact-parsers`: 17/17, plus native Go adapter tests.
+- [x] Previous CLI/PowerShell executable safety regression: 88/88.
+- [x] `npm run lint`, strict TypeScript, locked parser build and standalone build.
+- [x] Real endpoint, UI/report/download/consent and broader regression: 77/77.
+- [x] Static role/policy review: no new application roles or Azure resources.
+  Parser-only validation cannot perform customer What-If, provider setup or
+  generated-script execution. Docker/infrastructure validation is not applicable.
+- [x] Dependency notices and generated-file hygiene.
+- [x] Azure validation workflow and final release checks.
+
+### Priority 8 - Section 7: Validation Proof
+
+Local checks completed during the September 20 session, continuing into
+September 21 IST. The final 77-case production-build browser gate passed in
+2.0 minutes. It includes actual parser-backed HTTP validation, the five original
+bad-artifact probes, Bash syntax-only behavior, PowerShell's unverified state,
+complete artifact binding, report download, and all prior model/history/
+persistence/boundary/template/conversion workflows.
+
+The helper integration tests verify that file/module expressions remain syntax,
+no Bash commands/startup hooks run, unsupported/missing parsers do not become
+passes, and concurrency/cancellation are bounded. Windows helpers are verified
+locally; the changed CI workflow must build/test Linux helpers and then run the
+authenticated hosted validation smoke before release acceptance.
+The final report UI screenshot was inspected for readability, explicit limits,
+coverage and downloadable evidence. Final lint, strict types, whitespace checks
+and the 88-case script-safety regression passed. Remote master remained
+`07c9c3a233cef93e4ce0a08d962ac8c3540d19fb`; the local HTML audits remain ignored,
+and deferred competitor work remains pinned at `c4b91a44`.
 
 ## Priority 7 - Shared typed and versioned architecture model
 

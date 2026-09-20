@@ -6,6 +6,8 @@ import type { ArchPayload } from "../modes/architecture/ArchitectureCanvas";
 import { generateArchitectureCode, generateArmTemplate, type ArchitectureCodeFormat } from "./architecture-codegen";
 import { azureOnlyDeploymentPayload, DEPLOYMENT_DISCLAIMER, parseArmTemplate, parseDeploymentDraft, type ArmTemplate } from "@/lib/deployment-assistance";
 import { FOUNDRY_PRIVACY_NOTICE } from "@/lib/foundry-contract";
+import { engineeringValidationSchema, type EngineeringValidation } from "@/lib/engineering-validation-contract";
+import type { ArtifactMapping } from "@/lib/engineering-coverage";
 
 interface Props {
   open: boolean;
@@ -23,6 +25,8 @@ interface Preview {
   assumptions: string[];
   filename?: string;
   companionBicep?: string;
+  resourceMappings?: ArtifactMapping[];
+  validation?: EngineeringValidation;
 }
 
 const FORMATS = [
@@ -44,6 +48,7 @@ function DeploymentSession({ payload, onClose, intent = "deploy" }: Omit<Props, 
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState<"generate" | "publish" | null>(null);
   const [error, setError] = useState("");
+  const [diagnostics, setDiagnostics] = useState<string[]>([]);
   const [notice, setNotice] = useState("");
   const [showArm, setShowArm] = useState(false);
   const abort = useRef<AbortController | null>(null);
@@ -62,6 +67,7 @@ function DeploymentSession({ payload, onClose, intent = "deploy" }: Omit<Props, 
     setPreview(null);
     setConfirmed(false);
     setError("");
+    setDiagnostics([]);
     setNotice("");
     setShowArm(false);
   };
@@ -77,9 +83,17 @@ function DeploymentSession({ payload, onClose, intent = "deploy" }: Omit<Props, 
         body: JSON.stringify({ payload, format, context }), signal: controller.signal,
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error ?? `Foundry generation failed (${response.status}).`);
+      if (!response.ok) {
+        if (Array.isArray(result.diagnostics)) setDiagnostics(result.diagnostics.slice(0, 8).flatMap((item: unknown) =>
+          item && typeof item === "object" && "message" in item && typeof item.message === "string" ? [item.message.slice(0, 500)] : []));
+        throw new Error(result.error ?? `Foundry generation failed (${response.status}).`);
+      }
       const parsed = parseDeploymentDraft(result, payload, format);
-      if (!controller.signal.aborted) setPreview(parsed);
+      const checked = engineeringValidationSchema.safeParse(result.validation);
+      if (!checked.success) throw new Error("The independent validation report is missing or invalid. Refresh and regenerate; no usable draft was accepted.");
+      const validation = checked.data;
+      if (validation.status === "failed") throw new Error("Artifact validation failed. No usable draft or publication was accepted.");
+      if (!controller.signal.aborted) setPreview({ ...parsed, validation });
     } catch (generationError) {
       if (!controller.signal.aborted) setError(generationError instanceof Error ? generationError.message : "Unable to generate deployment code.");
     } finally {
@@ -137,9 +151,20 @@ function DeploymentSession({ payload, onClose, intent = "deploy" }: Omit<Props, 
       setError("Clipboard access failed. Download the file instead.");
     }
   };
+  const downloadValidation = () => {
+    if (!preview?.validation) return;
+    const url = URL.createObjectURL(new Blob([JSON.stringify(preview.validation, null, 2)], { type: "application/json" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "validation-report.json";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+  const publicationAllowed = Boolean(preview?.armTemplate && (preview.source === "offline" || preview.validation?.canPublish));
 
   const publish = async () => {
-    if (!confirmed || !preview?.armTemplate || busy) {
+    if (!confirmed || !publicationAllowed || !preview?.armTemplate || busy ||
+        (preview.source === "foundry-agent" && !preview.resourceMappings)) {
       setError("Generate and review an ARM template, then confirm publication before continuing.");
       return;
     }
@@ -153,14 +178,20 @@ function DeploymentSession({ payload, onClose, intent = "deploy" }: Omit<Props, 
     setError("");
     try {
       const body = preview.source === "foundry-agent"
-        ? { source: preview.source, consent: true, armTemplate: preview.armTemplate }
+        ? { source: preview.source, consent: true, payload, artifact: {
+          format: preview.format, code: preview.code, armTemplate: preview.armTemplate, resourceMappings: preview.resourceMappings,
+        } }
         : { source: preview.source, consent: true, payload };
       const response = await fetch("/api/deploy/template", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body), signal: controller.signal,
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error ?? `Portal handoff failed (${response.status}).`);
+      if (!response.ok) {
+        const validation = engineeringValidationSchema.safeParse(result.validation);
+        if (validation.success) setPreview((current) => current ? { ...current, validation: validation.data } : current);
+        throw new Error(result.error ?? `Portal handoff failed (${response.status}).`);
+      }
       if (typeof result.portalUrl !== "string" || !result.portalUrl.startsWith("https://portal.azure.com/#create/Microsoft.Template/uri/")) {
         throw new Error("The handoff returned an invalid Azure Portal URL.");
       }
@@ -204,11 +235,32 @@ function DeploymentSession({ payload, onClose, intent = "deploy" }: Omit<Props, 
             </div>
           </section>
           {error && <p role="alert" className="rounded-lg border border-rose-500/40 bg-rose-500/10 p-3 text-xs">{error}</p>}
+          {!!diagnostics.length && <ul aria-label="Artifact validation errors" className="list-inside list-disc space-y-1 text-xs text-rose-200">{diagnostics.map((detail, index) => <li key={index}>{detail}</li>)}</ul>}
           {notice && <p role="status" className="text-xs text-sky-200">{notice}</p>}
           {preview && <>
             <section aria-label="Deployment preview" className="space-y-3 border-t border-slate-700 pt-4">
               <h2 className="text-sm font-semibold">{preview.source === "foundry-agent" ? "Runtime Foundry agent draft" : "Offline deterministic starter - not AI"}</h2>
               <p className="text-xs text-amber-200">{DEPLOYMENT_DISCLAIMER}</p>
+              {preview.validation && <section aria-label="Engineering validation report" className="space-y-3 rounded-lg border border-slate-700 p-3">
+                <h3 className="text-sm font-semibold">{preview.validation.canPublish ? "Supported static checks passed" : "Review-only draft - checks remain unverified"}</h3>
+                <p className="text-xs text-amber-200">{preview.validation.disclaimer}</p>
+                <p className="text-[10px] text-slate-400">Profile {preview.validation.profile} · Parser {preview.validation.parser.name} {preview.validation.parser.version} · Artifact {preview.validation.artifactHash.slice(0, 12)}</p>
+                <ul className="space-y-2 text-xs">{preview.validation.checks.map((check) => <li key={check.id}>
+                  <strong className={check.status === "passed" ? "text-emerald-300" : check.status === "failed" ? "text-rose-300" : "text-amber-200"}>{check.id}: {check.status}</strong>
+                  <p className="text-slate-300">{check.summary}</p>
+                  {!!check.details.length && <details className="mt-1 text-slate-400"><summary className="cursor-pointer">Details</summary><ul className="ml-4 list-disc">{check.details.map((detail, index) => <li key={index}>{detail}</li>)}</ul></details>}
+                </li>)}</ul>
+                <div className="max-h-48 overflow-auto">
+                  <table className="w-full text-left text-[11px]"><caption className="pb-2 text-left font-semibold">Diagram-to-resource coverage</caption>
+                    <thead><tr><th className="p-1">Component</th><th className="p-1">Coverage</th><th className="p-1">Declared resources / limitation</th></tr></thead>
+                    <tbody>{preview.validation.coverage.map((row) => <tr key={row.nodeId} className="border-t border-slate-800">
+                      <td className="p-1 align-top">{row.label || row.nodeId}</td><td className="p-1 align-top">{row.status}</td>
+                      <td className="p-1 align-top"><p>{row.resourceTypes.join(", ")}</p><p className="text-slate-400">{row.reason}</p></td>
+                    </tr>)}</tbody>
+                  </table>
+                </div>
+                <button type="button" onClick={downloadValidation} className="rounded border border-slate-600 px-3 py-2 text-xs">Download validation report</button>
+              </section>}
               {preview.source === "offline" && preview.format === "powershell" && (
                 <p role="note" className="rounded-lg border border-sky-400/30 bg-sky-400/10 p-3 text-xs">
                   Offline PowerShell preview only. Download preview.ps1 and its companion main.bicep into the same folder and review both.
@@ -241,8 +293,9 @@ function DeploymentSession({ payload, onClose, intent = "deploy" }: Omit<Props, 
             <section aria-label="Azure Portal handoff" className="space-y-3 border-t border-slate-700 pt-4">
               <h2 className="text-sm font-semibold">Optional Azure upload</h2>
               <p className="text-xs text-slate-400">Portal must reach this app over public HTTPS. App Service Easy Auth, private networking, restarts or multiple app instances can prevent token-link downloads even when application CORS is correct.</p>
-              <label className="flex items-start gap-2 text-xs"><input type="checkbox" checked={confirmed} disabled={!preview.armTemplate || !!busy} onChange={(event) => setConfirmed(event.target.checked)} className="mt-0.5 accent-sky-400" /><span>I reviewed the generated code, ARM template and warnings. I consent to publishing the ARM template at a public bearer link for 10 minutes. Anyone with that link can read it. Azure Portal requires my separate final deployment and cost approval.</span></label>
-              <button type="button" onClick={publish} disabled={!confirmed || !preview.armTemplate || !!busy} className="flex items-center gap-2 rounded-lg bg-sky-400 px-4 py-2 text-xs font-semibold text-slate-950 disabled:opacity-50">{busy === "publish" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}Open Azure Review + Create</button>
+              {!publicationAllowed && <p className="text-xs text-amber-200">Automatic Portal handoff is disabled until the supported static checks pass. Download is for independent engineering review, not deployment approval.</p>}
+              <label className="flex items-start gap-2 text-xs"><input type="checkbox" checked={confirmed} disabled={!publicationAllowed || !!busy} onChange={(event) => setConfirmed(event.target.checked)} className="mt-0.5 accent-sky-400" /><span>I reviewed the generated code, ARM template and warnings. I consent to publishing the ARM template at a public bearer link for 10 minutes. Anyone with that link can read it. Azure Portal requires my separate final deployment and cost approval.</span></label>
+              <button type="button" onClick={publish} disabled={!confirmed || !publicationAllowed || !!busy} className="flex items-center gap-2 rounded-lg bg-sky-400 px-4 py-2 text-xs font-semibold text-slate-950 disabled:opacity-50">{busy === "publish" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}Open Azure Review + Create</button>
               <p className="text-xs text-slate-300">If Portal cannot download the link: download the ARM template above, open <a href="https://portal.azure.com/#create/Microsoft.Template" target="_blank" rel="noreferrer" className="text-sky-300 underline">Deploy a custom template</a>, choose &quot;Build your own template in the editor&quot; → &quot;Load file&quot;, and upload azuredeploy.json. Review parameters, run What-If separately, and approve Create only when ready.</p>
             </section>
           </>}

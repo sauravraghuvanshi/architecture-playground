@@ -4,6 +4,9 @@ import { readBoundedJson, RequestBodyError } from "@/lib/request-json";
 import { parseArchitectureDocument } from "@/lib/architecture-document";
 import { FoundryAgentError, invokeFoundryAgent, isFoundryAgentConfigured } from "@/lib/foundry-agent";
 import { DeploymentDraftError, deploymentRequestSchema, generateDeploymentDraft } from "@/lib/deployment-assistance";
+import { deploymentTargetKind } from "@/lib/engineering-coverage";
+import { preflightEngineeringParser, validateEngineeringArtifact } from "@/lib/engineering-validation";
+import { ArtifactParserError } from "@/lib/artifact-parser";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,14 +32,16 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: "Invalid architecture evidence." }, { status: 400 });
   }
-  if (!payload.nodes.some((node) => node.kind !== "group")) {
-    return NextResponse.json({ error: "Add workload nodes before generating deployment code." }, { status: 400 });
+  if (!payload.nodes.some(deploymentTargetKind)) {
+    return NextResponse.json({ error: "Add a supported canonical Azure service before generating deployment code. Generic shapes and unsupported providers/products are not provisionable mappings." }, { status: 400 });
   }
   try {
+    await preflightEngineeringParser(input.data.format, request.signal);
     return NextResponse.json(await generateDeploymentDraft(
       payload, input.data.format, input.data.context,
       (instructions, evidence, signal) => invokeFoundryAgent("deployment", instructions, evidence, signal),
       request.signal,
+      validateEngineeringArtifact,
     ));
   } catch (error) {
     if (request.signal.aborted) return NextResponse.json({ error: "Deployment draft request cancelled." }, { status: 499 });
@@ -44,6 +49,7 @@ export async function POST(request: Request) {
       error: error.message, diagnostics: error.diagnostics,
     }, { status: error.status });
     if (error instanceof FoundryAgentError) return NextResponse.json({ error: error.message }, { status: error.status });
+    if (error instanceof ArtifactParserError) return NextResponse.json({ error: error.message }, { status: error.code === "cancelled" ? 499 : 503 });
     return NextResponse.json({ error: "Deployment agent request failed. Nothing was published or executed." }, { status: 502 });
   }
 }

@@ -16,7 +16,7 @@ async function expectStatus(response, expected, label) {
   }
 }
 
-function sessionCookie(response) {
+export function sessionCookie(response) {
   const match = (response.headers.get("set-cookie") ?? "").match(/(?:^|,\s*)diagrammatic_session=([^;]+)/);
   if (!match) throw new Error("Login did not issue the session cookie.");
   return `diagrammatic_session=${match[1]}`;

@@ -5,13 +5,18 @@ import { aiRateLimit } from "@/lib/ai-rate-limit";
 import { readBoundedJson, RequestBodyError } from "@/lib/request-json";
 import { generateArmTemplate } from "@/components/diagrammatic/csa/architecture-codegen";
 import { parseArchitectureDocument } from "@/lib/architecture-document";
-import { azureOnlyDeploymentPayload, parseArmTemplate } from "@/lib/deployment-assistance";
+import { azureOnlyDeploymentPayload, parseArmTemplate, parseDeploymentDraft, engineeringArtifactInputSchema } from "@/lib/deployment-assistance";
+import { validateEngineeringArtifact } from "@/lib/engineering-validation";
+import { ArtifactParserError } from "@/lib/artifact-parser";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const requestSchema = z.discriminatedUnion("source", [
-  z.object({ source: z.literal("foundry-agent"), consent: z.literal(true), armTemplate: z.unknown() }).strict(),
+  z.object({
+    source: z.literal("foundry-agent"), consent: z.literal(true), payload: z.unknown(),
+    artifact: engineeringArtifactInputSchema,
+  }).strict(),
   z.object({ source: z.literal("offline"), consent: z.literal(true), payload: z.unknown() }).strict(),
 ]);
 
@@ -90,7 +95,7 @@ export async function POST(request: Request) {
   const parsed = requestSchema.safeParse(input);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: "Select a generation source and explicitly consent to publishing the reviewed template." },
+      { error: "Select a generation source and explicitly consent. AI publication requires the complete reviewed code, ARM, mappings and architecture evidence; regenerate stale drafts." },
       { status: 400 }
     );
   }
@@ -105,9 +110,19 @@ export async function POST(request: Request) {
       template = parseArmTemplate(generated.template);
       warnings = [...selected.warnings, ...generated.warnings];
     } else {
-      template = parseArmTemplate(parsed.data.armTemplate);
+      const payload = parseArchitectureDocument(parsed.data.payload);
+      const draft = parseDeploymentDraft({
+        ...parsed.data.artifact, warnings: [], assumptions: ["User-reviewed artifact set; publication revalidation does not invoke a model."],
+      }, payload, parsed.data.artifact.format);
+      const validation = await validateEngineeringArtifact(draft, payload, request.signal);
+      if (!validation.canPublish) return NextResponse.json({
+        error: "The artifact set has failed or unverified static checks. Nothing was published. Review the validation report and use an independently approved manual workflow.",
+        validation,
+      }, { status: 422 });
+      template = draft.armTemplate;
     }
-  } catch {
+  } catch (cause) {
+    if (cause instanceof ArtifactParserError) return NextResponse.json({ error: cause.message }, { status: cause.code === "cancelled" ? 499 : 503 });
     return NextResponse.json({ error: "The reviewed ARM template or architecture is invalid or unsupported. Nothing was published." }, { status: 400 });
   }
 

@@ -138,6 +138,21 @@ features, and Azure diagnostics still apply. Do not include secrets.
 
 ## Azure Portal handoff
 
+AI artifact handoff now includes independent bounded static validation. Bicep
+and HCL use official parser-only adapters; no full compiler, expression evaluator,
+module restore or provider initialization is used. Bash uses a fixed,
+noninteractive `-n` invocation with an allowlisted environment and warning
+rejection. PowerShell's public parsing API can trigger loading/resolution, so it
+is not run on untrusted model output. That format remains explicitly unverified.
+
+Validation helpers receive text only through stdin, use bounded isolated
+processes, and never inherit Azure credentials or shell startup hooks.
+Unavailable, failed and indeterminate checks are surfaced, not labelled passed.
+AI publication requires the complete reviewed artifact/evidence set and server
+revalidation; client validation flags and legacy ARM-only AI requests cannot
+bypass it. See [engineering validation](engineering-validation.md) for the exact
+profile and limitations. Static success is not environment or deployability proof.
+
 The deterministic offline PowerShell export is a preview-only `preview.ps1`
 with a companion `main.bicep` from the same input. It checks local files,
 parameters and dependencies first, requires a separately selected matching

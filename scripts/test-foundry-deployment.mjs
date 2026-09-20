@@ -12,6 +12,21 @@ import * as document from "../lib/architecture-document.ts";
 import * as bounded from "../lib/request-json.ts";
 import * as codegen from "../components/diagrammatic/csa/architecture-codegen.ts";
 import * as privacy from "../lib/foundry-contract.ts";
+import * as engineeringContract from "../lib/engineering-validation-contract.ts";
+import * as engineeringCoverage from "../lib/engineering-coverage.ts";
+import { ArtifactParserError } from "../lib/artifact-parser.ts";
+
+function validationFixture(canPublish = true) {
+  return {
+    version: 1, profile: "azure-static-v1", artifactHash: "a".repeat(64), checkedAt: "2026-09-20T00:00:00.000Z",
+    status: canPublish ? "passed-static-checks" : "needs-review", canPublish,
+    checks: ["syntax", "resource-mappings", "coverage", "prerequisites", "artifact-consistency", "azure-environment"].map((id) => ({
+      id, status: id === "azure-environment" || (!canPublish && id === "artifact-consistency") ? "not-verified" : "passed",
+      summary: "Mocked component boundary; real parsers are tested separately.", details: [],
+    })),
+    coverage: [], parser: { name: "test-fixture", version: "1" }, disclaimer: engineeringContract.ENGINEERING_VALIDATION_DISCLAIMER,
+  };
+}
 
 function load(path, dependencies, globals = {}) {
   const source = readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -425,7 +440,7 @@ test("ARM validation blocks embedded secrets, unsafe execution resources and ove
   assert.ok(deployment.parseArmTemplate(generated.template).resources.length);
 });
 
-function deployRoute({ configured = true, output = JSON.stringify(draft()), outputs, fail, rate = { ok: true } } = {}) {
+function deployRoute({ configured = true, output = JSON.stringify(draft()), outputs, fail, rate = { ok: true }, parserFailure } = {}) {
   const calls = [];
   const agent = foundryHarness();
   const loaded = load("app/api/ai/deploy/route.ts", {
@@ -433,6 +448,9 @@ function deployRoute({ configured = true, output = JSON.stringify(draft()), outp
     "@/lib/ai-rate-limit": { aiRateLimit: () => rate },
     "@/lib/request-json": bounded, "@/lib/architecture-document": document,
     "@/lib/deployment-assistance": deployment,
+    "@/lib/engineering-coverage": engineeringCoverage,
+    "@/lib/engineering-validation": { preflightEngineeringParser: async () => { if (parserFailure) throw parserFailure; }, validateEngineeringArtifact: async () => validationFixture() },
+    "@/lib/artifact-parser": { ArtifactParserError },
     "@/lib/foundry-agent": {
       ...agent, isFoundryAgentConfigured: () => configured,
       invokeFoundryAgent: async (...args) => {
@@ -489,11 +507,41 @@ test("deployment route rejects malformed/unmapped model output without publishin
   const exhausted = await deployRoute({ output: JSON.stringify(missing) }).POST(request({ payload }));
   assert.equal(exhausted.status, 502);
   const failure = await exhausted.json();
-  assert.deepEqual(failure.diagnostics, [{ field: "resourceMappings", code: "custom" }]);
+  assert.deepEqual(failure.diagnostics.map(({ field, code }) => ({ field, code })), [{ field: "resourceMappings", code: "custom" }]);
+  assert.match(failure.diagnostics[0].message, /Every ARM resource/);
   assert.doesNotMatch(JSON.stringify(failure), /Microsoft.Web|serverfarms|resourceName/);
 });
 
-function brokerHarness(environment = env) {
+test("parser unavailability and unsupported service-only inputs stop before a paid model call", async () => {
+  const unavailable = deployRoute({ parserFailure: new ArtifactParserError("unavailable") });
+  assert.equal((await unavailable.POST(request({ payload }))).status, 503);
+  assert.equal(unavailable.calls.length, 0);
+  const unsupported = deployRoute();
+  assert.equal((await unsupported.POST(request({ payload: { nodes: [{ ...payload.nodes[0], iconId: "aws/compute/lambda" }], edges: [] } }))).status, 400);
+  assert.equal(unsupported.calls.length, 0);
+});
+
+test("server-derived engineering failures trigger one correction and ignore model-authored passed flags", async () => {
+  let calls = 0;
+  let validations = 0;
+  const result = await deployment.generateDeploymentDraft(payload, "bicep", "", async () => {
+    calls++;
+    return JSON.stringify({ ...draft(), validation: validationFixture() });
+  }, undefined, async (candidate) => {
+    validations++;
+    assert.equal(candidate.validation, undefined);
+    if (validations === 1) return {
+      ...validationFixture(), status: "failed", canPublish: false,
+      checks: validationFixture().checks.map((check) => check.id === "syntax" ? { ...check, status: "failed", summary: "Syntax error.", details: ["BCP007 at 1:1"] } : check),
+    };
+    return validationFixture();
+  });
+  assert.equal(calls, 2);
+  assert.equal(validations, 2);
+  assert.equal(result.validation.canPublish, true);
+});
+
+function brokerHarness(environment = env, validator = async () => validationFixture()) {
   let now = Date.now();
   class Clock extends Date { static now() { return now; } }
   const loaded = load("app/api/deploy/template/route.ts", {
@@ -502,6 +550,8 @@ function brokerHarness(environment = env) {
     "@/lib/request-json": bounded, "@/lib/architecture-document": document,
     "@/lib/deployment-assistance": deployment,
     "@/components/diagrammatic/csa/architecture-codegen": codegen,
+    "@/lib/engineering-validation": { validateEngineeringArtifact: validator },
+    "@/lib/artifact-parser": { ArtifactParserError },
   }, { process: { env: environment }, Date: Clock });
   return { ...loaded, advance: (ms) => { now += ms; } };
 }
@@ -511,7 +561,9 @@ test("broker requires explicit publication consent and returns anonymous CORS-en
   for (const body of [{ payload }, { source: "foundry-agent", armTemplate: arm() }, { source: "foundry-agent", consent: false, armTemplate: arm() }]) {
     assert.equal((await broker.POST(request(body))).status, 400);
   }
-  const published = await broker.POST(request({ source: "foundry-agent", consent: true, armTemplate: arm() }));
+  const artifact = (({ format, code, armTemplate, resourceMappings }) => ({ format, code, armTemplate, resourceMappings }))(draft());
+  assert.equal((await broker.POST(request({ source: "foundry-agent", consent: true, armTemplate: arm() }))).status, 400);
+  const published = await broker.POST(request({ source: "foundry-agent", consent: true, payload, artifact }));
   assert.equal(published.status, 200);
   const { portalUrl } = await published.json();
   const url = decodeURIComponent(portalUrl.split("/uri/")[1]);
@@ -529,6 +581,20 @@ test("broker requires explicit publication consent and returns anonymous CORS-en
   const expired = await broker.GET(new Request(url));
   assert.equal(expired.status, 404);
   assert.equal(expired.headers.get("Access-Control-Allow-Origin"), "*");
+});
+
+test("broker revalidates the complete AI artifact set and ignores client success claims", async () => {
+  const calls = [];
+  const broker = brokerHarness(env, async (...args) => { calls.push(args); return validationFixture(false); });
+  const artifact = (({ format, code, armTemplate, resourceMappings }) => ({ format, code, armTemplate, resourceMappings }))(draft());
+  const response = await broker.POST(request({ source: "foundry-agent", consent: true, payload, artifact }));
+  assert.equal(response.status, 422);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0].code, artifact.code);
+  assert.deepEqual(JSON.parse(JSON.stringify(calls[0][1])), document.parseArchitectureDocument(payload));
+  assert.equal((await response.json()).validation.canPublish, false);
+  const forged = await broker.POST(request({ source: "foundry-agent", consent: true, payload, artifact: { ...artifact, validation: validationFixture() } }));
+  assert.equal(forged.status, 400);
 });
 
 test("broker rejects private/invalid origins and malformed ARM; offline publishing is explicit", async () => {
@@ -557,7 +623,7 @@ test("APP_AUTH_ENABLED permits only anonymous broker GET/OPTIONS and protects PO
     const response = await middleware(new NextRequest("https://diagram.example/api/deploy/template?token=abcdef", { method }));
     assert.equal(response.headers.get("x-middleware-next"), "1");
   }
-  for (const [method, path] of [["POST", "/api/deploy/template"], ["GET", "/api/deploy/template/other"], ["OPTIONS", "/api/ai/deploy"], ["POST", "/api/ai/deploy"]]) {
+  for (const [method, path] of [["POST", "/api/deploy/template"], ["POST", "/api/deploy/validate"], ["GET", "/api/deploy/template/other"], ["OPTIONS", "/api/ai/deploy"], ["POST", "/api/ai/deploy"]]) {
     assert.equal((await middleware(new NextRequest(`https://diagram.example${path}`, { method }))).status, 401);
   }
   const token = await auth.createSessionToken("tester");
@@ -566,7 +632,7 @@ test("APP_AUTH_ENABLED permits only anonymous broker GET/OPTIONS and protects PO
   }));
   assert.equal(authenticated.headers.get("x-middleware-next"), "1");
   const broker = brokerHarness();
-  const published = await broker.POST(request({ source: "foundry-agent", consent: true, armTemplate: arm() }));
+  const published = await broker.POST(request({ source: "offline", consent: true, payload }));
   const { portalUrl } = await published.json();
   const publicRequest = new NextRequest(decodeURIComponent(portalUrl.split("/uri/")[1]));
   assert.equal((await middleware(publicRequest)).headers.get("x-middleware-next"), "1");
@@ -614,10 +680,11 @@ function modalHarness({ generationStatus = 200 } = {}) {
     "lucide-react": Object.fromEntries(["CloudUpload", "Copy", "Download", "ExternalLink", "Loader2", "X"].map((name) => [name, name])),
     "./architecture-codegen": codegen, "@/lib/deployment-assistance": deployment,
     "@/lib/foundry-contract": privacy,
+    "@/lib/engineering-validation-contract": engineeringContract,
   }, {
     fetch: async (url, options) => {
       calls.push({ url, body: JSON.parse(options.body) });
-      return Response.json(url === "/api/ai/deploy" && generationStatus === 200 ? draft() : { error: "Generation unavailable or use manual upload" }, { status: url === "/api/ai/deploy" ? generationStatus : 400 });
+      return Response.json(url === "/api/ai/deploy" && generationStatus === 200 ? { ...draft(), validation: validationFixture() } : { error: "Generation unavailable or use manual upload" }, { status: url === "/api/ai/deploy" ? generationStatus : 400 });
     },
     window: { open: () => ({ opener: null, location: { href: "" }, close: () => {} }) },
   });
@@ -659,7 +726,8 @@ test("deployment UI requires generation/preview and separate consent before publ
   assert.equal(modal.calls[1].url, "/api/deploy/template");
   assert.equal(modal.calls[1].body.consent, true);
   assert.equal(modal.calls[1].body.source, "foundry-agent");
-  assert.deepEqual(modal.calls[1].body.armTemplate, arm());
+  assert.deepEqual(modal.calls[1].body.artifact.armTemplate, arm());
+  assert.deepEqual(modal.calls[1].body.payload, payload);
   modal.button(modal.render(), "Terraform").props.onClick();
   assert.equal(modal.button(modal.render(), "Open Azure Review"), null);
 });

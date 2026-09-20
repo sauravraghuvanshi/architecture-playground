@@ -19,6 +19,21 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.400"
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.27.1"
+          cache-dependency-path: tools/artifact-validation/hcl/go.sum
+
+      - name: Build trusted parser-only helpers
+        run: npm run build:validators
+        env:
+          ARTIFACT_PARSER_TARGET: linux-x64
+          DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+
       - name: Create runtime auth environment
         env:
           APP_AUTH_USERNAME: ${{ secrets.APP_AUTH_USERNAME }}
@@ -68,6 +83,13 @@ jobs:
           APP_AUTH_USERNAME: ${{ secrets.APP_AUTH_USERNAME }}
           APP_AUTH_PASSWORD: ${{ secrets.APP_AUTH_PASSWORD }}
         run: node scripts/smoke-live-csa.mjs
+
+      - name: Verify hosted parser-only artifact validation
+        env:
+          LIVE_BASE_URL: https://architecture-playground.azurewebsites.net
+          APP_AUTH_USERNAME: ${{ secrets.APP_AUTH_USERNAME }}
+          APP_AUTH_PASSWORD: ${{ secrets.APP_AUTH_PASSWORD }}
+        run: node scripts/smoke-engineering-validation.mjs
 
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium

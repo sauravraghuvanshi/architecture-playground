@@ -5,6 +5,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { parserSourceHash } from "./artifact-parser-build-config.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, "..");
@@ -39,5 +40,20 @@ copyDir(path.join(root, ".next", "static"), path.join(standaloneDir, ".next", "s
 // reads always have the latest bundled JSON/MDX, independent of Next.js tracing.
 console.log("[postbuild] Copying content/ → .next/standalone/content/");
 copyDir(path.join(root, "content"), path.join(standaloneDir, "content"));
+
+const parserDirectory = path.join(root, "node_modules", ".cache", "artifact-validation");
+const parserManifest = path.join(parserDirectory, "manifest.json");
+if (!fs.existsSync(parserManifest)) throw new Error("Trusted parser helpers are missing. Run npm run build:validators before the application build.");
+const manifest = JSON.parse(fs.readFileSync(parserManifest, "utf8"));
+const expectedTarget = process.platform === "win32" ? "win-x64" : "linux-x64";
+if (manifest.version !== 1 || manifest.target !== expectedTarget || parserSourceHash(root) !== manifest.sourceHash) {
+  throw new Error("Parser helpers are stale or target the wrong platform. Run npm run build:validators.");
+}
+console.log("[postbuild] Copying trusted parser helpers into standalone/");
+copyDir(parserDirectory, path.join(standaloneDir, "artifact-validation"));
+if (process.platform !== "win32") {
+  fs.chmodSync(path.join(standaloneDir, "artifact-validation", "hcl-parser"), 0o755);
+  fs.chmodSync(path.join(standaloneDir, "artifact-validation", "dotnet", "Diagrammatic.ArtifactParser"), 0o755);
+}
 
 console.log("[postbuild] Done.");
