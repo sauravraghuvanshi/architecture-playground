@@ -1,6 +1,6 @@
 # Azure Deployment Plan
 
-> **Status:** Validated
+> **Status:** Deployed and Verified
 
 Generated: 2026-08-12
 Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
@@ -15,7 +15,7 @@ Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
   viewport geometry, validate/build/deploy and verify hosted before priority 15.
 - **Recipe:** Existing Next.js application-only App Service pipeline. No model,
   endpoint, identity, resource or infrastructure change.
-- **State:** Implemented and locally verified; existing-app release follows.
+- **State:** Deployed and verified as `d81a0fd46ed3d46aeeaa2301171ae9f649521c15`.
 
 ### Priority 14 - Baseline evidence and implementation
 
@@ -67,7 +67,13 @@ Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
   Docker/IaC/What-If are not applicable to this release.
 - [x] September 21 proof: `p14-final-contracts`, 340 pass;
   `p14-disclosure-build`, exit 0; `p14-final-local-browser-verified`, 149 pass.
-- [ ] Exact rollout and hosted acceptance.
+- [x] Exact rollout **35592309033**, successful in **4m38s**, completed
+  September 21 at 11:11:27 UTC. Clean Linux install/build, completed ZIP rollout
+  and authenticated API/parser/browser smoke passed.
+- [x] Hosted gate: **149/149 passed** in 5.7 minutes. All model outcomes used
+  fixtures; no live inference or customer infrastructure execution.
+- [x] Temporary hosted auth removed and owned local servers stopped.
+  Priority 15 is next.
 
 ## Priority 13 - Reliable AI readiness, streaming and cancellation
 

@@ -1,9 +1,32 @@
 # Development log - 2026-09-19/20/21
 
-**Resumed September 21:** the user requested the remaining tasks; priority 13 is
+**Resumed September 21:** the user requested the remaining tasks; priority 14 is
 now deployed and hosted-verified. The [early September 21 session summary](session-summary-2026-09-21.md)
 records the earlier stop after task 8, not the current execution boundary. Older
 close-out tables below are historical checkpoints, not the current release.
+
+## September 21 - Priority 14 continuation
+
+- Deployed `d81a0fd46ed3d46aeeaa2301171ae9f649521c15`; workflow
+  `35592309033` succeeded in 4m38s.
+- Reproduced 390px portrait canvases shrinking to 86px/102px. Added compact
+  architecture/Whiteboard assets, Inspector and utility drawers; the architecture
+  canvas now measures 390px wide and 552px high in that viewport.
+- Shared dialog focus handles initial focus, visible/enabled Tab cycles,
+  topmost ownership, Escape, restoration and non-dismissible committed saves.
+  Native overlays use portals; dirty-library invokers are captured before saving.
+- Added bounded keyboard disclosures, roving mode tabs with completion focus,
+  legacy context keyboard invocation and compatible export/help/command dialogs.
+  Existing Enter/Space/Tab disclosure behavior remains intact.
+- Validation: **340 contracts**, lint/types/build, **149 local and 149 hosted**
+  production browser cases passed; compact visuals were inspected.
+- Learning: capture invokers before asynchronous inert save locks. Treat native
+  `null` and `[]` empty binding lists equivalently without ignoring any actual
+  element or binary changes. Keep keyboard enhancement compatible with established
+  disclosure behavior rather than silently replacing it with menu semantics.
+- Temporary auth removed; owned servers stopped. Priorities 1-14 complete;
+  priorities 15-33 and competitor additions remain. Cross-browser work follows.
+- Details: [Responsive and keyboard editing](responsive-keyboard-editing.md).
 
 ## September 21 - Priority 13 continuation
 
