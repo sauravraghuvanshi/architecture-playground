@@ -40,7 +40,8 @@ This is the persistent copy of the 33-item implementation order agreed in the
 session. Keep these numbers stable so the user can select work by number.
 They are not the 47 finding IDs in the original local HTML audit.
 
-- [Session summary and test evidence](development-log-2026-09-20.md)
+- [Latest session handoff: completed work, lessons and tomorrow's tasks](session-summary-2026-09-22.md)
+- [Chronological development log and test evidence](development-log-2026-09-20.md)
 - [Deployment history and current release](../.azure/deployment-plan.md)
 - Live app: https://architecture-playground.azurewebsites.net
 - Last hosted-verified application: `cf6da2bd56de3aa8e42f46248fc77e443204547b`

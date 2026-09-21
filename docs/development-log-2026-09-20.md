@@ -1,5 +1,8 @@
 # Development log - 2026-09-19/20/21/22
 
+Latest consolidated handoff:
+[September 22 session summary, lessons and ordered resume checklist](session-summary-2026-09-22.md).
+
 **Numbered backlog remains paused:** screenshot-reported regressions were
 subsequently fixed and hosted-verified in `cf6da2b`. Priorities 16-33 have not
 resumed. The separate gesture/autosave fix `bd27fff` is locally verified, but

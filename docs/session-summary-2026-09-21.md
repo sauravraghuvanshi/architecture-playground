@@ -1,5 +1,9 @@
 # Session close-out - September 20 work, completed September 21
 
+**Historical checkpoint.** For the latest completed work and remaining tasks,
+use the [September 22 handoff](session-summary-2026-09-22.md).
+The stop-after-task-8 status below describes that earlier session only.
+
 Timezone: Asia/Kolkata. Final hosted verification completed at approximately
 03:08 IST on September 21, 2026.
 

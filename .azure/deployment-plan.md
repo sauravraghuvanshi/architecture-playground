@@ -5,6 +5,8 @@
 Generated: 2026-08-12
 Updated: 2026-09-22 (Asia/Kolkata; end-of-day pause)
 
+Latest handoff: [completed work, lessons and tomorrow's checklist](../docs/session-summary-2026-09-22.md).
+
 ## September 22 - Autosave while a drawing gesture is in progress
 
 - **Baseline:** Application `cf6da2b`; documentation `d7f8dbc`.
@@ -32,7 +34,7 @@ Updated: 2026-09-22 (Asia/Kolkata; end-of-day pause)
   No geometry dropping, no validation bypass, no general error suppression.
 - **Protection:** Quota/conflict/malformed-content errors remain visible.
   The exact long-gesture test is in the mandatory pre-deployment screenshot gate.
-- **All validation checks pass:**
+- **Pre-deployment validation checks passed (hosted checks tracked below):**
   - `npm run test:playground`: **370/370** final contracts, September 21 UTC
     (September 22 IST).
   - Full lint, final changed-file lint, strict types and `npm run build`: passed.
@@ -48,7 +50,8 @@ Updated: 2026-09-22 (Asia/Kolkata; end-of-day pause)
 - **Section 7: Validation Proof (current hotfix):** Commands and results above
   were executed on the current worktree. Baseline failure, focused contracts,
   final gate and three-engine output are retained in session artifacts.
-  Hosted deployment/verification are still pending; no live-model claim.
+  Deployment subsequently completed; hosted verification is incomplete as
+  recorded below. No live-model claim.
 - **End-of-day pause:** The user requested stopping and continuing tomorrow.
   Application `bd27fff3072c6af0e41c9365adfc1f2ced909818` was already pushed.
   Workflow `35648068866` completed during close-out: both pre-deployment gates,
