@@ -1,15 +1,18 @@
 # Implementation roadmap
 
-Last updated: 2026-09-22, Asia/Kolkata (urgent screenshot fixes verified; backlog paused).
+Last updated: 2026-09-22, Asia/Kolkata (end-of-day pause; gesture hotfix hosted verification pending).
 
 **Priorities 1-15 are deployed and verified within their stated scopes.
 Execution is stopped at the user's request. Priorities 16-33 remain pending;
 the user's newly reported issue takes precedence. Competitor-inspired additions
 remain deferred.**
 
-**Latest stop instruction honored:** priority 15 and hosted verification are
-complete. Do not start priority 16 or another backlog item before addressing
-the user's new higher-priority issue.
+**Latest stop instruction:** user is done for the day; continue tomorrow.
+The gesture/autosave hotfix `bd27fff` passed local validation and was pushed
+before the pause. Deployment run `35648068866` deployed successfully and passed
+health/API smoke, but failed hosted parser validation; final browser smoke was
+skipped. First diagnose that exact failed step, then complete hosted verification.
+Do not label the hotfix fully verified or start priority 16.
 
 The September 21 screenshot-reported regressions are now fixed in `cf6da2b`:
 native elbow binding compatibility restores saving/conversion/mode switching;
@@ -40,7 +43,9 @@ They are not the 47 finding IDs in the original local HTML audit.
 - [Session summary and test evidence](development-log-2026-09-20.md)
 - [Deployment history and current release](../.azure/deployment-plan.md)
 - Live app: https://architecture-playground.azurewebsites.net
-- Current deployed application: `cf6da2bd56de3aa8e42f46248fc77e443204547b`
+- Last hosted-verified application: `cf6da2bd56de3aa8e42f46248fc77e443204547b`
+- Deployed gesture hotfix, hosted verification incomplete: `bd27fff3072c6af0e41c9365adfc1f2ced909818`,
+  [deployment run 35648068866](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35648068866).
 - [Earlier stop-after-8 checkpoint](session-summary-2026-09-21.md)
 - Original audit: local `Audit Report/index.html`, intentionally Git-excluded.
   Do not add the HTML report or test authentication files to a commit.
@@ -51,10 +56,10 @@ They are not the 47 finding IDs in the original local HTML audit.
 - Handle **one numbered priority at a time**.
 - Plan, implement, test, complete readiness checks, deploy through the existing
   application workflow, then verify the deployed behavior.
-- **Latest authorization:** finish current priority 15 and its verification,
-  then stop for the user's new issue. The earlier resumption from priority 9
-  and stop after task 8 remain historical checkpoints, not current authority
-  to continue into priority 16.
+- **Latest authorization:** stop for today and resume the gesture hotfix's
+  deployment/hosted verification tomorrow. The earlier resumption from
+  priority 9 and stop after task 8 remain historical checkpoints, not current
+  authority to continue into priority 16.
 - Competitor-audit product additions are stage 3, after the numbered backlog.
   Preserve their local WIP without mixing it into earlier priority releases.
 - Do not sacrifice verification to a time estimate; accurately record blockers

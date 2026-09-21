@@ -1,9 +1,9 @@
 # Azure Deployment Plan
 
-> **Status:** Validated
+> **Status:** Paused by User - Deployed, Hosted Verification Incomplete
 
 Generated: 2026-08-12
-Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
+Updated: 2026-09-22 (Asia/Kolkata; end-of-day pause)
 
 ## September 22 - Autosave while a drawing gesture is in progress
 
@@ -49,6 +49,17 @@ Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
   were executed on the current worktree. Baseline failure, focused contracts,
   final gate and three-engine output are retained in session artifacts.
   Hosted deployment/verification are still pending; no live-model claim.
+- **End-of-day pause:** The user requested stopping and continuing tomorrow.
+  Application `bd27fff3072c6af0e41c9365adfc1f2ced909818` was already pushed.
+  Workflow `35648068866` completed during close-out: both pre-deployment gates,
+  Azure deployment, HTTP health and authenticated CSA API smoke passed. The
+  hosted parser-only artifact-validation smoke failed; final browser smoke was
+  skipped. The release is deployed but NOT fully hosted-verified.
+- **Resume first:** Inspect the failed `Verify hosted parser-only artifact
+  validation` step in that exact workflow; diagnose before any retry. Then
+  authenticate ephemerally and run the screenshot/persistence/Whiteboard hosted suite.
+  Record the result and remove temporary auth; only then close this hotfix.
+  Priorities 16-33 and competitor work remain paused.
 
 ## September 21 - Screenshot-reported Whiteboard and code-generation regressions
 

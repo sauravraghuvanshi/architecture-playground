@@ -1,10 +1,52 @@
-# Development log - 2026-09-19/20/21
+# Development log - 2026-09-19/20/21/22
 
 **Numbered backlog remains paused:** screenshot-reported regressions were
 subsequently fixed and hosted-verified in `cf6da2b`. Priorities 16-33 have not
-resumed. The [early September 21 session summary](session-summary-2026-09-21.md)
+resumed. The separate gesture/autosave fix `bd27fff` is locally verified, but
+its hosted verification remains incomplete after the user's
+end-of-day pause. The [early September 21 session summary](session-summary-2026-09-21.md)
 records the earlier stop after task 8, not the current execution boundary. Older
 close-out tables below are historical checkpoints, not the current release.
+
+## September 22 - Recurring gesture/autosave banner
+
+- User reported "Diagram autosave failed: Finish or cancel the current
+  Whiteboard gesture before saving." This was a separate regression from the
+  native binding-range rejection fixed in the preceding release.
+- Reproduced on the old production build with real native rectangles: begin
+  another gesture before the preceding 650ms save timer, then hold it for
+  1600ms. The legitimate incomplete-capture guard was incorrectly classified as
+  a storage failure; the failed timer did not retry without another revision.
+- Application fix `bd27fff` introduces a typed pending-capture state and a
+  cancellable retry. Work stays unsaved until a real snapshot is persisted.
+  Window pointer-up/cancel also settles the native guard, queued notifications
+  from an earlier gesture are invalidated, and manual saving waits briefly for
+  the native commit before making the canvas inert for persistence.
+- Unload/navigation still protects unfinished work; quota/conflict/malformed
+  content errors remain visible. No coordinates, bindings or elements are
+  silently discarded, clamped or replaced.
+- Added deterministic tests for both shared diagram modes, repeated deferral,
+  eventual saving, manual commit, window pointer lifecycle and real failure
+  propagation. Full contracts **370/370**, lint/types/production build passed.
+- Added the exact native held-gesture test to the mandatory pre-deployment
+  screenshot gate: **3/3** pass. Three-engine adjacent validation covers **84
+  distinct passing cases** across the main run and focused rerun.
+- Testing lesson: Excalidraw uses a leading-frame pointer throttle. Windows
+  WebKit delivered synthetic moves within one frame, leaving a smaller native
+  rectangle before persistence. The test now paces moves by animation frame;
+  exact 100x100 dimensions and identical geometry after reload remain asserted.
+  All **9/9** cross-browser screenshot cases then passed. No production
+  workaround or weakened geometry assertion was introduced for test timing.
+- User stopped work for the day while deployment run `35648068866` was still
+  in progress. It completed during close-out: both pre-deployment gates,
+  deployment, HTTP health and authenticated CSA API smoke passed; hosted
+  parser-only artifact validation failed and final browser smoke was skipped.
+  No further implementation or manual hosted test run was started.
+  Tomorrow: diagnose that exact parser smoke failure, then run authenticated
+  hosted screenshot/persistence/Whiteboard cases and record their results.
+  No live model or customer infrastructure execution.
+- **Next work remains paused:** priorities 16-33 and competitor additions are
+  not authorized by this hotfix request.
 
 ## September 21/22 - Urgent screenshot regressions
 
