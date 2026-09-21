@@ -41,6 +41,7 @@ import { KeyboardHints } from "./shared/KeyboardHints";
 import { buildPromptArchitecture, type PromptDiagnostics } from "@/lib/prompt-to-arch";
 import { parseArchitectureDocument } from "@/lib/architecture-document";
 import { parseDiagramPayload } from "@/lib/diagram-payload";
+import { CanvasEditPendingError } from "@/lib/canvas-edit-state";
 import { correctDeploymentService } from "@/lib/deployment-eligibility";
 import { architectureMetadataSchema, architectureEdgeSemanticsSchema, legacyNodeSemantics, parseConnectionHandle } from "@/lib/architecture-model";
 import { parentFirst } from "@/lib/architecture-hierarchy";
@@ -226,7 +227,7 @@ export function Workspace({
     requestedId: searchParams?.get("document"),
     capture: (targetMode): unknown => {
       if ((canvasGenerations.current[targetMode] ?? 0) !== (canvasEpochs[targetMode] ?? 0)) {
-        throw new Error("The canvas is changing documents. Wait for it to finish before saving.");
+        throw new CanvasEditPendingError();
       }
       if (targetMode === "architecture") return mode === targetMode ? canvasRef.current?.serialize() ?? archPayload : archPayload;
       if (targetMode === mode && otherCanvasRef.current) return otherCanvasRef.current.serialize();
@@ -438,6 +439,10 @@ export function Workspace({
       await library.save(name);
       setDocumentSaveError(null);
     } catch (cause) {
+      if (cause instanceof CanvasEditPendingError) {
+        setSaved(false);
+        throw cause;
+      }
       const message = cause instanceof Error ? cause.message : "The diagram could not be saved.";
       setDocumentSaveError(message);
       setExportNotice({ kind: "error", message });
@@ -492,9 +497,9 @@ export function Workspace({
   }, [router, saveCurrentDocument]);
 
   const captureActiveCanvas = useCallback(() => {
-    if ((canvasGenerations.current[mode] ?? 0) !== (canvasEpochs[mode] ?? 0)) throw new Error("The canvas is changing documents. Wait before leaving.");
+    if ((canvasGenerations.current[mode] ?? 0) !== (canvasEpochs[mode] ?? 0)) throw new CanvasEditPendingError();
     const canvas = mode === "architecture" ? canvasRef.current : otherCanvasRef.current;
-    if (!canvas) throw new Error("The canvas is still loading. Wait before leaving.");
+    if (!canvas) throw new CanvasEditPendingError();
     return canvas.serialize();
   }, [mode, canvasEpochs]);
 
@@ -511,6 +516,10 @@ export function Workspace({
   }, [mode, library.blockedDrafts]);
 
   const reportPersistenceFailure = useCallback((cause: unknown) => {
+    if (cause instanceof CanvasEditPendingError) {
+      setSaved(false);
+      return;
+    }
     const detail = cause instanceof Error ? cause.message : "Browser storage is unavailable.";
     const message = `Could not preserve the current diagram: ${detail} Save a recovery copy or export before leaving.`;
     setSaved(false);

@@ -92,6 +92,56 @@ test("native elbow arrows save, reload, switch to Cloud Architecture and convert
   expect((saved?.payload as Scene).elements.find((element) => element.id === arrow?.id)?.startBinding).toEqual(arrow?.startBinding);
 });
 
+test("autosave waits through a long native Whiteboard gesture without a recovery banner or lost geometry", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.route("**/api/ai/status", (route) => route.fulfill({ json: { diagramConfigured: false, imageConfigured: false } }));
+  await page.goto("/diagrammatic?mode=whiteboard");
+  await waitForWorkspace(page);
+  await page.getByRole("tab", { name: "Cloud Architecture", exact: true }).click();
+  await waitForWorkspace(page);
+  await page.getByRole("tab", { name: "Whiteboard", exact: true }).click();
+  await waitForWorkspace(page);
+  const board = page.locator(".diagrammatic-whiteboard");
+  const box = await board.boundingBox();
+  if (!box) throw new Error("Native Whiteboard unavailable");
+  const drawing = async (x: number) => {
+    await board.click({ position: { x: 550, y: 600 } });
+    await page.keyboard.press("r");
+    await page.mouse.move(box.x + x, box.y + 300);
+    await page.mouse.down();
+    // Excalidraw's frame throttle takes the first move in a frame, not the last.
+    for (let step = 1; step <= 8; step++) {
+      await page.mouse.move(box.x + x + step * 12.5, box.y + 300 + step * 12.5);
+      await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    }
+  };
+  await drawing(300);
+  await page.mouse.up();
+  // Publish the completed edit, but start the next before its 650ms autosave.
+  await page.waitForTimeout(120);
+  await drawing(600);
+  await page.waitForTimeout(1600);
+  const errors = page.getByText(/autosave failed|Finish or cancel|Canvas editing has not settled|Could not preserve|Save recovery copy/i);
+  await expect(errors).toHaveCount(0);
+  await page.mouse.up();
+  type Scene = { elements: Array<{ id: string; type: string; x: number; y: number; width: number; height: number }> };
+  await expect.poll(async () => ((await readCanvasPayload(page, "whiteboard")) as Scene)?.elements.length).toBe(2);
+  const saved = (await readCanvasPayload(page, "whiteboard")) as Scene;
+  expect(saved.elements.map(({ width, height }) => ({ width, height }))).toEqual([
+    { width: 100, height: 100 }, { width: 100, height: 100 },
+  ]);
+  await page.getByRole("tab", { name: "Cloud Architecture", exact: true }).click();
+  await waitForWorkspace(page);
+  await page.getByRole("tab", { name: "Whiteboard", exact: true }).click();
+  await waitForWorkspace(page);
+  await page.reload();
+  await waitForWorkspace(page);
+  const restored = (await readCanvasPayload(page, "whiteboard")) as Scene;
+  const geometry = (scene: Scene) => scene.elements.map(({ id, x, y, width, height }) => ({ id, x, y, width, height }));
+  expect(geometry(restored)).toEqual(geometry(saved));
+  await expect(errors).toHaveCount(0);
+});
+
 test("screenshot service symbols have explicit repair, real offline output and a validated AI request path", async ({ page }) => {
   test.setTimeout(60_000);
   await page.setViewportSize({ width: 1440, height: 1000 });

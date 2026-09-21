@@ -5,6 +5,7 @@ import vm from "node:vm";
 import ts from "typescript";
 import { parseArchitectureDocument, hasArchitectureContent } from "../lib/architecture-document.ts";
 import { parseDiagramPayload } from "../lib/diagram-payload.ts";
+import { CanvasEditPendingError } from "../lib/canvas-edit-state.ts";
 import { DiagramLibraryError, validateDiagramRecord } from "../lib/diagram-library.ts";
 
 const source = readFileSync(new URL("../components/diagrammatic/shared/useDiagramDocuments.ts", import.meta.url), "utf8");
@@ -132,11 +133,13 @@ function harness({ records = [document()], active = { architecture: "original" }
     "@/lib/diagram-library": library,
     "@/lib/architecture-document": { parseArchitectureDocument, hasArchitectureContent },
     "@/lib/diagram-payload": { parseDiagramPayload },
+    "@/lib/canvas-edit-state": { CanvasEditPendingError },
     "./types": { MODE_META: { architecture: { label: "Architecture" }, whiteboard: { label: "Whiteboard" } } },
   };
   const exports = {};
   vm.runInNewContext(compiled, {
     exports,
+    Error,
     localStorage: {
       getItem: (key) => local.get(key) ?? null,
       setItem: (key, value) => local.set(key, value),
@@ -225,6 +228,64 @@ test("capture rejects oversized architecture in manual save, autosave and recove
   assert.ok(h.errors.some((message) => message.includes("autosave failed")));
 });
 
+for (const mode of ["architecture", "whiteboard"]) {
+  test(`${mode} autosave defers an in-progress edit without a recovery error and retries when settled`, async () => {
+    const initial = mode === "architecture" ? graph() : { elements: [] };
+    const next = mode === "architecture" ? graph(2) : { elements: [{ id: "drawn", type: "rectangle", x: 0, y: 0, width: 100, height: 40 }] };
+    const h = harness({ records: [document("original", { mode, payload: initial })], active: { [mode]: "original" }, options: { mode } });
+    await h.flush();
+    h.configure({ revision: 1, capture: () => { throw new CanvasEditPendingError(); } });
+    await h.flush();
+    assert.equal(h.current.hasPendingChanges(), true);
+    for (let index = 0; index < 3; index++) await h.autosave();
+    assert.equal(h.calls.length, 0);
+    assert.equal(h.errors.length, 0);
+    assert.equal(h.current.saved, false);
+    assert.equal(h.timerCount(), 1);
+    h.configure({ capture: () => next });
+    await h.flush();
+    await h.autosave();
+    assert.equal(h.calls.length, 1);
+    assert.equal(h.errors.length, 0);
+    assert.equal(h.current.saved, true);
+    assert.equal(h.stored.get("original").payload.nodes?.length ?? h.stored.get("original").payload.elements.length, mode === "architecture" ? 2 : 1);
+  });
+}
+
+test("manual save waits for the native commit without making the unfinished canvas inert", async () => {
+  const h = harness();
+  await h.flush();
+  h.configure({ capture: () => { throw new CanvasEditPendingError(); } });
+  await h.flush();
+  const saving = h.current.save();
+  await h.flush();
+  assert.equal(h.current.busy, false);
+  assert.equal(h.calls.length, 0);
+  h.configure({ revision: 1, capture: () => graph(2) });
+  await h.flush();
+  await h.autosave();
+  await saving;
+  await h.flush();
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.current.saved, true);
+  assert.equal(h.errors.length, 0);
+});
+
+test("a real persistence error after a deferred gesture is still reported and never marked saved", async () => {
+  const h = harness();
+  await h.flush();
+  h.configure({ revision: 1, capture: () => { throw new CanvasEditPendingError(); } });
+  await h.flush();
+  await h.autosave();
+  h.configure({ capture: () => graph(2) });
+  await h.flush();
+  h.failSave(new DiagramLibraryError("quota", "Storage full"));
+  await h.autosave();
+  assert.equal(h.errors.length, 1);
+  assert.match(h.errors[0], /autosave failed.*Storage full/);
+  assert.equal(h.current.saved, false);
+  assert.equal(h.stored.get("original").payload.nodes.length, 1);
+});
 test("corrupt Whiteboard recovery never activates or rewrites the retained scene", async () => {
   const payload = { elements: [{ id: "bad", type: "rectangle", x: "invalid", y: 0, width: 30, height: 20 }] };
   const saved = document("broken-board", { mode: "whiteboard", payload });

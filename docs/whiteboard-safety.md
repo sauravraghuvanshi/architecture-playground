@@ -53,10 +53,21 @@ and coordinates within +/-1,000,000. Raster bounds are 8192 pixels per side and
 16 million pixels, with bounded animation/container processing. Oversized data
 fails explicitly rather than being truncated.
 
-Automatic checkpoints wait for drawing gestures to finish. Document capture
-and restoration reject unfinished images, empty text or zero-length geometry
-that Excalidraw would discard. Finish or cancel those elements first; horizontal
-and vertical paths are valid.
+Automatic checkpoints wait for drawing gestures to finish. An in-progress
+gesture is a typed transient capture state, not a storage failure: the shared
+autosave hook keeps changes unsaved and retries after 650ms without a recovery
+banner. Manual save allows up to five seconds for native commits before making
+the canvas inert for the database write. If editing is still unfinished, the
+save/navigation does not succeed or discard the outgoing canvas.
+
+Pointer-up and cancellation are observed at the window as well as the native
+canvas boundary. Starting another gesture invalidates an earlier queued
+notification. Restoration still rejects unfinished images, empty text or
+zero-length geometry that Excalidraw would discard; live captures defer those
+transient elements rather than persisting a partial scene. Horizontal and
+vertical paths are valid. Quota, conflict, malformed scene and other actual
+storage failures are still reported with recovery actions. Navigation/unload
+protection treats an unfinished gesture as unsaved work.
 
 Corrupt saved records and original scratch bytes remain available for recovery.
 The normal recovery banner and **Save recovery copy** preserve work without
@@ -70,7 +81,7 @@ even when the drawing-engine instance is reused.
 Native `isLoading` callbacks are not document changes. Their default background,
 elements and preferences are ignored until restoration finishes, and the loading
 flag is never persisted. Workspace controls remain unavailable until the native
-Whiteboard is ready; captures during restoration fail explicitly rather than
+Whiteboard is ready; live captures during restoration defer rather than
 overwriting a saved scene with initialization defaults.
 
 ## Verification boundaries

@@ -25,6 +25,8 @@ import {
 } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import { parseWhiteboardDocument } from "@/lib/diagram-payload";
+import { CanvasEditPendingError } from "@/lib/canvas-edit-state";
+import { getWhiteboardSceneTransientElementIds, parseWhiteboardScene } from "@/lib/whiteboard-scene";
 import { mayContainDiagramDrag, readDiagramDrag } from "@/lib/diagram-drag";
 import type { BaseCanvasHandle } from "../../shared/modeRegistry";
 import type { CanvasTheme } from "../../shared/types";
@@ -344,6 +346,11 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
     if (pointerSettleFrame.current) cancelAnimationFrame(pointerSettleFrame.current);
     pointerSettleFrame.current = null;
     pointerActive.current = true;
+    if (notifyRef.current) {
+      cancelAnimationFrame(notifyRef.current);
+      notifyRef.current = null;
+      lastPersistedSnapshot.current = "";
+    }
   }, []);
 
   const settlePointer = useCallback(() => {
@@ -362,6 +369,16 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
       });
     });
   }, [onAnyChange]);
+
+  useEffect(() => {
+    const end = () => { if (pointerActive.current) settlePointer(); };
+    window.addEventListener("pointerup", end, true);
+    window.addEventListener("pointercancel", end, true);
+    return () => {
+      window.removeEventListener("pointerup", end, true);
+      window.removeEventListener("pointercancel", end, true);
+    };
+  }, [settlePointer]);
 
   const insertImageData = useCallback(
     (
@@ -488,15 +505,17 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
 
   useImperativeHandle(ref, () => ({
     serialize: () => {
-      if (pointerActive.current) throw new Error("Finish or cancel the current Whiteboard gesture before saving.");
+      if (pointerActive.current) throw new CanvasEditPendingError();
       if (!apiRef.current) return parseWhiteboardDocument(value);
       const state = apiRef.current.getAppState();
-      if (state.isLoading === true) throw new Error("Whiteboard is still restoring its document. Wait before saving.");
-      return parseWhiteboardDocument({
+      if (state.isLoading === true) throw new CanvasEditPendingError();
+      const scene = parseWhiteboardScene({
         elements: [...apiRef.current.getSceneElements()],
         appState: appStateForPersistence(state),
         files: apiRef.current.getFiles(),
       });
+      if (getWhiteboardSceneTransientElementIds(scene).length) throw new CanvasEditPendingError();
+      return scene;
     },
     hydrate: (p) => {
       const api = apiRef.current;

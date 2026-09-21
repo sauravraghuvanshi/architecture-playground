@@ -7,6 +7,7 @@ import {
 } from "@/lib/diagram-library";
 import { parseArchitectureDocument, hasArchitectureContent } from "@/lib/architecture-document";
 import { parseDiagramPayload } from "@/lib/diagram-payload";
+import { CanvasEditPendingError } from "@/lib/canvas-edit-state";
 import { MODE_META, type CanvasTheme, type DiagrammaticMode } from "./types";
 
 const ACTIVE_KEY = "diagrammatic.active-documents";
@@ -200,6 +201,16 @@ export function useDiagramDocuments(options: Options) {
     };
   }, []);
 
+  const captureSettledDocument = useCallback(async (mode: DiagrammaticMode, name?: string) => {
+    for (let attempt = 0; ; attempt++) {
+      try { return captureDocument(mode, name); }
+      catch (cause) {
+        if (!(cause instanceof CanvasEditPendingError) || attempt >= 100) throw cause;
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+      }
+    }
+  }, [captureDocument]);
+
   const mergeWorkingAnnotations = useCallback((saved: DiagramDocument) => {
     const working = documentsRef.current[saved.mode];
     return working?.id === saved.id
@@ -217,7 +228,13 @@ export function useDiagramDocuments(options: Options) {
       persistedJson(input.versions) !== persistedJson(committed.versions);
   }, []);
 
-  const hasPendingChanges = useCallback(() => inputHasChanges(captureDocument(optionsRef.current.mode)), [captureDocument, inputHasChanges]);
+  const hasPendingChanges = useCallback(() => {
+    try { return inputHasChanges(captureDocument(optionsRef.current.mode)); }
+    catch (cause) {
+      if (cause instanceof CanvasEditPendingError) return true;
+      throw cause;
+    }
+  }, [captureDocument, inputHasChanges]);
 
   const persist = useCallback(async (input: DiagramSaveInput) => {
     const pending = saveQueue.current.then(async () => {
@@ -237,15 +254,16 @@ export function useDiagramDocuments(options: Options) {
   const save = useCallback(async (name?: string) => {
     if (!ready || operation.current) throw new Error("A diagram is still loading or saving. Please wait.");
     operation.current = true;
-    setBusy(true);
-    const revision = optionsRef.current.revision;
-    const annotations = annotationRevision.current;
     try {
-      const document = mergeWorkingAnnotations(await persist(captureDocument(optionsRef.current.mode, name)));
+      const captured = await captureSettledDocument(optionsRef.current.mode, name);
+      setBusy(true);
+      const revision = optionsRef.current.revision;
+      const annotations = annotationRevision.current;
+      const document = mergeWorkingAnnotations(await persist(captured));
       updateDocuments({ ...documentsRef.current, [document.mode]: document });
       setSavedRevision(annotations === annotationRevision.current ? revision : -1);
     } finally { operation.current = false; setBusy(false); }
-  }, [captureDocument, persist, ready, updateDocuments, mergeWorkingAnnotations]);
+  }, [captureSettledDocument, persist, ready, updateDocuments, mergeWorkingAnnotations]);
 
   const saveCopy = useCallback(async (name?: string) => {
     if (!ready || operation.current) throw new Error("A diagram is still loading or saving. Please wait.");
@@ -311,9 +329,14 @@ export function useDiagramDocuments(options: Options) {
   useEffect(() => {
     if (!ready || !documents[options.mode] || busy || options.suspended || savedRevision === options.revision) return;
     const revision = options.revision;
-    const timer = setTimeout(() => {
-      if (operation.current) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const schedule = () => { if (!cancelled) timer = setTimeout(attempt, 650); };
+    const attempt = () => {
+      if (cancelled) return;
+      if (operation.current || optionsRef.current.suspended) { schedule(); return; }
       void Promise.resolve().then(async () => {
+        if (cancelled) return;
         const annotations = annotationRevision.current;
         const input = captureDocument(optionsRef.current.mode);
         if (!inputHasChanges(input)) {
@@ -327,9 +350,13 @@ export function useDiagramDocuments(options: Options) {
           setDocuments(next);
           setSavedRevision(annotations === annotationRevision.current ? revision : -1);
         }
-      }).catch((cause) => optionsRef.current.onError(`Diagram autosave failed: ${cause instanceof Error ? cause.message : "Browser database unavailable."}`));
-    }, 650);
-    return () => clearTimeout(timer);
+      }).catch((cause) => {
+        if (cause instanceof CanvasEditPendingError) { schedule(); return; }
+        optionsRef.current.onError(`Diagram autosave failed: ${cause instanceof Error ? cause.message : "Browser database unavailable."}`);
+      });
+    };
+    schedule();
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [options.mode, options.revision, options.suspended, ready, busy, documents, savedRevision, captureDocument, persist, mergeWorkingAnnotations, inputHasChanges]);
 
   const annotate = useCallback((value: { comments: DiagramComment[] } | { versions: DiagramVersion[] }) => {

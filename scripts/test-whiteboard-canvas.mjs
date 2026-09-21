@@ -6,6 +6,8 @@ import ts from "typescript";
 import * as appearance from "../lib/whiteboard-appearance.ts";
 import { parseWhiteboardDocument } from "../lib/diagram-payload.ts";
 import * as diagramDrag from "../lib/diagram-drag.ts";
+import { CanvasEditPendingError } from "../lib/canvas-edit-state.ts";
+import * as whiteboardScene from "../lib/whiteboard-scene.ts";
 
 const source = readFileSync(new URL("../components/diagrammatic/modes/whiteboard/Canvas.tsx", import.meta.url), "utf8");
 const compiled = ts.transpileModule(source, {
@@ -19,6 +21,8 @@ const plain = (value) => JSON.parse(JSON.stringify(value));
 // Stub the drawing engine and hook lifecycle, but execute the actual canvas handle implementation.
 function canvasHarness({ ready = true, pngFailure, gifFailure, imageWidth = 1200, imageHeight = 800, state = {}, decode, onChange } = {}) {
   const calls = [];
+  const effects = [];
+  const listeners = new Map();
   const files = {};
   let elements = [];
   const png = new Blob(["png"], { type: "image/png" });
@@ -50,7 +54,7 @@ function canvasHarness({ ready = true, pngFailure, gifFailure, imageWidth = 1200
     react: {
       forwardRef: (render) => render,
       useCallback: (callback) => callback,
-      useEffect: () => {},
+      useEffect: (effect) => effects.push(effect),
       useImperativeHandle: (ref, factory) => { ref.current = factory(); },
       useRef: (initial) => ({ current: refIndex++ === 0 ? (ready ? api : null) : refIndex === 2 ? wrapper : initial }),
       useState: (initial) => [typeof initial === "function" ? initial() : initial, () => {}],
@@ -82,6 +86,8 @@ function canvasHarness({ ready = true, pngFailure, gifFailure, imageWidth = 1200
     },
     "@/lib/diagram-payload": { parseWhiteboardDocument },
     "@/lib/diagram-drag": diagramDrag,
+    "@/lib/canvas-edit-state": { CanvasEditPendingError },
+    "@/lib/whiteboard-scene": whiteboardScene,
   };
   const exports = {};
   vm.runInNewContext(compiled, {
@@ -91,6 +97,11 @@ function canvasHarness({ ready = true, pngFailure, gifFailure, imageWidth = 1200
     requestAnimationFrame: (callback) => { callback(); return 1; },
     cancelAnimationFrame: () => {},
     document: { querySelector: () => { throw new Error("Canvas controls must not query the global document"); } },
+    window: {
+      location: { hash: "" },
+      addEventListener: (type, listener) => listeners.set(type, listener),
+      removeEventListener: (type, listener) => { if (listeners.get(type) === listener) listeners.delete(type); },
+    },
     require: (name) => {
       if (!(name in dependencies)) throw new Error(`Unexpected canvas dependency: ${name}`);
       return dependencies[name];
@@ -99,11 +110,15 @@ function canvasHarness({ ready = true, pngFailure, gifFailure, imageWidth = 1200
   const ref = { current: null };
   const readiness = [];
   const rendered = exports.WhiteboardCanvas({ value: { elements: [], files: {} }, onChange, onReadyChange: (ready) => readiness.push(ready) }, ref);
+  const cleanups = effects.map((effect) => effect());
   return {
     handle: ref.current, calls, files, png, gif, readiness,
     onChange: rendered.props.children.props.onChange,
     pointerDown: rendered.props.children.props.onPointerDown,
     pointerUp: rendered.props.children.props.onPointerUp,
+    windowEvent: (type) => listeners.get(type)?.(),
+    unmount: () => cleanups.forEach((cleanup) => cleanup?.()),
+    listenerCount: () => listeners.size,
     stageElements: (next) => { elements = next; },
   };
 }
@@ -124,6 +139,26 @@ test("snapshot hydration restores validated image binaries before elements after
   assert.deepEqual(plain(handle.serialize().files), { image1: imageFile });
 });
 
+for (const type of ["pointerup", "pointercancel"]) {
+  test(`window ${type} settles a gesture even without the native pointer-up callback`, () => {
+    const h = canvasHarness();
+    h.stageElements([{ id: "rectangle", type: "rectangle", x: 0, y: 0, width: 100, height: 40 }]);
+    h.pointerDown();
+    assert.throws(() => h.handle.serialize(), CanvasEditPendingError);
+    h.windowEvent(type);
+    assert.equal(h.handle.serialize().elements[0].width, 100);
+    h.unmount();
+    assert.equal(h.listenerCount(), 0);
+  });
+}
+
+test("live incomplete geometry defers capture, but malformed content is still a real validation error", () => {
+  const h = canvasHarness();
+  h.stageElements([{ id: "rectangle", type: "rectangle", x: 0, y: 0, width: 0, height: 0 }]);
+  assert.throws(() => h.handle.serialize(), CanvasEditPendingError);
+  h.stageElements([{ id: "rectangle", type: "rectangle", x: NaN, y: 0, width: 10, height: 10 }]);
+  assert.throws(() => h.handle.serialize(), (error) => !(error instanceof CanvasEditPendingError) && /Invalid Whiteboard scene/.test(error.message));
+});
 test("invalid snapshot binaries fail atomically without changing the canvas", () => {
   for (const file of [
     { ...imageFile, id: "different-key" },
@@ -286,7 +321,7 @@ test("pointer callbacks protect live geometry even when an onChange snapshot lac
   h.pointerDown();
   h.onChange([early], { viewBackgroundColor: "#05080d" }, {});
   assert.equal(h.calls.length, 0);
-  assert.throws(() => h.handle.serialize(), /Finish or cancel/);
+  assert.throws(() => h.handle.serialize(), CanvasEditPendingError);
   h.stageElements([final]);
   h.pointerUp();
   const update = h.calls.find(([operation]) => operation === "updateScene");
@@ -301,7 +336,7 @@ test("loading defaults cannot overwrite the document or foreground before native
   h.onChange([], state, {});
   assert.equal(h.calls.length, 0);
   assert.equal(changes.length, 0);
-  assert.throws(() => h.handle.serialize(), /still restoring/);
+  assert.throws(() => h.handle.serialize(), CanvasEditPendingError);
   state.isLoading = false;
   state.viewBackgroundColor = "#05080d";
   h.onChange([], state, {});

@@ -1,9 +1,54 @@
 # Azure Deployment Plan
 
-> **Status:** Deployed and Verified - Screenshot Regressions Fixed
+> **Status:** Validated
 
 Generated: 2026-08-12
 Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
+
+## September 22 - Autosave while a drawing gesture is in progress
+
+- **Baseline:** Application `cf6da2b`; documentation `d7f8dbc`.
+- **Request:** Stop the recurring "Finish or cancel the current Whiteboard
+  gesture before saving" autosave banner on diagram pages.
+- **Plan:** Trace native editing state and shared save scheduling; reproduce
+  overlapping autosave/gesture timing; defer automatic saving without reporting
+  an error or falsely claiming a save; persist immediately after settling.
+  Verify real storage failures remain visible, test/build/deploy/verify hosted.
+- **Scope:** Current regression only; preserve data and validation. Existing
+  app-only Azure deployment; no resource/identity/model changes. Backlog paused.
+- **State:** Azure validation workflow completed through error resolution on
+  September 22 at 01:26 IST; validated for the existing app-only deployment.
+- **Reproduction:** The unchanged prior production build fails the new native
+  test when a second rectangle is held for 1600ms, past the preceding edit's
+  650ms autosave. This recreates the user's recovery banner without malformed
+  data or any model call.
+- **Root cause:** The native pointer guard correctly prevented incomplete
+  snapshots, but the shared autosave treated that expected state as a database
+  failure and did not retry until another document revision arrived.
+- **Fix:** Typed pending captures, retained dirty status and cancellable 650ms
+  retry; window pointer-up/cancel settlement; invalidated stale frame notices;
+  manual save briefly waits for native settlement before making the canvas
+  inert. Navigation keeps the outgoing document on an unfinished edit.
+  No geometry dropping, no validation bypass, no general error suppression.
+- **Protection:** Quota/conflict/malformed-content errors remain visible.
+  The exact long-gesture test is in the mandatory pre-deployment screenshot gate.
+- **All validation checks pass:**
+  - `npm run test:playground`: **370/370** final contracts, September 21 UTC
+    (September 22 IST).
+  - Full lint, final changed-file lint, strict types and `npm run build`: passed.
+  - `node scripts/verify-screenshot-regressions.mjs`: **3/3**, final build.
+  - Adjacent Chromium/Firefox/WebKit suite: **84 distinct cases passing**
+    across the 83-pass main run and corrected 9/9 screenshot rerun.
+  - The one initial WebKit failure was an exact geometry assertion: native
+    Excalidraw's leading-frame throttle drops sub-frame synthetic moves. Probed
+    native state before persistence; paced the test moves by animation frame
+    instead of weakening the 100x100 geometry or reload-equality assertions.
+  - Static role checks: unchanged app-only workflow, no IaC/RBAC/identity or
+    provider changes. Existing Azure target and user-approved delivery retained.
+- **Section 7: Validation Proof (current hotfix):** Commands and results above
+  were executed on the current worktree. Baseline failure, focused contracts,
+  final gate and three-engine output are retained in session artifacts.
+  Hosted deployment/verification are still pending; no live-model claim.
 
 ## September 21 - Screenshot-reported Whiteboard and code-generation regressions
 
