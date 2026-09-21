@@ -1,6 +1,6 @@
 # Implementation roadmap
 
-Last updated: 2026-09-21, Asia/Kolkata (priority 15 complete; backlog paused).
+Last updated: 2026-09-22, Asia/Kolkata (urgent screenshot fixes verified; backlog paused).
 
 **Priorities 1-15 are deployed and verified within their stated scopes.
 Execution is stopped at the user's request. Priorities 16-33 remain pending;
@@ -10,6 +10,13 @@ remain deferred.**
 **Latest stop instruction honored:** priority 15 and hosted verification are
 complete. Do not start priority 16 or another backlog item before addressing
 the user's new higher-priority issue.
+
+The September 21 screenshot-reported regressions are now fixed in `cf6da2b`:
+native elbow binding compatibility restores saving/conversion/mode switching;
+deployment readiness recognizes the APIM illustration and offers explicit
+undoable App Service symbol correction. Pre-deployment contracts and native
+screenshot journeys are now mandatory pipeline gates. The numbered backlog
+does not resume automatically.
 
 ## User-selected interruption - 20 September 2026
 
@@ -33,7 +40,7 @@ They are not the 47 finding IDs in the original local HTML audit.
 - [Session summary and test evidence](development-log-2026-09-20.md)
 - [Deployment history and current release](../.azure/deployment-plan.md)
 - Live app: https://architecture-playground.azurewebsites.net
-- Current deployed application: `3b5d8fd12eb81fb8b67d839729855ee7fb1d68f8`
+- Current deployed application: `cf6da2bd56de3aa8e42f46248fc77e443204547b`
 - [Earlier stop-after-8 checkpoint](session-summary-2026-09-21.md)
 - Original audit: local `Audit Report/index.html`, intentionally Git-excluded.
   Do not add the HTML report or test authentication files to a commit.

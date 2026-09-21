@@ -1,10 +1,45 @@
 # Development log - 2026-09-19/20/21
 
-**Stopped after priority 15 at the user's request:** current application
-`3b5d8fd` is deployed and hosted-verified. Priorities 16-33 are paused for a new
-user-reported issue. The [early September 21 session summary](session-summary-2026-09-21.md)
+**Numbered backlog remains paused:** screenshot-reported regressions were
+subsequently fixed and hosted-verified in `cf6da2b`. Priorities 16-33 have not
+resumed. The [early September 21 session summary](session-summary-2026-09-21.md)
 records the earlier stop after task 8, not the current execution boundary. Older
 close-out tables below are historical checkpoints, not the current release.
+
+## September 21/22 - Urgent screenshot regressions
+
+- User reported spontaneous Whiteboard autosave errors, conversion failure,
+  inability to switch to Cloud Architecture, and rejected code generation.
+- Reproduced the first three with actual native elbow arrows. The new scene
+  validator incorrectly treated binding ratios as bounded percentages. Native
+  Excalidraw legitimately returns `1.025`, `-0.025` and focus outside `[-1,1]`.
+  The shared rejection blocked every save/serialize-dependent action.
+- Corrected only native binding compatibility, preserving exact values and
+  keeping finite/type/reference/gap/binary/scene-budget checks. Executable
+  native engine fixtures now cover both endpoints, rotation and small targets.
+- Matched the code-generation screenshot to the actual catalog: the APIM service
+  illustration was missing a supported mapping, and a management-operation icon
+  had been renamed "APP Service". Added the audited APIM mapping, visible service
+  readiness, an explicit undoable App Service correction, and palette coverage
+  labels. Names no longer imply a deployment identity or a false coverage pass.
+- Added server-derived service readiness to model evidence; retained parser,
+  resource, secret and publication safeguards.
+- Prevention: CI now generates its catalog fixtures, runs all contracts and
+  executes these exact screenshot journeys on the production build **before**
+  deployment. The first clean CI run caught a missing generated-manifest
+  prerequisite and stopped before publishing; fixed the ordering without
+  disabling tests.
+- Verification: **363/363 contracts**, **49/49** focused mapping/route/real-parser
+  checks, lint/types/build; **75 local and 75 hosted** adjacent browser cases,
+  plus **4 local and 4 hosted** Firefox/WebKit screenshot journeys. AI successes
+  were deterministic fixtures, not live model-quality certification.
+- Release: `2088d85` plus gate prerequisite `cf6da2bd56de3aa8e42f46248fc77e443204547b`.
+  Workflow **35641830814** succeeded in **5m07s**, ending September 21 at
+  19:03:24 UTC (September 22 in India).
+- Existing scenes are not cleared or clamped. Previously rejected unsaved edits
+  exist only in the still-open old tab until the user preserves them; deployment
+  cannot retroactively recover data that was never saved.
+- Owned servers stopped, temporary authentication removed; backlog remains paused.
 
 ## September 21 - Priority 15 completed; execution stopped
 

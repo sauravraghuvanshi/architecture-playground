@@ -1,6 +1,6 @@
 # Azure Deployment Plan
 
-> **Status:** Validated
+> **Status:** Deployed and Verified - Screenshot Regressions Fixed
 
 Generated: 2026-08-12
 Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
@@ -18,7 +18,8 @@ Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
   infrastructure, model endpoints, identities, permissions or customer deployment.
 - **Authorization:** User explicitly requested these four urgent fixes. Numbered
   priorities 16-33 remain paused. Do not expand into the remaining roadmap.
-- **State:** Implemented and locally verified; ready for the existing app release.
+- **State:** Deployed and hosted-verified as `cf6da2bd56de3aa8e42f46248fc77e443204547b`
+  (application fix `2088d85`, clean-checkout gate correction `cf6da2b`).
 
 ### Exact reproduced paths
 
@@ -61,7 +62,15 @@ Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
 - [x] Static role/policy checks: application-only update; no new Azure resource,
   permission, provider/model identity or target. Workflow now blocks publication
   before rollout on unit or screenshot-journey regressions.
-- [ ] Clean Linux gated build, exact rollout and authenticated hosted verification.
+- [x] Clean Linux gated build, exact rollout and authenticated hosted verification:
+  run **35641830814** succeeded in **5m07s**, completed September 21 at
+  19:03:24 UTC. Both new pre-deployment gates passed before Azure publication.
+- [x] Hosted **75/75** adjacent Chromium cases passed in 3.7 minutes; exact
+  screenshot workflows also passed **4/4** Firefox/WebKit cases in 1.6 minutes.
+  These exercise native arrows, exact binding preservation, saving/reload,
+  mode switching, PNG conversion, explicit identity repair, real offline code
+  and mocked validated AI response handling. No live-model quality claim.
+- [x] Temporary hosted authentication removed and owned local server stopped.
 - **Backlog remains paused:** this is the user's urgent fix, not priority 16.
 - First gated CI run `35641487637` correctly stopped before publication: a
   clean checkout lacks the generated icon manifest required by contract tests.
