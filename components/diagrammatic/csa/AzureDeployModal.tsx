@@ -12,12 +12,14 @@ import type { ArtifactMapping } from "@/lib/engineering-coverage";
 import { AiPrivacyNotice } from "../shared/AiPrivacyNotice";
 import { AI_LOCAL_CLEAR_NOTICE } from "@/lib/ai-privacy-contract";
 import { useDialogFocus } from "../shared/useDialogFocus";
+import { deploymentEligibilityMessage, inspectDeploymentEligibility } from "@/lib/deployment-eligibility";
 
 interface Props {
   open: boolean;
   payload: ArchPayload;
   onClose: () => void;
   intent?: "code" | "deploy";
+  onCorrectService?: (nodeId: string, iconId: string) => void;
 }
 
 interface Preview {
@@ -45,7 +47,7 @@ export function AzureDeployModal({ open, ...props }: Props) {
   return <DeploymentSession key={JSON.stringify(props.payload)} {...props} />;
 }
 
-function DeploymentSession({ payload, onClose, intent = "deploy" }: Omit<Props, "open">) {
+function DeploymentSession({ payload, onClose, intent = "deploy", onCorrectService }: Omit<Props, "open">) {
   const [format, setFormat] = useState<ArchitectureCodeFormat>("bicep");
   const [context, setContext] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -57,6 +59,8 @@ function DeploymentSession({ payload, onClose, intent = "deploy" }: Omit<Props, 
   const [showArm, setShowArm] = useState(false);
   const abort = useRef<AbortController | null>(null);
   const popup = useRef<Window | null>(null);
+  const eligibility = inspectDeploymentEligibility(payload);
+  const supportedCount = eligibility.filter((row) => row.kind).length;
   const close = () => {
     abort.current?.abort();
     popup.current?.close();
@@ -84,6 +88,7 @@ function DeploymentSession({ payload, onClose, intent = "deploy" }: Omit<Props, 
 
   const generate = async () => {
     reset();
+    if (!supportedCount) { setError(deploymentEligibilityMessage(payload)); return; }
     const controller = new AbortController();
     abort.current = controller;
     setBusy("generate");
@@ -239,6 +244,23 @@ function DeploymentSession({ payload, onClose, intent = "deploy" }: Omit<Props, 
               <button type="button" onClick={() => { reset(); setContext(""); }} className="mb-1 rounded border border-slate-600 px-2 py-1 text-slate-200">Clear AI session</button>
               <p>{AI_LOCAL_CLEAR_NOTICE}</p>
             </div>
+            <section aria-label="Deployment service readiness" className="space-y-2 rounded-lg border border-slate-700 p-3 text-xs">
+              <h2 className="font-semibold">Deployment service readiness</h2>
+              <p className="text-slate-300">{supportedCount} of {eligibility.length} service icons have supported Azure deployment mappings. Diagram structure checks do not establish deployment coverage.</p>
+              {eligibility.filter((row) => !row.kind).map((row) => <div key={row.nodeId} className="rounded border border-amber-400/30 bg-amber-400/5 p-2">
+                <p><strong>{row.label}</strong> uses the catalog symbol <strong>{row.catalogLabel}</strong>; it is not mapped to a deployable resource.</p>
+                {row.suggested && onCorrectService ? <>
+                  <p className="mt-1 text-slate-400">If this component is an App Service application, confirm the service identity. Its name, connections and position are preserved; Undo can revert the correction.</p>
+                  <button type="button" disabled={!!busy} className="mt-2 rounded border border-sky-400 px-2 py-1 text-sky-200 disabled:opacity-50"
+                    onClick={() => {
+                      reset();
+                      try { if (row.suggested) onCorrectService(row.nodeId, row.suggested.iconId); }
+                      catch (cause) { setError(cause instanceof Error ? cause.message : "The service identity could not be corrected."); }
+                    }}>Use {row.suggested.label} for {row.label}</button>
+                </> : <p className="mt-1 text-slate-400">This icon can remain in the diagram, but it is omitted or marked unsupported in generated artifacts. Use a supported service icon for deployable resources.</p>}
+              </div>)}
+              {!supportedCount && <p role="note" className="text-amber-200">{deploymentEligibilityMessage(payload)}</p>}
+            </section>
             <div className="flex flex-wrap gap-2">
               {FORMATS.map((option) => <button key={option.id} type="button" aria-pressed={format === option.id} onClick={() => { reset(); setFormat(option.id); }} className={`rounded-lg border px-3 py-2 text-xs ${format === option.id ? "border-sky-300 text-sky-200" : "border-slate-700"}`}>{option.label}</button>)}
             </div>
@@ -246,7 +268,7 @@ function DeploymentSession({ payload, onClose, intent = "deploy" }: Omit<Props, 
               <textarea aria-label="Deployment constraints" value={context} maxLength={2000} onChange={(event) => { reset(); setContext(event.target.value); }} placeholder="Region, budget, identity/network requirements, recovery targets. No secrets." className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-950 p-2" />
             </label>
             <div className="flex flex-wrap gap-3">
-              <button type="button" onClick={generate} disabled={!!busy || !payload.nodes.length} className="flex items-center gap-2 rounded-lg bg-sky-400 px-4 py-2 text-xs font-semibold text-slate-950 disabled:opacity-50">{busy === "generate" && <Loader2 className="h-4 w-4 animate-spin" />}Generate with Foundry agent</button>
+              <button type="button" onClick={generate} disabled={!!busy || !supportedCount} className="flex items-center gap-2 rounded-lg bg-sky-400 px-4 py-2 text-xs font-semibold text-slate-950 disabled:opacity-50">{busy === "generate" && <Loader2 className="h-4 w-4 animate-spin" />}Generate with Foundry agent</button>
               <button type="button" onClick={offline} disabled={!!busy} className="rounded-lg border border-slate-600 px-3 py-2 text-xs disabled:opacity-50">Use offline starter export (no AI)</button>
               {busy === "generate" && <button type="button" onClick={() => { reset(); setNotice("Generation cancelled."); }} className="text-xs underline">Cancel generation</button>}
             </div>

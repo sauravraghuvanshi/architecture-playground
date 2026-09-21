@@ -193,6 +193,7 @@ const AZURE_RESOURCE_KINDS: Readonly<Record<string, AzureResourceKind>> = {
   "azure/storage/storage-account": "storage",
   "azure/storage/storage-account-blob": "storage",
   "azure/management/api-management-service": "apim",
+  "azure/application/app-service-api-management": "apim",
   "azure/ai/azure-openai": "openai",
   "azure/security/key-vault": "key-vault",
   "azure/networking/azure-front-door": "front-door",

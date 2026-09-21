@@ -149,6 +149,7 @@ export function Inspector({
           )
         }
       >
+        <p className="px-3 pb-2 text-[10px] text-slate-400">Structure checks only. Code &amp; deploy separately checks service identities and deployment coverage.</p>
         <div className="max-h-[40vh] overflow-y-auto">
           {issues.length === 0 ? (
             <div className="px-3 py-6 text-center text-xs text-slate-500">

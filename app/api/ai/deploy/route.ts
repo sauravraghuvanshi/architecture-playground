@@ -5,6 +5,7 @@ import { parseArchitectureDocument } from "@/lib/architecture-document";
 import { FoundryAgentError, invokeFoundryAgent, isFoundryAgentConfigured } from "@/lib/foundry-agent";
 import { DeploymentDraftError, deploymentRequestSchema, generateDeploymentDraft } from "@/lib/deployment-assistance";
 import { deploymentTargetKind } from "@/lib/engineering-coverage";
+import { deploymentEligibilityMessage } from "@/lib/deployment-eligibility";
 import { preflightEngineeringParser, validateEngineeringArtifact } from "@/lib/engineering-validation";
 import { ArtifactParserError } from "@/lib/artifact-parser";
 
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid architecture evidence." }, { status: 400 });
   }
   if (!payload.nodes.some(deploymentTargetKind)) {
-    return NextResponse.json({ error: "Add a supported canonical Azure service before generating deployment code. Generic shapes and unsupported providers/products are not provisionable mappings." }, { status: 400 });
+    return NextResponse.json({ error: deploymentEligibilityMessage(payload) }, { status: 400 });
   }
   try {
     await preflightEngineeringParser(input.data.format, request.signal);

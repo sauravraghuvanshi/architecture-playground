@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import type { IconLite } from "./types";
 import type { ArchShape } from "../modes/architecture/ArchitectureCanvas";
-import { searchServiceIcons } from "@/lib/service-identity";
+import { searchServiceIcons, azureResourceKind } from "@/lib/service-identity";
 import { writeDiagramDrag } from "@/lib/diagram-drag";
 
 interface Props {
@@ -200,8 +200,9 @@ export function Palette({ icons, onInsert }: Props) {
                     );
                     onInsert?.();
                   }}
+                  aria-label={icon.label}
                   className="group/btn flex min-h-[72px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border border-transparent p-1.5 transition hover:border-cyan-500/40 hover:bg-slate-900"
-                  title={`Click to add · drag for placement: ${icon.label}`}
+                  title={`Click to add · drag for placement: ${icon.label}${icon.cloud === "azure" ? azureResourceKind(icon.id) ? " — Azure deployment mapping supported" : " — Diagram symbol; no deployment mapping" : ""}`}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -217,6 +218,7 @@ export function Palette({ icons, onInsert }: Props) {
                   <span className="line-clamp-2 text-center text-[9px] leading-tight text-slate-500 group-hover/btn:text-slate-200">
                     {icon.label}
                   </span>
+                  {icon.cloud === "azure" && <span aria-hidden className="text-[8px] text-slate-400">{azureResourceKind(icon.id) ? "Deployable service" : "Diagram symbol"}</span>}
                 </button>
               ))}
               {list.length > 60 && (

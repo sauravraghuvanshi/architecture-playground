@@ -1,9 +1,68 @@
 # Azure Deployment Plan
 
-> **Status:** Deployed and Verified - Backlog Paused
+> **Status:** Validated
 
 Generated: 2026-08-12
 Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
+
+## September 21 - Screenshot-reported Whiteboard and code-generation regressions
+
+- **Baseline:** Application `3b5d8fd`; documentation `5473bb1`.
+- **Scope:** Fix the native Whiteboard binding rejection affecting autosave,
+  conversion and mode switching; fix valid catalog-service code-generation
+  eligibility. Preserve existing diagrams, native bindings and safe code validation.
+- **Plan:** Reproduce exact screenshot errors using native editor/catalog inputs,
+  trace recent changes, correct contracts rather than suppress errors, add
+  production-path regressions, validate/build/deploy and verify hosted.
+- **Target:** Existing Next.js/App Service application-only pipeline; no new
+  infrastructure, model endpoints, identities, permissions or customer deployment.
+- **Authorization:** User explicitly requested these four urgent fixes. Numbered
+  priorities 16-33 remain paused. Do not expand into the remaining roadmap.
+- **State:** Implemented and locally verified; ready for the existing app release.
+
+### Exact reproduced paths
+
+- Native User/Server symbols connected with the actual Excalidraw Elbow arrow
+  reproduce the screenshot's `startBinding.fixedPoint.0` error before model
+  inference. The same `serialize`/save contract causes autosave, conversion and
+  tab-switch failures; they are not three independent provider failures.
+- The screenshot artwork matches `azure/application/app-service-api-management`
+  and `azure/application/app-service-management`. The former is an APIM service
+  illustration missing from the finite deployment mapping. The latter is a
+  management symbol, not an App Service workload identity despite its renamed
+  label. Reproduced the missing APIM mapping in a production-import unit test.
+- Added finite APIM support, pre-generation per-node service readiness and an
+  explicit undoable "Use Azure App Service" correction for the management symbol.
+  No fuzzy label-based mapping or validation bypass is introduced.
+- Regression prevention: the existing deployment pipeline will run application
+  contracts on Node 24, restore its unchanged Node 20 app-build runtime, build
+  and run the screenshot-specific native browser journeys before publishing.
+  AI responses in those browser cases are synthetic; route/identity logic is
+  tested separately. Nothing runs generated customer infrastructure.
+
+### Screenshot regression validation
+
+- Root cause confirmed in installed Excalidraw 0.18.1: native elbow binding
+  ratios include `1.025` and `-0.025`; native focus can reach `+/-1.1`.
+  The earlier new validator's `[0,1]`/`[-1,1]` assumptions were incorrect.
+  Fixed only the binding contract; exact coordinates remain unchanged, and
+  malformed/nonfinite/reference/binary bounds remain enforced.
+- [x] **363/363** application contracts, full lint, strict types and production
+  build passed. **49/49** focused deployment/mapping/real-parser tests passed.
+- [x] The new pre-deployment production-browser gate passed **2/2** exact
+  screenshot workflows after first reproducing both failures on the old build.
+- [x] Adjacent production-build Chromium suite passed **75/75**. Screenshot
+  journeys also passed **4/4** Firefox/WebKit cases. The multi-document code
+  journey uses a 60s overall test budget; existing per-action assertions are
+  unchanged, including exact identities, connections, binding coordinates,
+  Undo/Redo, saved reloads and successful validated generation fixture.
+- [x] No live-model invocation or generated customer deployment. Official
+  parser/resource checks were exercised independently of mocked browser output.
+- [x] Static role/policy checks: application-only update; no new Azure resource,
+  permission, provider/model identity or target. Workflow now blocks publication
+  before rollout on unit or screenshot-journey regressions.
+- [ ] Clean Linux gated build, exact rollout and authenticated hosted verification.
+- **Backlog remains paused:** this is the user's urgent fix, not priority 16.
 
 ## Priority 15 - Cross-browser reliability
 

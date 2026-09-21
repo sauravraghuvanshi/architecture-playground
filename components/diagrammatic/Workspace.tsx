@@ -41,6 +41,7 @@ import { KeyboardHints } from "./shared/KeyboardHints";
 import { buildPromptArchitecture, type PromptDiagnostics } from "@/lib/prompt-to-arch";
 import { parseArchitectureDocument } from "@/lib/architecture-document";
 import { parseDiagramPayload } from "@/lib/diagram-payload";
+import { correctDeploymentService } from "@/lib/deployment-eligibility";
 import { architectureMetadataSchema, architectureEdgeSemanticsSchema, legacyNodeSemantics, parseConnectionHandle } from "@/lib/architecture-model";
 import { parentFirst } from "@/lib/architecture-hierarchy";
 import { generatedArchitectureSchema } from "@/lib/ai-mode-prompts";
@@ -1293,6 +1294,15 @@ export function Workspace({
         open={deployModalOpen}
         payload={archPayload}
         onClose={() => setDeployModalOpen(false)}
+        onCorrectService={(nodeId, iconId) => {
+          const handle = canvasRef.current;
+          if (!handle) throw new Error("The architecture canvas is not ready.");
+          const corrected = correctDeploymentService(handle.serialize(), nodeId, iconId);
+          handle.hydrate(corrected);
+          setArchPayload(corrected);
+          setSaved(false);
+          setDocumentRevision((revision) => revision + 1);
+        }}
       />
       <WhiteboardConvertModal
         open={convertOpen && mode === "whiteboard"}

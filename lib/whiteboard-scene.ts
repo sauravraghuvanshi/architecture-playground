@@ -246,9 +246,11 @@ function element(input: unknown, index: number): RecordValue {
         if (item.type === "line") fail("invalid_element", [...path, key], "only arrows support endpoint bindings.");
         const binding = record(item[key], [...path, key], "invalid_element");
         id(binding.elementId, [...path, key, "elementId"], "invalid_element");
-        number(binding.focus, [...path, key, "focus"], "invalid_element", -1, 1);
+        // Native focus and fixedPoint are ratios, not clamped percentages:
+        // outline gaps and small/rotated targets can put them outside [-1, 1]/[0, 1].
+        number(binding.focus, [...path, key, "focus"], "invalid_element", -Infinity, Infinity);
         number(binding.gap, [...path, key, "gap"], "invalid_element", 0);
-        if (own(binding, "fixedPoint")) point(binding.fixedPoint, [...path, key, "fixedPoint"], 0, 1);
+        if (own(binding, "fixedPoint") && binding.fixedPoint !== null) point(binding.fixedPoint, [...path, key, "fixedPoint"], -Infinity, Infinity);
         else if (item.elbowed) fail("invalid_element", [...path, key, "fixedPoint"], "elbow bindings require fixedPoint.");
       }
       for (const key of ["startIsSpecial", "endIsSpecial"]) if (own(item, key) && item[key] !== null) bool(item[key], [...path, key], "invalid_element");

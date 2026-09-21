@@ -5,6 +5,7 @@ import { buildPromptArchitecture, promptToArchitecture } from "../lib/prompt-to-
 import { resolveIconId, resolveGraphIcons } from "../components/playground/lib/resolve-icons.ts";
 import { generateArchitectureCode, generateArmTemplate } from "../components/diagrammatic/csa/architecture-codegen.ts";
 import { emitIac } from "../components/playground/lib/export-iac.ts";
+import { correctDeploymentService, inspectDeploymentEligibility, deploymentEligibilityMessage } from "../lib/deployment-eligibility.ts";
 
 const icons = [...SERVICE_CATALOG];
 const byId = new Map(icons.map((icon) => [icon.id, icon]));
@@ -159,4 +160,38 @@ test("identity resolution never uses renamed labels for a known ID or invents un
   assert.equal(searchServiceIcons(icons, "App Service")[0].id, appId);
   assert.equal(searchServiceIcons(icons, "Azure App Service")[0].id, appId);
   assert.deepEqual(searchServiceIcons(icons, "Azure App Service", "aws"), []);
+});
+
+test("the palette's App Service API Management service illustration retains APIM deployment identity", () => {
+  const id = "azure/application/app-service-api-management";
+  assert.ok(byId.has(id));
+  assert.equal(azureResourceKind(id), "apim");
+  assert.equal(azureResourceKind(id, "aws"), undefined);
+  const generated = generateArmTemplate(payload(id, "APP Service API Management"));
+  assert.equal(generated.supportedNodes, 1);
+  assert.ok(generated.template.resources.some((resource) => resource.type === "Microsoft.ApiManagement/service"));
+  assert.equal(azureResourceKind("azure/application/app-service-management"), undefined, "A management operation must require explicit service correction, not infer identity from its label");
+});
+
+test("management symbols require explicit service correction which preserves the user's diagram", () => {
+  const graph = { nodes: [
+    { id: "client", kind: "shape", shape: "person", label: "Client", x: 0, y: 0 },
+    { id: "apim", kind: "icon", iconId: "azure/application/app-service-api-management", iconPath: "", label: "APP Service API Management", x: 200, y: 0 },
+    { id: "app", kind: "icon", iconId: "azure/application/app-service-management", iconPath: "", label: "APP Service", x: 400, y: 0 },
+  ], edges: [{ id: "edge", source: "apim", target: "app", label: "HTTPS" }] };
+  const before = structuredClone(graph);
+  const readiness = inspectDeploymentEligibility(graph);
+  assert.equal(readiness.find((row) => row.nodeId === "apim").kind, "apim");
+  assert.equal(readiness.find((row) => row.nodeId === "app").suggested.iconId, appId);
+  const fixed = correctDeploymentService(graph, "app", appId);
+  assert.deepEqual(graph, before);
+  assert.equal(fixed.nodes[2].iconId, appId);
+  assert.equal(fixed.nodes[2].label, "APP Service");
+  assert.equal(fixed.nodes[2].x, 400);
+  assert.equal(fixed.edges[0].source, "apim");
+  assert.equal(fixed.edges[0].target, "app");
+  assert.equal(generateArmTemplate(fixed).supportedNodes, 2);
+  assert.throws(() => correctDeploymentService(graph, "client", appId), /not available/);
+  assert.throws(() => correctDeploymentService(graph, "app", "aws/compute/ec2"), /not available/);
+  assert.match(deploymentEligibilityMessage({ nodes: [graph.nodes[2]], edges: [] }), /APP Service Management.*Confirm Azure App Service/);
 });

@@ -98,7 +98,7 @@ test("complete native Excalidraw 0.18.1 fields preserve geometry, metadata, and 
   assert.deepEqual(whiteboardSceneSchema.parse(input), result);
 });
 
-test("elbow arrow fixed points and fixed segments match native declarations", () => {
+test("elbow bindings require finite fixed points and valid fixed segments", () => {
   const input = scene(shape("box"), shape("elbow", "arrow", {
     elbowed: true, points: [[0, 0], [50, 0], [50, 80]],
     startBinding: { elementId: "box", focus: 0, gap: 2, fixedPoint: [1, 0.5] },
@@ -108,10 +108,181 @@ test("elbow arrow fixed points and fixed segments match native declarations", ()
   assert.deepEqual(parseWhiteboardScene(input).elements[1].fixedSegments, input.elements[1].fixedSegments);
   for (const mutation of [
     (element) => { delete element.startBinding.fixedPoint; },
-    (element) => { element.startBinding.fixedPoint = [2, 0]; },
+    (element) => { element.startBinding.fixedPoint = null; },
+    (element) => { element.startBinding.fixedPoint = [Infinity, 0]; },
     (element) => { element.fixedSegments[0].index = 999; },
     (element) => { element.fixedSegments[0].start = [NaN, 2]; },
   ]) { const bad = structuredClone(input); mutation(bad.elements[1]); rejects(bad); }
+});
+
+function nativeBindingEngine() {
+  const manifest = JSON.parse(readFileSync(new URL("../node_modules/@excalidraw/excalidraw/package.json", import.meta.url), "utf8"));
+  assert.equal(manifest.version, "0.18.1", "Recheck executable binding fixtures when Excalidraw is upgraded");
+  const source = readFileSync(new URL("../node_modules/@excalidraw/excalidraw/dist/dev/chunk-4FTI6OG3.js", import.meta.url), "utf8");
+  const names = [
+    "DEFAULT_ELEMENT_PROPS", "_newElementBase", "newElement", "newArrowElement",
+    "ROUNDNESS", "DEFAULT_PROPORTIONAL_RADIUS", "DEFAULT_ADAPTIVE_RADIUS",
+    "FIXED_BINDING_DISTANCE", "BINDING_HIGHLIGHT_THICKNESS", "BINDING_HIGHLIGHT_OFFSET",
+    "HEADING_RIGHT", "HEADING_DOWN", "HEADING_LEFT", "HEADING_UP", "vectorToHeading", "compareHeading",
+    "isArrowElement", "isElbowArrow", "isFixedPointBinding", "isRectanguloidElement",
+    "arrayToMap", "getCornerRadius", "deconstructRectanguloidElement",
+    "intersectElementWithLineSegment", "intersectRectanguloidWithLineSegment",
+    "aabbForElement", "getCenterForBounds", "avoidRectangularCorner", "headingToMidBindPoint",
+    "bindPointToSnapToElementOutline", "calculateFixedPointForElbowArrowBinding", "normalizeFixedPoint",
+    "getGlobalFixedPointForBindableElement", "getGlobalFixedPoints", "bindLinearElement", "repairBinding",
+    "determineFocusDistance", "distanceToBindableElement", "distanceToRectanguloidElement",
+    "maxBindingGap", "normalizePointBinding",
+  ];
+  const declarations = names.map((name) => {
+    const start = [`var ${name} =`, `function ${name}(`].map((prefix) => source.indexOf(prefix)).find((offset) => offset >= 0);
+    assert.notEqual(start, undefined, `Missing installed native declaration ${name}`);
+    const next = /\n(?:var |function |class |import |export )/g;
+    next.lastIndex = start + 1;
+    const end = next.exec(source)?.index;
+    assert.ok(end > start, `Missing declaration boundary for ${name}`);
+    return source.slice(start, end);
+  });
+  const mathStart = source.indexOf("// ../math/utils.ts");
+  const mathEnd = source.indexOf("// utils.ts", mathStart);
+  assert.ok(mathStart >= 0 && mathEnd > mathStart);
+  let nextId = 0;
+  // All geometry, binding calculation, and binding repair execute installed
+  // implementations. Only factory entropy/palette and scene mutation notifications
+  // are replaced; no coordinate calculation or normalization is mocked.
+  return vm.runInNewContext(`${source.slice(mathStart, mathEnd)}\n${declarations.join("\n")}\n({${names.join(",")}, pointRotateRads})`, {
+    COLOR_PALETTE: { black: "#1b1b1f", transparent: "transparent" },
+    ROUGHNESS: { artist: 1 },
+    randomId: () => `binding-native-${++nextId}`,
+    randomInteger: () => 123456,
+    getUpdatedTimestamp: () => 1720000000000,
+    mutateElement: (element, updates) => Object.assign(element, updates),
+  });
+}
+
+test("installed elbow binding calculations preserve outside-outline ratios at both endpoints", () => {
+  const engine = nativeBindingEngine();
+  for (const [width, height, angle] of [[200, 100, 0], [200, 100, Math.PI / 6], [1_000_000, 1_000_000, 0], [0.000001, 100, 0]]) {
+    const center = [0, 0];
+    const offsets = [[-width / 2 - 5, 0], [width / 2 + 5, 0], [0, -height / 2 - 5], [0, height / 2 + 5]];
+    for (const [side, location] of offsets.entries()) {
+      const box = engine.newElement({ type: "rectangle", x: -width / 2, y: -height / 2, width, height, angle });
+      const [x, y] = engine.pointRotateRads(location, center, angle);
+      const elbow = engine.newArrowElement({ type: "arrow", elbowed: true, x, y, width: 20, height: 0, points: [[0, 0], [20, 0]] });
+      const elementsMap = new Map([[box.id, box], [elbow.id, elbow]]);
+      engine.bindLinearElement(elbow, box, "start", elementsMap);
+      const ratio = elbow.startBinding.fixedPoint[side < 2 ? 0 : 1];
+      assert.ok(side % 2 === 0 ? ratio < 0 : ratio > 1, `Native side ${side} ratio ${ratio} must cross the old boundary`);
+      if (width === 1_000_000) assert.ok(Math.abs(ratio - (side % 2)) < 0.00001, "Native ratios can be just outside 0/1");
+      if (width === 0.000001 && side < 2) assert.ok(Math.abs(ratio) > limits.coordinate, "Ratios are not scene-space coordinates");
+      // Move the other endpoint onto the same actual native outline location.
+      elbow.x -= 20;
+      engine.bindLinearElement(elbow, box, "end", elementsMap);
+      const input = scene(box, elbow);
+      const before = JSON.parse(JSON.stringify(input));
+      const result = parseWhiteboardScene(input);
+      for (const key of ["startBinding", "endBinding"]) assert.deepEqual(result.elements[1][key], before.elements[1][key]);
+      assert.deepEqual(JSON.parse(JSON.stringify(input)), before, "Validation cannot mutate native geometry");
+      assert.deepEqual(parseWhiteboardScene(JSON.parse(JSON.stringify(result))), result);
+    }
+  }
+});
+
+test("real native two-ended elbow bindings roundtrip without moving or losing attachments", () => {
+  const engine = nativeBindingEngine();
+  const left = engine.newElement({ type: "rectangle", x: 40, y: 60, width: 200, height: 100 });
+  const right = engine.newElement({ type: "rectangle", x: 500, y: 200, width: 200, height: 100 });
+  const elbow = engine.newArrowElement({
+    type: "arrow", elbowed: true, x: 245, y: 110, width: 250, height: 140,
+    points: [[0, 0], [125, 0], [125, 140], [250, 140]],
+    fixedSegments: [{ index: 2, start: [125, 0], end: [125, 140] }],
+    endArrowhead: "arrow",
+  });
+  const elementsMap = new Map([left, right, elbow].map((item) => [item.id, item]));
+  engine.bindLinearElement(elbow, left, "start", elementsMap);
+  engine.bindLinearElement(elbow, right, "end", elementsMap);
+  assert.deepEqual(Array.from(elbow.startBinding.fixedPoint), [1.025, 0.5001]);
+  assert.deepEqual(Array.from(elbow.endBinding.fixedPoint), [-0.025, 0.5001]);
+  const nativePoints = JSON.parse(JSON.stringify(engine.getGlobalFixedPoints(elbow, elementsMap)));
+  const input = scene(left, right, elbow);
+  const saved = parseWhiteboardScene(input);
+  const reopened = parseWhiteboardScene(JSON.parse(JSON.stringify(saved)));
+  const restoredArrow = reopened.elements[2];
+  for (const key of ["startBinding", "endBinding"]) {
+    const repaired = engine.repairBinding(restoredArrow, restoredArrow[key]);
+    assert.deepEqual(JSON.parse(JSON.stringify(repaired)), restoredArrow[key], "Native restoration must retain the complete binding");
+  }
+  const reopenedMap = new Map(reopened.elements.map((item) => [item.id, item]));
+  assert.deepEqual(JSON.parse(JSON.stringify(engine.getGlobalFixedPoints(restoredArrow, reopenedMap))), nativePoints);
+  for (const key of ["x", "y", "width", "height", "points", "fixedSegments", "startBinding", "endBinding"]) {
+    assert.deepEqual(restoredArrow[key], JSON.parse(JSON.stringify(elbow[key])), key);
+  }
+  assert.deepEqual(reopened, saved);
+});
+
+test("native focus ratios and non-elbow optional/null fixedPoint survive capture and repair", () => {
+  const engine = nativeBindingEngine();
+  const box = engine.newElement({ type: "rectangle", x: 0, y: 0, width: 100, height: 100 });
+  for (const y of [-5, 105]) {
+    const focus = engine.determineFocusDistance(box, [200, y], [105, y]);
+    assert.ok(Math.abs(focus) > 1, `Native focus ${focus} is not confined to [-1,1]`);
+    const gap = engine.distanceToBindableElement(box, [105, y]);
+    const binding = { elementId: box.id, ...engine.normalizePointBinding({ focus, gap }, box) };
+    for (const extra of [{}, { fixedPoint: null }, { fixedPoint: [1.025, -0.025] }]) {
+      const arrow = engine.newArrowElement({ type: "arrow", x: 105, y, width: 95, height: 0, points: [[0, 0], [95, 0]] });
+      arrow.startBinding = { ...binding, ...extra };
+      arrow.endBinding = { ...binding, ...extra };
+      const input = scene(box, arrow);
+      const saved = parseWhiteboardScene(input);
+      for (const key of ["startBinding", "endBinding"]) {
+        assert.deepEqual(saved.elements[1][key], arrow[key]);
+        assert.deepEqual(JSON.parse(JSON.stringify(engine.repairBinding(arrow, arrow[key]))), arrow[key]);
+      }
+      assert.deepEqual(parseWhiteboardScene(JSON.parse(JSON.stringify(saved))), saved);
+    }
+  }
+});
+
+test("binding compatibility retains finite/shape/null/reference guards", () => {
+  for (const elbowed of [false, true]) for (const key of ["startBinding", "endBinding"]) {
+    const input = scene(shape("box"), shape("arrow", "arrow", {
+      elbowed, points: [[0, 0], [30, 0]], [key]: { elementId: "box", focus: 0, gap: 0, fixedPoint: [-0.025, 1.025] },
+    }));
+    assert.doesNotThrow(() => parseWhiteboardScene(input));
+    const unbound = structuredClone(input);
+    unbound.elements[1][key] = null;
+    assert.equal(parseWhiteboardScene(unbound).elements[1][key], null);
+    for (const badPoint of [[], [0], [0, 1, 2], "0,1", {}, [null, 0], [0, "1"], [NaN, 0], [0, Infinity], [-Infinity, 0]]) {
+      const bad = structuredClone(input);
+      bad.elements[1][key].fixedPoint = badPoint;
+      rejects(bad);
+    }
+    for (const field of ["focus", "gap"]) for (const value of [null, "0", {}, NaN, Infinity, -Infinity]) {
+      const bad = structuredClone(input);
+      bad.elements[1][key][field] = value;
+      rejects(bad);
+    }
+    for (const field of ["focus", "gap", "elementId"]) {
+      const bad = structuredClone(input);
+      delete bad.elements[1][key][field];
+      rejects(bad);
+    }
+    const negativeGap = structuredClone(input);
+    negativeGap.elements[1][key].gap = -0.001;
+    rejects(negativeGap);
+    for (const invalidBinding of [[], 1, "box"]) {
+      const bad = structuredClone(input);
+      bad.elements[1][key] = invalidBinding;
+      rejects(bad);
+    }
+    if (elbowed) {
+      for (const value of [null, undefined]) {
+        const bad = structuredClone(input);
+        if (value === undefined) delete bad.elements[1][key].fixedPoint;
+        else bad.elements[1][key].fixedPoint = value;
+        rejects(bad, "invalid_element");
+      }
+    }
+  }
 });
 
 test("formerly accepted corrupt elements and explicit malformed defaults are rejected", () => {

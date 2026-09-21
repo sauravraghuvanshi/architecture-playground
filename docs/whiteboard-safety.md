@@ -33,6 +33,14 @@ fields, references/bindings, app-state structure and embedded binary records.
 It preserves legitimate metadata and known historical runtime-state artifacts;
 it does not invent missing relationships or silently discard broken elements.
 
+Native arrow binding coordinates are ratios, not clamped percentages. Excalidraw
+can legitimately emit fixed points such as `[1.025, 0.5001]` and
+`[-0.025, 0.5001]`, and signed focus values outside `[-1, 1]`, to bind arrows
+just outside their target's outline. These finite values are preserved exactly.
+Missing mandatory elbow points, malformed tuples, nonfinite values, negative
+gaps, invalid references and scene-budget violations are still rejected.
+Clamping these values would change the user's geometry and is not a repair.
+
 Native PNG/JPEG/WebP/GIF/BMP/ICO/AVIF/JFIF and static SVG files remain supported.
 Known image octet-stream records and native PNG encoder fallback labels receive
 explicit MIME-only migration; the image bytes are unchanged. SVGs support static

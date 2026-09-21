@@ -29,6 +29,23 @@ one model correction inside the same deadline. Remaining failures do not expose
 an accepted draft. Unsupported/indeterminate checks produce a clearly labelled
 review-only draft, not an invented pass.
 
+## Service readiness before generation
+
+The canvas's **Clean / No issues detected** result checks diagram structure,
+not Azure provisioning coverage. **Code & deploy** lists that coverage before
+requesting generation, and the palette distinguishes mapped services from
+diagram-only symbols.
+
+The catalog's `APP Service API Management` illustration maps to API Management
+alongside the primary API Management service icon. The distinct
+`APP Service Management` operation symbol is not silently converted to an app
+because it was renamed. If it represents an application, **Use Azure App Service
+for ...** explicitly corrects that node to the primary service identity. This
+preserves its name, position, connections and metadata and is undoable and saved.
+The generated Bicep/ARM/Terraform then uses the existing audited App Service
+mapping and validation. Unsupported products and generic client annotations
+still do not become arbitrary deployable resources.
+
 ## Important limits
 
 - Bicep parsing is not full symbol binding, type checking or compilation.

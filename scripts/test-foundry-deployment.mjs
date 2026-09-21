@@ -15,6 +15,7 @@ import * as privacy from "../lib/foundry-contract.ts";
 import * as aiPrivacyContract from "../lib/ai-privacy-contract.ts";
 import * as engineeringContract from "../lib/engineering-validation-contract.ts";
 import * as engineeringCoverage from "../lib/engineering-coverage.ts";
+import * as deploymentEligibility from "../lib/deployment-eligibility.ts";
 import { ArtifactParserError } from "../lib/artifact-parser.ts";
 
 function validationFixture(canPublish = true) {
@@ -333,7 +334,10 @@ test("deployment generation corrects the observed missing-plan mapping without c
   });
   assert.equal(result.resourceMappings.length, 2);
   assert.equal(calls.length, 2);
-  assert.deepEqual(JSON.parse(calls[0].input), { format: "bicep", context: "User chooses region.", diagram: payload });
+  assert.deepEqual(JSON.parse(calls[0].input), {
+    format: "bicep", context: "User chooses region.", diagram: payload,
+    serviceReadiness: [{ nodeId: "app", iconId: payload.nodes[0].iconId, resourceKind: "app-service", status: "supported" }],
+  });
   assert.equal(calls[1].input[0].content, calls[0].input);
   assert.equal(calls[1].input[1].role, "assistant");
   assert.match(calls[1].input[2].content, /resourceMappings/);
@@ -383,7 +387,7 @@ test("deployment validation reports safe ARM paths while retaining security reje
 test("deployment correction shares one deadline and bounds previous output", async () => {
   const timeout = new AbortController();
   const deadlines = [];
-  const helper = load("lib/deployment-assistance.ts", { zod: { z } }, {
+  const helper = load("lib/deployment-assistance.ts", { zod: { z }, "./deployment-eligibility.ts": deploymentEligibility }, {
     AbortSignal: {
       timeout: (ms) => { deadlines.push(ms); return timeout.signal; },
       any: (signals) => AbortSignal.any(signals),
@@ -450,6 +454,7 @@ function deployRoute({ configured = true, output = JSON.stringify(draft()), outp
     "@/lib/request-json": bounded, "@/lib/architecture-document": document,
     "@/lib/deployment-assistance": deployment,
     "@/lib/engineering-coverage": engineeringCoverage,
+    "@/lib/deployment-eligibility": deploymentEligibility,
     "@/lib/engineering-validation": { preflightEngineeringParser: async () => { if (parserFailure) throw parserFailure; }, validateEngineeringArtifact: async () => validationFixture() },
     "@/lib/artifact-parser": { ArtifactParserError },
     "@/lib/foundry-agent": {
@@ -486,6 +491,29 @@ test("deployment route validates requests, forwards evidence/cancellation and ne
   const limited = await deployRoute({ rate: { ok: false, retryAfterSec: 30 } }).POST(request({ payload }));
   assert.equal(limited.status, 429);
   assert.equal(limited.headers.get("Retry-After"), "30");
+});
+
+test("screenshot API Management palette selection reaches generation, while a management symbol explains its correction", async () => {
+  const diagram = { nodes: [
+    { id: "apim", kind: "icon", iconId: "azure/application/app-service-api-management", iconPath: "", label: "APP Service API Management", x: 200, y: 20 },
+  ], edges: [] };
+  const artifact = codegen.generateArmTemplate(diagram).template;
+  const route = deployRoute({ output: JSON.stringify({
+    format: "bicep", code: codegen.generateArchitectureCode(diagram, "bicep").output,
+    armTemplate: artifact, assumptions: ["Fixture, not a live model."], warnings: [],
+    resourceMappings: artifact.resources.map((resource) => ({ nodeId: "apim", resourceType: resource.type, resourceName: resource.name })),
+  }) });
+  assert.equal((await route.POST(request({ payload: diagram }))).status, 200);
+  assert.equal(route.calls.length, 1);
+  assert.deepEqual(JSON.parse(route.calls[0][2]).serviceReadiness, [{
+    nodeId: "apim", iconId: "azure/application/app-service-api-management", resourceKind: "apim", status: "supported",
+  }]);
+  const management = { nodes: [{ ...diagram.nodes[0], iconId: "azure/application/app-service-management", label: "APP Service" }], edges: [] };
+  const blocked = deployRoute();
+  const response = await blocked.POST(request({ payload: management }));
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /APP Service Management.*Confirm Azure App Service/);
+  assert.equal(blocked.calls.length, 0);
 });
 
 test("deployment route rejects malformed/unmapped model output without publishing or leaking it", async () => {
@@ -677,6 +705,7 @@ function modalHarness({ generationStatus = 200 } = {}) {
   };
   const jsx = (type, props) => ({ type, props });
   const loaded = load("components/diagrammatic/csa/AzureDeployModal.tsx", {
+    "@/lib/deployment-eligibility": deploymentEligibility,
     "../shared/AiPrivacyNotice": { AiPrivacyNotice: () => null },
     "../shared/useDialogFocus": { useDialogFocus: () => ({ current: null }) },
     "react-dom": { createPortal: (children) => children },

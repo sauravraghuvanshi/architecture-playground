@@ -114,6 +114,17 @@ test("actual Bicep parser plus static checks accept a self-contained matching Ap
   assert.equal((await validateEngineeringArtifact({ ...artifact, warnings: ["different non-executable notes"] }, evidence)).artifactHash, report.artifactHash);
 });
 
+test("screenshot APIM service illustration passes actual parser and canonical resource correspondence", async () => {
+  const { evidence, template, mappings } = sample("azure/application/app-service-api-management");
+  const report = await validateEngineeringArtifact({
+    format: "bicep", code: generateArchitectureCode(evidence, "bicep").output,
+    armTemplate: template, resourceMappings: mappings,
+  }, evidence);
+  assert.equal(report.status, "passed-static-checks", JSON.stringify(report.checks));
+  assert.equal(report.coverage[0].status, "mapped");
+  assert.equal(report.canPublish, true);
+});
+
 test("invalid syntax, parameter-only code and a changed critical setting fail real acceptance", async () => {
   const { evidence, template, mappings } = sample();
   const good = generateArchitectureCode(evidence, "bicep").output;
