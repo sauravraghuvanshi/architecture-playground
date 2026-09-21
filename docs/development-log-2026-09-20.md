@@ -1,8 +1,8 @@
 # Development log - 2026-09-19/20/21
 
-**Latest close-out:** task 8 is deployed and hosted-verified; execution stopped
-as requested. Read the [September 21 session summary](session-summary-2026-09-21.md)
-for the final state, today's deliveries, lessons and tomorrow's backlog. Older
+**Resumed September 21:** the user requested the remaining tasks; priority 9 is
+now deployed and hosted-verified. The [early September 21 session summary](session-summary-2026-09-21.md)
+records the earlier stop after task 8, not the current execution boundary. Older
 close-out tables below are historical checkpoints, not the current release.
 
 Reporting timezone: Asia/Kolkata. This session started on September 19 and
@@ -523,3 +523,23 @@ Implemented and locally verified; deployment and hosted acceptance pending:
 - Markdown now records deliveries, learning and the full pending roadmap.
   **Completed: 1-8 and 11. Next requested session: 9. No new priority started.**
 - Deferred competitor work and local Git-excluded HTML audits remain unchanged.
+
+## September 21 resumed work - priority 9 completed
+
+- Released `b50a40fb3e3b75dc272b25b340e4b4580c9828f8`;
+  [deployment 35564152616](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35564152616)
+  passed in 5m14s including Linux dependency restore and hosted smoke.
+- New reviews require complete remediation, unique finding IDs, exact evidence
+  references and matching framework URLs. Historical reads do not invent fields.
+- Complete legacy evidence is retained within an explicit byte budget; oversized
+  evidence/output and invalid UTF-8 fail explicitly. Explanation intake is bounded.
+  Incomplete/refused chat responses cannot pass as complete JSON.
+- Shared client container/header checks and full server decoding reject invalid
+  PNG/JPEG/WebP, spoofing, truncation, animation, excessive bytes/dimensions/pixels.
+  Sharp 0.34.5 is now explicitly required rather than optionally transitive.
+- npm lock-only was blocked locally by an unrelated optional Tailwind mirror
+  package. A surgical existing-lock update preserved all versions/integrities;
+  clean Linux CI installation subsequently passed.
+- Verification: **279/279 contracts**, lint/types/build, **37/37 local and 37/37
+  hosted browser cases**. No real model inference or customer infrastructure.
+- Temporary auth removed, local server stopped. Next ordered priority: **10**.

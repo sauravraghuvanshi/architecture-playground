@@ -2,8 +2,8 @@
 
 Last updated: 2026-09-21, Asia/Kolkata (September 20 session close-out).
 
-**Priorities 1-8 and 11 are deployed and verified within their stated scopes.
-Work resumed on September 21 at the user's request, starting with priority 9.
+**Priorities 1-9 and 11 are deployed and verified within their stated scopes.
+Work resumed on September 21 at the user's request. Priority 10 is next.
 Competitor-inspired additions remain after the numbered backlog.**
 
 ## User-selected interruption - 20 September 2026
@@ -28,7 +28,7 @@ They are not the 47 finding IDs in the original local HTML audit.
 - [Session summary and test evidence](development-log-2026-09-20.md)
 - [Deployment history and current release](../.azure/deployment-plan.md)
 - Live app: https://architecture-playground.azurewebsites.net
-- Current deployed application: `86cde202b25da1c2c69a78ca7ffdc5ccdc73de44`
+- Current deployed application: `b50a40fb3e3b75dc272b25b340e4b4580c9828f8`
 - [Today's summary, lessons and next-session handoff](session-summary-2026-09-21.md)
 - Original audit: local `Audit Report/index.html`, intentionally Git-excluded.
   Do not add the HTML report or test authentication files to a commit.
@@ -65,9 +65,10 @@ They are not the 47 finding IDs in the original local HTML audit.
 | 6 | Reliable offline infrastructure drafts | **Deployed - `c271483`.** Shared native/legacy generation, collision-safe bounded names, explicit common namespace/existing group, valid Terraform, keyless Function host prerequisites, workspace/subnet dependencies and matching CLI Bicep companion. Verified with real compilers, executable mocks and hosted downloads; customer deployability remains unproven. |
 | 7 | Shared typed and versioned architecture model | **Deployed - `bd09594`.** Shared schemas/types, explicit safe migration, declared configuration/environments/relationships, requirement/evidence provenance and original intent across editing/history/persistence/conversion/AI. Inspector context, future-version overwrite protection and explicit offline-code limitations. Full context definition authoring remains JSON-based. |
 | 8 | Independently validated AI engineering handoff | **Deployed - `9c9e498`, rollout gate `86cde20`.** Official Bicep/HCL parser-only checks, controlled Bash syntax checks, canonical coverage, selected prerequisites/correspondence, visible unverified states and validation-report download. Complete artifact/evidence sets are revalidated before publication. PowerShell and unsupported/dynamic cases remain review-only; no generated infrastructure is executed. |
+| 9 | Strict AI evidence and response contracts | **Deployed - `b50a40f`.** Complete new-review remediation, unique findings/references, matching guidance sources, exact evidence references, no legacy evidence truncation, bounded UTF-8 intake, actual PNG/JPEG/WebP full decoding before providers and rejection of incomplete/refused chat completions. Historical reads remain explicit. |
 | 11 | Correct Whiteboard colors and image proportions | **Deployed - `94e1abc`.** Literal-color rendering/export, canvas-aware image context, decoded aspect ratios, adaptive owned neutral foregrounds and legacy bundled-icon readability, verified with displayed/exported pixels. Custom and ambiguous legacy white text remains user-controlled. |
 
-These releases are cumulative. Current production includes all nine numbered
+These releases are cumulative. Current production includes all ten numbered
 items plus the explicitly requested nested-boundary and conversion improvements.
 
 ## Remaining implementation priorities
@@ -78,8 +79,7 @@ Descriptions are acceptance guidance, not claims of deployed functionality.
 
 | Priority Number | Feature / Fix to Implement | Description |
 | ---: | --- | --- |
-| **9 - next session** | **Strict AI evidence and response contracts** | Reproduce remaining current gaps; require complete findings, unique IDs, valid evidence references and remediation. Consistently reject invalid images and oversized inputs before provider invocation. Preserve the stricter versioned evidence and artifact checks already shipped. |
-| 10 | Explicit AI destination and privacy controls | Remove implicit public-demo proxying in development. Require deliberate destinations, disclose prompt/image egress, and provide clear history deletion and retention controls. |
+| **10 - next** | **Explicit AI destination and privacy controls** | Remove implicit public-demo proxying in development. Require deliberate destinations, disclose prompt/image egress, and provide clear history deletion and retention controls. |
 | 12 | Safe Whiteboard conversion and restoration | Define cancellable analysis versus committed application; prevent late application after dismissal. Validate scene elements, geometry, bindings and binaries, and clarify new-document versus replacement behavior. Priority 3 protects the shared restore boundary but does not complete these Whiteboard-specific contracts. |
 | 13 | Reliable AI loading, streaming and cancellation | Show disabled/checking state until readiness is known. Fix SSE framing and pending-read cancellation, support one insertable image-result contract, and distinguish timeout, throttle, refusal and truncated output. |
 | 14 | Responsive and keyboard-accessible editing | Provide smaller-screen Inspector and Whiteboard asset drawers. Make menus keyboard-operable and all dialogs manage initial focus, focus trapping, Escape and focus restoration. |
@@ -145,14 +145,15 @@ hosted cases across the main run and unchanged retests. Broader local timing
 failures are disclosed in the deployment plan. No real What-If or customer
 resource creation was performed.
 
-## Current task: priority 9
+## Next task: priority 10
 
-Task 8 is complete. The user resumed the backlog on September 21. Priority 9 is
-in progress; competitor work remains deferred.
+Priority 9 is deployed and verified. Continue with priority 10 under the user's
+September 21 authorization; competitor work remains deferred.
 
-- Starting points: [review contracts](../lib/architecture-review.ts),
-  review/image/generation/conversion request boundaries and their production-imported
-  tests. Inspect current code before assuming every original audit gap persists.
+- Starting points: AI proxy/configuration helpers, request routing and status,
+  every AI invocation surface, persisted prompt/review history and privacy notices.
+  Remove implicit destinations without changing configured production model
+  endpoints. Distinguish local history deletion from provider retention.
 - Preserve the [shared model](architecture-model.md) and the
   [engineering-validation boundary](engineering-validation.md). Tighten remaining
   evidence/response contracts without running model-authored code or silently
@@ -180,6 +181,7 @@ in progress; competitor work remains deferred.
 | Priority 6 IaC correctness | [test-iac-codegen.mjs](../scripts/test-iac-codegen.mjs), [compiler validation](../scripts/validate-iac.mjs), [CLI safety](../scripts/test-azure-cli-draft.mjs), [deployment-assistance.spec.ts](../e2e/deployment-assistance.spec.ts) |
 | Priority 7 model/migrations | [test-architecture-model.mjs](../scripts/test-architecture-model.mjs), [architecture-model.spec.ts](../e2e/architecture-model.spec.ts), [model contract](architecture-model.md), shared canvas/document and legacy graph tests |
 | Priority 8 artifact validation | [test-artifact-parser.mjs](../scripts/test-artifact-parser.mjs), [test-engineering-validation.mjs](../scripts/test-engineering-validation.mjs), [engineering-validation.spec.ts](../e2e/engineering-validation.spec.ts), [contract](engineering-validation.md) |
+| Priority 9 evidence and response contracts | [test-review-contracts.mjs](../scripts/test-review-contracts.mjs), [test-review-image.mjs](../scripts/test-review-image.mjs), [review-contracts.spec.ts](../e2e/review-contracts.spec.ts), [contract](ai-evidence-contracts.md) |
 | Async rollout completion | [deploy-zip.mjs](../scripts/deploy-zip.mjs), [test-deploy-zip.mjs](../scripts/test-deploy-zip.mjs), hosted validation smoke |
 
 ## Next-session operational reminders

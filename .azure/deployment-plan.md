@@ -1,6 +1,6 @@
 # Azure Deployment Plan
 
-> **Status:** Validated
+> **Status:** Deployed and Verified
 
 Generated: 2026-08-12
 Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
@@ -19,8 +19,8 @@ Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
   boundaries with deterministic fixtures; validate/build/deploy and verify hosted.
 - **Recipe:** Existing application-only GitHub Actions/App Service pipeline.
   No new Azure resources, roles, model changes or generated customer IaC execution.
-- **State:** Implemented and locally verified; release validation and hosted
-  acceptance are next. No priority 10 implementation yet.
+- **State:** Deployed and verified as `b50a40fb3e3b75dc272b25b340e4b4580c9828f8`.
+  Priority 10 follows after this release close-out.
 
 ### Priority 9 reproduced gaps and implementation
 
@@ -82,6 +82,20 @@ Hosted verification is not implied by local results. No live inference,
 customer infrastructure execution, Azure resource creation or permissions change.
 Remote master/HEAD verified as `970aba575e933f5cd72c4751d71dd0e9617eb7cd`;
 the rollout recipe and deferred competitor checkpoint are unchanged.
+
+### Priority 9 - Deployment and hosted proof
+
+- [Run 35564152616](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35564152616)
+  succeeded in **5m14s**, including clean Linux `npm ci`, native parser packaging,
+  completed async rollout and authenticated smoke.
+- **37/37 hosted browser cases passed in one run** (53.1 seconds), covering
+  strict new review rendering, complete remediation, image/evidence rejection,
+  conversion, model persistence, artifact validation and publication consent.
+- Final local proof: **279/279 contracts**, lint, strict types, standalone build,
+  and **37/37 production-build browser tests**. No live inference/customer IaC.
+- Owned local server stopped; temporary hosted authentication removed. No new
+  resources, roles, endpoint or model configuration changes.
+- Priority 9 complete; resume the ordered backlog at priority 10.
 
 ## Priority 8 - Validated AI-generated engineering handoff
 
