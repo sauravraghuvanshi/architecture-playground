@@ -570,6 +570,8 @@ function PlaygroundShell({ icons, templates }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target;
+      if (e.defaultPrevented || (target instanceof HTMLElement && (target.closest('[role="dialog"]') ||
+        ((e.key === " " || e.key === "Enter") && target.closest("button, a[href]"))))) return;
       const inField = target instanceof HTMLElement &&
         (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable);
       if (inField) return;

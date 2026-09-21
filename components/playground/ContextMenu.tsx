@@ -4,7 +4,8 @@
  */
 "use client";
 
-import { memo, useCallback, useEffect, useRef } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef } from "react";
+import { moveActionFocus } from "../diagrammatic/shared/ActionDropdown";
 import {
   Copy, Trash2, FolderPlus, Maximize, StickyNote, ClipboardPaste,
 } from "lucide-react";
@@ -33,6 +34,21 @@ function ContextMenuImpl({
   menu, onClose, onDuplicate, onDelete, onGroup, onAddNote, onPaste, onFitView, hasClipboard,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!menu || !ref.current) return;
+    const previous = document.activeElement;
+    const popup = ref.current;
+    popup.inert = false;
+    popup.removeAttribute("aria-hidden");
+    popup.style.left = `${Math.max(8, Math.min(menu.x, window.innerWidth - popup.offsetWidth - 8))}px`;
+    popup.style.top = `${Math.max(8, Math.min(menu.y, window.innerHeight - popup.offsetHeight - 8))}px`;
+    popup.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
+    return () => {
+      popup.inert = true;
+      popup.setAttribute("aria-hidden", "true");
+      if (previous instanceof HTMLElement && previous.isConnected) previous.focus({ preventScroll: true });
+    };
+  }, [menu]);
 
   // Close on outside click
   useEffect(() => {
@@ -47,7 +63,9 @@ function ContextMenuImpl({
   // Close on Escape
   useEffect(() => {
     if (!menu) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onClose(); }
+    };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [menu, onClose]);
@@ -62,11 +80,14 @@ function ContextMenuImpl({
       {menu && (
         <motion.div
           ref={ref}
+          role="group" aria-label="Canvas actions"
+          onKeyDown={(event) => { if (moveActionFocus(ref.current, event.key)) event.preventDefault(); }}
+          onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) onClose(); }}
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
           transition={{ duration: 0.1 }}
-          className="fixed z-50 min-w-[180px] rounded-lg border border-zinc-200 bg-white py-1 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+          className="fixed z-50 max-h-[calc(100dvh-16px)] min-w-[180px] max-w-[calc(100vw-16px)] overflow-y-auto rounded-lg border border-zinc-200 bg-white py-1 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
           style={{ left: menu.x, top: menu.y }}
         >
           {menu.nodeId ? (

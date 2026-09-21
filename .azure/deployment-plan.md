@@ -1,9 +1,73 @@
 # Azure Deployment Plan
 
-> **Status:** Deployed and Verified
+> **Status:** Validated
 
 Generated: 2026-08-12
 Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
+
+## Priority 14 - Responsive and keyboard-accessible editing
+
+- **Baseline:** Verified application `d490193`; documentation `79404b3`.
+- **Authorization:** Continue the remaining numbered priorities sequentially.
+- **Plan:** Reproduce narrow-screen and keyboard failures; preserve the current
+  technical-studio visual language; introduce smaller-screen Inspector/assets
+  drawers and shared dialog/menu focus behavior; exercise keyboard and actual
+  viewport geometry, validate/build/deploy and verify hosted before priority 15.
+- **Recipe:** Existing Next.js application-only App Service pipeline. No model,
+  endpoint, identity, resource or infrastructure change.
+- **State:** Implemented and locally verified; existing-app release follows.
+
+### Priority 14 - Baseline evidence and implementation
+
+- At 390x844, the released architecture canvas measured **86px** wide and
+  Whiteboard **102px** wide because always-visible palettes consumed the screen.
+  Keyboard ArrowDown did not open the boundary disclosure or focus its actions.
+- Parent implementation moves architecture components, Whiteboard assets and
+  Inspector into focus-managed drawers below 1280px. Desktop retains inline
+  panels; comments/versions occupy the context rail instead of stacking every
+  sidebar. Canvas geometry and data remain mounted while drawers open.
+- Shared action disclosures support ArrowUp/Down, Home/End, Escape, outside
+  dismissal and focus return, with viewport-clamped positioning. Native button
+  semantics and Tab navigation remain intact.
+- Workspace mode tabs use roving keyboard focus and manual activation.
+  Workspace shortcuts do not edit the canvas behind a focused dialog.
+- Legacy export/help/command/context surfaces reuse the same focus/navigation
+  foundations. Native dialog focus and narrow-height integration is being
+  implemented independently before the combined browser/build release gate.
+- Parent scoped lint passes. No priority 14 application deployment yet.
+- First integrated production gate: **20/23 passed**, including all 15 shared
+  dialog checks and all four compact canvas/drawer cases. At 390px the architecture
+  canvas now measures **390px wide / 552px high**; drawer and canvas screenshots
+  were inspected. Three follow-ups were identified rather than waived:
+  preserving mode-tab focus after async saving, retaining the library invoker
+  through the inert save lock, and the legacy pane context-menu event guard.
+- Parent has corrected tab completion focus and the native/synthetic context
+  event mismatch, added keyboard context invocation, and captured library openers
+  before saving. The shared hook's explicit return-target integration follows.
+- Follow-ups are resolved: explicit library return targets survive the save
+  lock; tab focus follows the completed mode switch; context menus handle
+  React events and Shift+F10. Enter/Space keeps existing disclosure/Tab behavior,
+  while arrow-key opening focuses the requested action.
+- Final production browser gate: **149/149 passed** in 3.9 minutes. A native
+  Whiteboard null-versus-empty binding-list settling race was compared using
+  equivalent empty bindings; every other element field and binary remains exact.
+
+### Priority 14 - All validation checks pass
+
+- [x] `npm run test:playground`: **340/340 passed** after portal-aware harness
+  updates; no production behavior is replaced by harness assertions.
+- [x] Full lint, strict TypeScript and standalone production build passed.
+- [x] Production browser acceptance: **149/149**; native/compatibility dialogs,
+  keyboard focus, 390x844/844x390 geometry, desktop disclosures, AI cancellation/
+  commits, boundaries, round-trip, image fidelity, recovery and real exports.
+- [x] Visual inspection of the compact studio and asset drawer; architecture
+  canvas is 390px wide rather than 86px in the reproduced portrait viewport.
+- [x] Static roles/policy: existing ZIP-only app target, no resources, RBAC,
+  provider configuration, live-model calls or customer infrastructure changes.
+  Docker/IaC/What-If are not applicable to this release.
+- [x] September 21 proof: `p14-final-contracts`, 340 pass;
+  `p14-disclosure-build`, exit 0; `p14-final-local-browser-verified`, 149 pass.
+- [ ] Exact rollout and hosted acceptance.
 
 ## Priority 13 - Reliable AI readiness, streaming and cancellation
 

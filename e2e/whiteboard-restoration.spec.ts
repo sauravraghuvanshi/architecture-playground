@@ -4,6 +4,14 @@ import { readSavedDiagram } from "./read-saved-diagram";
 
 const rectangle = { id: "retained", type: "rectangle", x: 50, y: 60, width: 200, height: 120 };
 
+function normalizedBindings(elements: unknown[]) {
+  return elements.map((element) => {
+    if (!element || typeof element !== "object") throw new Error("Expected a restored scene element");
+    // Excalidraw may settle its empty binding list after initial image hydration.
+    return "boundElements" in element && element.boundElements === null ? { ...element, boundElements: [] } : element;
+  });
+}
+
 for (const [name, payload] of Object.entries({
   "null element": { elements: [null] },
   "invalid geometry": { elements: [{ ...rectangle, x: "outside" }] },
@@ -73,7 +81,9 @@ test("rejects malformed version restoration without changing the live Whiteboard
   page.once("dialog", (dialog) => dialog.accept());
   await row.getByRole("button", { name: "Restore version", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: /Snapshot could not be restored/ })).toBeVisible();
-  expect(await readCanvasPayload(page, "whiteboard")).toMatchObject({ elements: before.elements, files: before.files });
+  const after = await readCanvasPayload(page, "whiteboard") as typeof before;
+  expect(normalizedBindings(after.elements)).toEqual(normalizedBindings(before.elements));
+  expect(after.files).toEqual(before.files);
 });
 
 test("native geometry and arrow bindings survive persistence and valid snapshot restoration", async ({ page }) => {

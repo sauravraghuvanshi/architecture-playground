@@ -5,11 +5,11 @@
  */
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
-import { Undo2, Redo2, Maximize2, Trash2, Activity, Save, Loader2, Check, LayoutGrid, Play, Square, ChevronDown, Download, FolderOpen, Sparkles, MessageSquare, History, CloudCog, Home, FilePlus2, CloudUpload, Moon, MoveRight, Sun } from "lucide-react";
+import { Undo2, Redo2, Maximize2, Trash2, Activity, Save, Loader2, Check, LayoutGrid, Play, Square, ChevronDown, Download, FolderOpen, Sparkles, MessageSquare, History, CloudCog, Home, FilePlus2, CloudUpload, Moon, MoveRight, Sun, PanelLeft, SlidersHorizontal } from "lucide-react";
 import type { CanvasTheme } from "./types";
 import { ARCHITECTURE_TIERS } from "@/lib/architecture-hierarchy";
+import { ActionDropdown } from "./ActionDropdown";
 
 const EXPORT_FORMATS = [
   { id: "png" as const, label: "PNG · high resolution" },
@@ -28,6 +28,11 @@ interface Props {
   onDelete: () => void;
   onSave?: () => void;
   onOpenLibrary?: () => void;
+  onOpenAssets?: () => void;
+  assetsLabel?: string;
+  assetsOpen?: boolean;
+  onOpenInspector?: () => void;
+  inspectorOpen?: boolean;
   onGoHome?: () => void;
   /** Cycle every edge in the graph through solid → dashed → flow. */
   onCycleEdgeStyle?: () => void;
@@ -85,6 +90,11 @@ export function Toolbar({
   onDelete,
   onSave,
   onOpenLibrary,
+  onOpenAssets,
+  assetsLabel,
+  assetsOpen,
+  onOpenInspector,
+  inspectorOpen,
   onGoHome,
   onCycleEdgeStyle,
   edgeStyle = "solid",
@@ -113,8 +123,6 @@ export function Toolbar({
   saving,
   saved,
 }: Props) {
-  const [tierMenuOpen, setTierMenuOpen] = useState(false);
-  const [exportMenuOpen, setExportMenuOpen] = useState(false);
   return (
     <header className="relative z-40 flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-800 bg-[#08111f] px-3 py-2 text-sm text-slate-200 sm:px-4">
       <div className="flex min-w-0 items-center gap-3">
@@ -139,6 +147,16 @@ export function Toolbar({
         </div>
       </div>
       <div className="flex min-w-0 flex-wrap items-center gap-1">
+        {onOpenAssets && <button type="button" onClick={onOpenAssets} aria-label={assetsLabel}
+          aria-expanded={!!assetsOpen} aria-controls="workspace-assets"
+          className="flex items-center gap-1 rounded-lg border border-cyan-400/30 px-2 py-1.5 text-[10px] font-semibold text-cyan-200 xl:hidden">
+          <PanelLeft className="h-3.5 w-3.5" /> Assets
+        </button>}
+        {onOpenInspector && <button type="button" onClick={onOpenInspector} aria-label="Open architecture properties"
+          aria-expanded={!!inspectorOpen} aria-controls="architecture-properties"
+          className="flex items-center gap-1 rounded-lg border border-cyan-400/30 px-2 py-1.5 text-[10px] font-semibold text-cyan-200 xl:hidden">
+          <SlidersHorizontal className="h-3.5 w-3.5" /> Properties
+        </button>}
         {onOpenLibrary && (
           <button type="button" onClick={onOpenLibrary} aria-label="My diagrams"
             className="flex items-center gap-1 rounded-lg border border-slate-700 px-2 py-1.5 text-[10px] font-semibold text-slate-200 hover:bg-slate-800">
@@ -152,30 +170,17 @@ export function Toolbar({
         <ToolButton onClick={onDelete} title="Delete selection (Del)" Icon={Trash2} />
         </div>
         {onAddTier && (
-          <div className="relative"
-            onBlur={(event) => {
-              if (!event.currentTarget.contains(event.relatedTarget)) setTierMenuOpen(false);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                setTierMenuOpen(false);
-                event.currentTarget.querySelector("button")?.focus();
-              }
-            }}>
-            <button
-              type="button"
-              onClick={() => setTierMenuOpen((o) => !o)}
+          <ActionDropdown
+              id="architecture-boundaries" label="Architecture boundaries"
               title="Add tier / swimlane group"
-              aria-expanded={tierMenuOpen}
-              aria-controls="architecture-boundaries"
-              className="flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white"
-            >
+              buttonClassName="flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white"
+              panelClassName="w-64 rounded-xl border border-slate-700 bg-[#0b1220] p-2 shadow-2xl"
+              trigger={<>
               <LayoutGrid className="h-3.5 w-3.5" />
               Boundary / Tier
               <ChevronDown className="h-3 w-3" />
-            </button>
-            {tierMenuOpen && (
-              <div id="architecture-boundaries" className="absolute right-0 z-50 mt-1 max-h-[70vh] w-64 overflow-y-auto rounded-xl border border-slate-700 bg-[#0b1220] p-2 shadow-2xl">
+              </>}>
+            <>
                 <p className="px-2 py-2 text-[10px] leading-relaxed text-slate-400">Select a boundary to add inside it. Drag components between boundaries or change their parent in Properties.</p>
                 {ARCHITECTURE_TIERS.map((t) => (
                   <button
@@ -183,16 +188,14 @@ export function Toolbar({
                     type="button"
                     onClick={() => {
                       onAddTier(t);
-                      setTierMenuOpen(false);
                     }}
                     className="flex w-full cursor-pointer items-center rounded-md px-2.5 py-2 text-left text-xs font-medium text-slate-200 hover:bg-slate-800 focus-visible:bg-slate-800 focus-visible:outline focus-visible:outline-cyan-400"
                   >
                     {t}
                   </button>
                 ))}
-              </div>
-            )}
-          </div>
+            </>
+          </ActionDropdown>
         )}
         {(onPlay || onStop) && (
           <button
@@ -316,37 +319,23 @@ export function Toolbar({
           </button>
         )}
         {onExport && (
-          <div className="relative"
-            onBlur={(event) => {
-              if (!event.currentTarget.contains(event.relatedTarget)) setExportMenuOpen(false);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                setExportMenuOpen(false);
-                event.currentTarget.querySelector("button")?.focus();
-              }
-            }}>
-            <button
-              type="button"
-              onClick={() => setExportMenuOpen((o) => !o)}
+          <ActionDropdown
+              id="diagram-export-menu" label="Export formats"
               title="Export the canvas"
-              aria-expanded={exportMenuOpen}
-              aria-controls="diagram-export-menu"
-              className="flex cursor-pointer items-center gap-1 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-[10px] font-semibold text-slate-200 transition hover:border-cyan-500/50 hover:text-white"
-            >
+              buttonClassName="flex cursor-pointer items-center gap-1 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-[10px] font-semibold text-slate-200 transition hover:border-cyan-500/50 hover:text-white"
+              panelClassName="w-56 rounded-md border border-zinc-800 bg-zinc-900 py-1 shadow-2xl"
+              trigger={<>
               <Download className="h-3.5 w-3.5" />
               Export
               <ChevronDown className="h-3 w-3" />
-            </button>
-            {exportMenuOpen && (
-              <div id="diagram-export-menu" className="absolute right-0 z-50 mt-1 w-56 overflow-hidden rounded-md border border-zinc-800 bg-zinc-900 py-1 shadow-2xl">
+              </>}>
+              <>
                 {!hideRasterExports && EXPORT_FORMATS.filter((f) => !hideGifExport || f.id !== "gif").map((f) => (
                   <button
                     key={f.id}
                     type="button"
                     onClick={() => {
                       onExport(f.id);
-                      setExportMenuOpen(false);
                     }}
                     className="flex w-full cursor-pointer items-center px-2.5 py-1.5 text-left text-[11px] font-medium text-zinc-300 hover:bg-zinc-800 hover:text-white"
                   >
@@ -356,7 +345,7 @@ export function Toolbar({
                 {hideRasterExports && (
                   <button
                     type="button"
-                    onClick={() => { onExport("png"); setExportMenuOpen(false); }}
+                    onClick={() => onExport("png")}
                     className="flex w-full cursor-pointer items-center px-2.5 py-1.5 text-left text-[11px] font-medium text-zinc-300 hover:bg-zinc-800 hover:text-white"
                   >
                     PNG image
@@ -369,7 +358,7 @@ export function Toolbar({
                       <button
                         key={f.id}
                         type="button"
-                        onClick={() => { onExport(f.id); setExportMenuOpen(false); }}
+                        onClick={() => onExport(f.id)}
                         className="flex w-full cursor-pointer items-center px-2.5 py-1.5 text-left text-[11px] font-medium text-zinc-300 hover:bg-zinc-800 hover:text-white"
                       >
                         {f.label}
@@ -377,9 +366,8 @@ export function Toolbar({
                     ))}
                   </>
                 )}
-              </div>
-            )}
-          </div>
+              </>
+          </ActionDropdown>
         )}
         {onSave && (
           <>

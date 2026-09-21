@@ -1,18 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import { Check, FilePlus2, FolderOpen, Loader2, Pencil, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
 import {
   deleteDiagram, filterDiagramSummaries, listDiagrams, loadDiagram, normalizeDiagramName,
   renameDiagram, summarizeDiagram, type DiagramRecord, type DiagramSummary,
 } from "@/lib/diagram-library";
 import { MODE_META, type DiagrammaticMode } from "./types";
+import { useDialogFocus } from "./useDialogFocus";
 
 const modes = Object.keys(MODE_META) as DiagrammaticMode[];
 
 export interface DiagramLibraryModalProps {
   open: boolean;
   onClose: () => void;
+  returnFocusRef?: RefObject<HTMLElement | null>;
   /** Return false if the user cancels switching away from an unsaved canvas. */
   onOpen: (record: DiagramRecord) => void | boolean | Promise<void | boolean>;
   /** Capture and persist the current canvas; the parent owns active identity. */
@@ -27,12 +30,12 @@ export interface DiagramLibraryModalProps {
 }
 
 export default function DiagramLibraryModal(props: DiagramLibraryModalProps) {
-  return props.open ? <LibraryDialog {...props} /> : null;
+  return props.open && typeof document !== "undefined" ? <LibraryDialog {...props} /> : null;
 }
 
 function LibraryDialog({
   onClose, onOpen, onSave, onNew, currentName = "", currentDocumentId, currentMode = "architecture",
-  onRenamed, onDeleted,
+  onRenamed, onDeleted, returnFocusRef,
 }: DiagramLibraryModalProps) {
   const [records, setRecords] = useState<DiagramSummary[]>([]);
   const [query, setQuery] = useState("");
@@ -46,16 +49,12 @@ function LibraryDialog({
   const [deleting, setDeleting] = useState<DiagramSummary | null>(null);
   const mounted = useRef(true);
   const pending = useRef(true);
-  const dialog = useRef<HTMLDivElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
-  const closeRef = useRef(onClose);
-  useEffect(() => { closeRef.current = onClose; }, [onClose]);
+  const dialog = useDialogFocus({ open: true, onClose: close, initialFocusRef: closeButton, returnFocusRef, canClose: () => !pending.current });
 
   useEffect(() => {
     mounted.current = true;
     let active = true;
-    const previousFocus = document.activeElement;
-    closeButton.current?.focus();
     listDiagrams().then((items) => {
       if (active) setRecords(items);
     }).catch((cause: unknown) => {
@@ -63,29 +62,9 @@ function LibraryDialog({
     }).finally(() => {
       if (active) { pending.current = false; setBusy(null); }
     });
-    const keydown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        if (!pending.current) closeRef.current();
-      }
-      if (event.key === "Tab") {
-        const elements = dialog.current?.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled), select:not(:disabled)");
-        if (!elements?.length) return;
-        const first = elements[0];
-        const last = elements[elements.length - 1];
-        if (event.shiftKey && (document.activeElement === first || !dialog.current?.contains(document.activeElement))) {
-          event.preventDefault(); last.focus();
-        } else if (!event.shiftKey && (document.activeElement === last || !dialog.current?.contains(document.activeElement))) {
-          event.preventDefault(); first.focus();
-        }
-      }
-    };
-    document.addEventListener("keydown", keydown);
     return () => {
       active = false;
       mounted.current = false;
-      document.removeEventListener("keydown", keydown);
-      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
     };
   }, []);
 
@@ -158,17 +137,17 @@ function LibraryDialog({
     onDeleted?.(record.id);
   }
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
-      <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby="diagram-library-title" className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-cyan-300/20 bg-[#0b1424] text-slate-100 shadow-2xl">
-        <header className="flex items-start justify-between border-b border-white/10 p-5">
+      <div ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="diagram-library-title" className="flex max-h-[calc(100dvh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-cyan-300/20 bg-[#0b1424] text-slate-100 shadow-2xl">
+        <header className="flex shrink-0 items-start justify-between border-b border-white/10 p-5">
           <div>
             <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.2em] text-cyan-300">Diagrammatic / Local collection</p>
             <h2 id="diagram-library-title" className="flex items-center gap-2 text-xl font-semibold"><FolderOpen size={21} className="text-cyan-300" />Saved diagrams</h2>
           </div>
           <button ref={closeButton} type="button" onClick={close} disabled={Boolean(busy)} aria-label="Close diagram library" className="rounded p-2 text-slate-400 hover:bg-white/10 disabled:opacity-40"><X size={18} /></button>
         </header>
-        <div className="overflow-y-auto">
+        <div className="min-h-0 overflow-y-auto">
           <div className="space-y-4 border-b border-white/10 p-5">
             <p className="text-xs leading-relaxed text-slate-400">Saved only in this browser and on this device using IndexedDB. No account sync or cloud backup. Clearing site data or using private browsing can remove this library. Existing drafts are recovered without deleting their original data.</p>
             <label className="block text-xs font-medium text-slate-300">Name for saved or new diagram
@@ -235,8 +214,9 @@ function LibraryDialog({
             </ul>
           </div>
         </div>
-        <footer className="flex items-center justify-between border-t border-white/10 px-5 py-3 text-[11px] text-slate-500"><span>{records.length} saved {records.length === 1 ? "diagram" : "diagrams"}</span><span>Browser-local storage</span></footer>
+        <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-white/10 px-5 py-3 text-[11px] text-slate-500"><span>{records.length} saved {records.length === 1 ? "diagram" : "diagrams"}</span><span>Browser-local storage</span></footer>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

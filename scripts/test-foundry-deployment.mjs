@@ -678,6 +678,8 @@ function modalHarness({ generationStatus = 200 } = {}) {
   const jsx = (type, props) => ({ type, props });
   const loaded = load("components/diagrammatic/csa/AzureDeployModal.tsx", {
     "../shared/AiPrivacyNotice": { AiPrivacyNotice: () => null },
+    "../shared/useDialogFocus": { useDialogFocus: () => ({ current: null }) },
+    "react-dom": { createPortal: (children) => children },
     "@/lib/ai-privacy-contract": aiPrivacyContract,
     react, "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: "fragment" },
     "lucide-react": Object.fromEntries(["CloudUpload", "Copy", "Download", "ExternalLink", "Loader2", "X"].map((name) => [name, name])),
@@ -685,6 +687,7 @@ function modalHarness({ generationStatus = 200 } = {}) {
     "@/lib/foundry-contract": privacy,
     "@/lib/engineering-validation-contract": engineeringContract,
   }, {
+    document: { body: {} },
     fetch: async (url, options) => {
       calls.push({ url, body: JSON.parse(options.body) });
       return Response.json(url === "/api/ai/deploy" && generationStatus === 200 ? { ...draft(), validation: validationFixture() } : { error: "Generation unavailable or use manual upload" }, { status: url === "/api/ai/deploy" ? generationStatus : 400 });

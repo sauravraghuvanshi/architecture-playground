@@ -79,11 +79,14 @@ test("library modal explains browser-local storage and exposes explicit save/new
   const icons = Object.fromEntries(["Check", "FilePlus2", "FolderOpen", "Loader2", "Pencil", "RefreshCw", "Save", "Search", "Trash2", "X"].map((key) => [key, () => null]));
   const dependencies = {
     react: React, "react/jsx-runtime": jsxRuntime, "lucide-react": icons,
+    "react-dom": { createPortal: (children) => children },
+    "./useDialogFocus": { useDialogFocus: () => ({ current: null }) },
     "@/lib/diagram-library": library,
     "./types": { MODE_META: { architecture: { label: "Cloud Architecture" }, whiteboard: { label: "Whiteboard" } } },
   };
   vm.runInNewContext(compiled, {
     exports,
+    document: { body: {} },
     require: (name) => {
       if (!(name in dependencies)) throw new Error(`Unexpected modal dependency: ${name}`);
       return dependencies[name];

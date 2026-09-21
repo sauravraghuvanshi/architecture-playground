@@ -449,12 +449,15 @@ test("modal explains separate-document creation and does not export on open", ()
     "react/jsx-runtime": jsxRuntime,
     "lucide-react": { Loader2: () => null, ScanLine: () => null, X: () => null },
     "./AiPrivacyNotice": { AiPrivacyNotice: () => null },
+    "./useDialogFocus": { useDialogFocus: () => ({ current: null }) },
+    "react-dom": { createPortal: (children) => children },
     "@/lib/architecture-review": review,
     "@/lib/whiteboard-conversion": conversion,
   };
   const exports = {};
   vm.runInNewContext(compiled, {
     exports,
+    document: { body: {} },
     require: (name) => {
       if (!(name in dependencies)) throw new Error(`Unexpected modal dependency: ${name}`);
       return dependencies[name];

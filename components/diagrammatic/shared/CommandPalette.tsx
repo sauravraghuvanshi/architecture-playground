@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
@@ -25,6 +26,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { useDialogFocus } from "./useDialogFocus";
 
 export type CommandItem = {
   id: string;
@@ -50,6 +52,7 @@ export function CommandPalette({ open, onOpenChange, onAction }: Props) {
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const dialog = useDialogFocus({ open, onClose: () => onOpenChange(false), initialFocusRef: inputRef });
 
   // Build commands once. router/onAction live in closures.
   const commands = useMemo<CommandItem[]>(() => {
@@ -112,19 +115,18 @@ export function CommandPalette({ open, onOpenChange, onAction }: Props) {
     return () => cancelAnimationFrame(frame);
   }, [filtered.length, active]);
 
-  // Global ⌘K / Esc
+  // Other dialogs must not open a command palette underneath their focus trap.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        if (document.querySelector('[role="dialog"][aria-modal="true"]') !== dialog.current) return;
         e.preventDefault();
         onOpenChange(!open);
-      } else if (e.key === "Escape" && open) {
-        onOpenChange(false);
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [open, onOpenChange]);
+  }, [open, onOpenChange, dialog]);
 
   // Focus on open
   useEffect(() => {
@@ -132,7 +134,6 @@ export function CommandPalette({ open, onOpenChange, onAction }: Props) {
     const frame = requestAnimationFrame(() => {
       setQuery("");
       setActive(0);
-      inputRef.current?.focus();
     });
     return () => cancelAnimationFrame(frame);
   }, [open]);
@@ -150,7 +151,7 @@ export function CommandPalette({ open, onOpenChange, onAction }: Props) {
     }
   };
 
-  return (
+  return typeof document === "undefined" ? null : createPortal(
     <AnimatePresence>
       {open && (
         <>
@@ -163,28 +164,32 @@ export function CommandPalette({ open, onOpenChange, onAction }: Props) {
             onClick={() => onOpenChange(false)}
           />
           <motion.div
+            ref={dialog}
+            tabIndex={-1}
             initial={{ opacity: 0, y: -8, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.98 }}
             transition={{ duration: 0.15 }}
-            className="fixed left-1/2 top-[18%] z-[61] w-[92%] max-w-xl -translate-x-1/2 rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden"
+            className="fixed left-1/2 top-[max(1rem,10dvh)] z-[61] flex max-h-[calc(90dvh-1rem)] w-[92%] max-w-xl -translate-x-1/2 flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden"
             role="dialog"
+            aria-modal="true"
             aria-label="Command palette"
           >
-            <div className="flex items-center gap-2 border-b border-slate-100 px-4">
+            <div className="flex shrink-0 items-center gap-2 border-b border-slate-100 px-4">
               <Search className="w-4 h-4 text-slate-400" />
               <input
                 ref={inputRef}
+                aria-label="Search commands"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={onKeyDown}
                 placeholder="Type a command or search…"
-                className="flex-1 py-3.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none bg-transparent"
+                className="min-w-0 flex-1 py-3.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none bg-transparent"
               />
               <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-slate-500 bg-slate-100 rounded">Esc</kbd>
             </div>
 
-            <div className="max-h-[55vh] overflow-y-auto p-1.5">
+            <div className="min-h-0 max-h-[55dvh] overflow-y-auto p-1.5">
               {filtered.length === 0 ? (
                 <div className="py-10 text-center text-sm text-slate-500">
                   No commands match &ldquo;{query}&rdquo;
@@ -224,7 +229,7 @@ export function CommandPalette({ open, onOpenChange, onAction }: Props) {
               )}
             </div>
 
-            <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50 px-3 py-1.5 text-[10px] text-slate-500">
+            <div className="flex shrink-0 items-center justify-between border-t border-slate-100 bg-slate-50 px-3 py-1.5 text-[10px] text-slate-500">
               <div className="flex items-center gap-2">
                 <kbd className="px-1 py-0.5 font-mono bg-white border border-slate-200 rounded">↑↓</kbd>
                 <span>navigate</span>
@@ -236,6 +241,7 @@ export function CommandPalette({ open, onOpenChange, onAction }: Props) {
           </motion.div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }

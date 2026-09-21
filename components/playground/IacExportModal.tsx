@@ -8,6 +8,7 @@
 import { useMemo, useState } from "react";
 import type { PlaygroundGraph } from "./lib/types";
 import { emitIac, type IacFramework } from "./lib/export-iac";
+import { useDialogFocus } from "../diagrammatic/shared/useDialogFocus";
 
 interface Props {
   graph: PlaygroundGraph;
@@ -18,6 +19,7 @@ interface Props {
 export function IacExportModal({ graph, open, onClose }: Props) {
   const [framework, setFramework] = useState<IacFramework>("bicep");
   const result = useMemo(() => (open ? emitIac(graph, framework) : null), [open, graph, framework]);
+  const dialogRef = useDialogFocus({ open: open && result !== null, onClose });
 
   if (!open || !result) return null;
 
@@ -43,19 +45,19 @@ export function IacExportModal({ graph, open, onClose }: Props) {
 
   return (
     <div
-      role="dialog"
-      aria-modal="true"
       className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 p-4"
       onClick={onClose}
     >
       <div
+        ref={dialogRef} role="dialog" aria-modal="true" aria-label="Export as IaC" tabIndex={-1}
         className="flex h-[80vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-          <div className="flex items-center gap-3">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+          <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">Export as IaC</h2>
             <select
+              aria-label="IaC framework"
               value={framework}
               onChange={(e) => setFramework(e.target.value as IacFramework)}
               className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"

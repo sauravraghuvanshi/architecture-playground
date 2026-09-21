@@ -1,7 +1,9 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { useDialogFocus } from "./useDialogFocus";
 
 const GROUPS: Array<{ title: string; items: Array<[string, string]> }> = [
   {
@@ -49,7 +51,8 @@ interface Props {
 }
 
 export function KeyboardHints({ open, onClose }: Props) {
-  return (
+  const dialog = useDialogFocus({ open, onClose });
+  return typeof document === "undefined" ? null : createPortal(
     <AnimatePresence>
       {open && (
         <>
@@ -62,15 +65,18 @@ export function KeyboardHints({ open, onClose }: Props) {
             onClick={onClose}
           />
           <motion.div
+            ref={dialog}
+            tabIndex={-1}
             initial={{ opacity: 0, y: 12, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.97 }}
             transition={{ duration: 0.18 }}
-            className="fixed left-1/2 top-1/2 z-[61] w-[92%] max-w-2xl -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-zinc-800 bg-zinc-950 text-zinc-200 shadow-2xl overflow-hidden"
+            className="fixed left-1/2 top-1/2 z-[61] flex max-h-[calc(100dvh-2rem)] w-[92%] max-w-2xl -translate-x-1/2 -translate-y-1/2 flex-col rounded-2xl border border-zinc-800 bg-zinc-950 text-zinc-200 shadow-2xl overflow-hidden"
             role="dialog"
+            aria-modal="true"
             aria-label="Keyboard shortcuts"
           >
-            <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-3">
+            <div className="flex shrink-0 items-center justify-between border-b border-zinc-800 px-5 py-3">
               <h2 className="text-sm font-bold text-zinc-100">Keyboard shortcuts</h2>
               <button
                 type="button"
@@ -81,7 +87,7 @@ export function KeyboardHints({ open, onClose }: Props) {
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="grid sm:grid-cols-2 gap-x-8 gap-y-5 px-5 py-5">
+            <div className="grid min-h-0 overflow-y-auto sm:grid-cols-2 gap-x-8 gap-y-5 px-5 py-5">
               {GROUPS.map((g) => (
                 <div key={g.title}>
                   <h3 className="text-[10px] uppercase tracking-widest font-bold text-zinc-500 mb-2">{g.title}</h3>
@@ -100,12 +106,13 @@ export function KeyboardHints({ open, onClose }: Props) {
                 </div>
               ))}
             </div>
-            <div className="border-t border-zinc-800 bg-zinc-900/50 px-5 py-2 text-[10px] text-zinc-500">
+            <div className="shrink-0 border-t border-zinc-800 bg-zinc-900/50 px-5 py-2 text-[10px] text-zinc-500">
               On Windows / Linux, ⌘ = Ctrl.
             </div>
           </motion.div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }

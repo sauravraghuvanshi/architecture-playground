@@ -333,7 +333,14 @@ function CanvasInner({
   return (
     <div
       ref={wrapperRef}
+      role="region" aria-label="Architecture canvas" tabIndex={0}
       className={`relative h-full w-full ${placementIconId ? "cursor-crosshair" : ""}`}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget || !(event.key === "ContextMenu" || (event.shiftKey && event.key === "F10"))) return;
+        event.preventDefault();
+        const bounds = event.currentTarget.getBoundingClientRect();
+        onContextMenu?.({ x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 });
+      }}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
     >
@@ -356,10 +363,8 @@ function CanvasInner({
           onContextMenu?.({ x: e.clientX, y: e.clientY, nodeId: node.id });
         }}
         onPaneContextMenu={(e) => {
-          if (e instanceof MouseEvent) {
-            e.preventDefault();
-            onContextMenu?.({ x: e.clientX, y: e.clientY });
-          }
+          e.preventDefault();
+          onContextMenu?.({ x: e.clientX, y: e.clientY });
         }}
         fitView
         fitViewOptions={{ padding: 0.2 }}

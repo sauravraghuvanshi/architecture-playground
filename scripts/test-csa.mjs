@@ -804,6 +804,8 @@ function loadReviewModal(react = React, scorecard = () => React.createElement("p
   const icon = () => null;
   const dependencies = {
     "../shared/AiPrivacyNotice": { AiPrivacyNotice: () => null },
+    "../shared/useDialogFocus": { useDialogFocus: () => ({ current: null }) },
+    "react-dom": { createPortal: (children) => children },
     "@/lib/ai-privacy-contract": aiPrivacyContract,
     react,
     "react/jsx-runtime": jsxRuntime,
@@ -816,6 +818,7 @@ function loadReviewModal(react = React, scorecard = () => React.createElement("p
   const exports = {};
   vm.runInNewContext(compiled, {
     exports,
+    document: { body: {} },
     require: (name) => {
       if (!(name in dependencies)) throw new Error(`Unexpected client dependency: ${name}`);
       return dependencies[name];

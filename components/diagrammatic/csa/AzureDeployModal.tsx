@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { CloudUpload, Copy, Download, ExternalLink, Loader2, X } from "lucide-react";
 import type { ArchPayload } from "../modes/architecture/ArchitectureCanvas";
 import { generateArchitectureCode, generateArmTemplate, type ArchitectureCodeFormat } from "./architecture-codegen";
@@ -10,6 +11,7 @@ import { engineeringValidationSchema, type EngineeringValidation } from "@/lib/e
 import type { ArtifactMapping } from "@/lib/engineering-coverage";
 import { AiPrivacyNotice } from "../shared/AiPrivacyNotice";
 import { AI_LOCAL_CLEAR_NOTICE } from "@/lib/ai-privacy-contract";
+import { useDialogFocus } from "../shared/useDialogFocus";
 
 interface Props {
   open: boolean;
@@ -39,7 +41,7 @@ const FORMATS = [
 ] as const;
 
 export function AzureDeployModal({ open, ...props }: Props) {
-  if (!open) return null;
+  if (!open || typeof document === "undefined") return null;
   return <DeploymentSession key={JSON.stringify(props.payload)} {...props} />;
 }
 
@@ -55,6 +57,12 @@ function DeploymentSession({ payload, onClose, intent = "deploy" }: Omit<Props, 
   const [showArm, setShowArm] = useState(false);
   const abort = useRef<AbortController | null>(null);
   const popup = useRef<Window | null>(null);
+  const close = () => {
+    abort.current?.abort();
+    popup.current?.close();
+    onClose();
+  };
+  const dialog = useDialogFocus({ open: true, onClose: close });
   useEffect(() => () => {
     abort.current?.abort();
     popup.current?.close();
@@ -213,17 +221,17 @@ function DeploymentSession({ payload, onClose, intent = "deploy" }: Omit<Props, 
   };
 
   const title = intent === "code" ? "Architecture to code" : "Deploy architecture to Azure";
-  return (
-    <div role="dialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/80 p-5 backdrop-blur-sm">
-      <div className="flex max-h-[92vh] w-[min(70rem,96vw)] flex-col overflow-hidden rounded-3xl border border-slate-700 bg-[#08111f] text-slate-200 shadow-2xl">
-        <header className="flex items-start justify-between border-b border-slate-800 px-5 py-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+      <div ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} className="flex max-h-[calc(100dvh-2rem)] w-full max-w-[70rem] flex-col overflow-hidden rounded-3xl border border-slate-700 bg-[#08111f] text-slate-200 shadow-2xl">
+        <header className="flex shrink-0 items-start justify-between border-b border-slate-800 px-5 py-4">
           <div>
             <h1 className="flex items-center gap-2 text-base font-semibold text-white"><CloudUpload className="h-5 w-5 text-sky-300" />{title}</h1>
             <p className="mt-1 text-xs text-slate-400">Foundry agent generation → preview → optional Azure Portal handoff. No automatic deployment.</p>
           </div>
-          <button type="button" onClick={onClose} aria-label={intent === "code" ? "Close architecture to code" : "Close Azure deployment"} className="rounded-lg p-2 hover:bg-slate-800"><X className="h-4 w-4" /></button>
+          <button type="button" onClick={close} aria-label={intent === "code" ? "Close architecture to code" : "Close Azure deployment"} className="rounded-lg p-2 hover:bg-slate-800"><X className="h-4 w-4" /></button>
         </header>
-        <div className="space-y-4 overflow-y-auto p-5">
+        <div className="min-h-0 space-y-4 overflow-y-auto p-5">
           <section className="space-y-3" aria-label="Generate deployment draft">
             <p className="text-xs text-slate-400">{FOUNDRY_PRIVACY_NOTICE}</p>
             <AiPrivacyNotice capability="deployment" />
@@ -283,7 +291,7 @@ function DeploymentSession({ payload, onClose, intent = "deploy" }: Omit<Props, 
                   Running with --deploy is an explicit resource-write action after What-If. PowerShell remains preview-only.
                 </p>
               )}
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button type="button" aria-pressed={!showArm} onClick={() => setShowArm(false)} className="rounded border border-slate-600 px-3 py-1 text-xs">Generated code</button>
                 <button type="button" aria-pressed={showArm} onClick={() => setShowArm(true)} disabled={!preview.armTemplate} className="rounded border border-slate-600 px-3 py-1 text-xs disabled:opacity-50">ARM template for Portal</button>
                 <button type="button" onClick={copy} className="ml-auto flex items-center gap-1 text-xs"><Copy className="h-3 w-3" />Copy preview</button>
@@ -310,6 +318,7 @@ function DeploymentSession({ payload, onClose, intent = "deploy" }: Omit<Props, 
           </>}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

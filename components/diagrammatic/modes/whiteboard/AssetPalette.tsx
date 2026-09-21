@@ -67,7 +67,7 @@ export function WhiteboardAssetPalette({ onInsert, insertingId }: Props) {
   }, [category, manifest, query]);
 
   return (
-    <aside className="flex h-full w-[288px] shrink-0 flex-col border-r border-slate-800 bg-[#0b1220] text-slate-200">
+    <aside className="flex h-full w-[288px] max-w-full shrink-0 flex-col border-r border-slate-800 bg-[#0b1220] text-slate-200">
       <div className="border-b border-slate-800 px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div>

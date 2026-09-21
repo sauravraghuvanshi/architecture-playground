@@ -31,6 +31,7 @@ import { searchServiceIcons } from "@/lib/service-identity";
 
 interface Props {
   icons: IconLite[];
+  onInsert?: () => void;
 }
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -54,7 +55,7 @@ const PRIMITIVES: Array<{
   { shape: "internet", label: "Internet", icon: Globe2 },
 ];
 
-export function Palette({ icons }: Props) {
+export function Palette({ icons, onInsert }: Props) {
   const [q, setQ] = useState("");
   const [cloud, setCloud] = useState<string>("all");
 
@@ -87,10 +88,11 @@ export function Palette({ icons }: Props) {
 
   const addShape = (shape: ArchShape) => {
     window.dispatchEvent(new CustomEvent("diagrammatic-add-shape", { detail: { shape } }));
+    onInsert?.();
   };
 
   return (
-    <aside className="flex h-full w-[304px] shrink-0 flex-col border-r border-slate-800 bg-[#0b1220] text-slate-200">
+    <aside className="flex h-full w-[304px] max-w-full shrink-0 flex-col border-r border-slate-800 bg-[#0b1220] text-slate-200">
       <div className="border-b border-slate-800 px-4 py-3">
         <div className="mb-3 flex items-center justify-between">
           <div>
@@ -197,6 +199,7 @@ export function Palette({ icons }: Props) {
                     window.dispatchEvent(
                       new CustomEvent("diagrammatic-add-icon", { detail: { id: icon.id } })
                     );
+                    onInsert?.();
                   }}
                   className="group/btn flex min-h-[72px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border border-transparent p-1.5 transition hover:border-cyan-500/40 hover:bg-slate-900"
                   title={`Click to add · drag for placement: ${icon.label}`}

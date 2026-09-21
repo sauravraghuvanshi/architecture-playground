@@ -7,6 +7,7 @@
 import { memo } from "react";
 import { X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { useDialogFocus } from "../diagrammatic/shared/useDialogFocus";
 
 interface Props {
   open: boolean;
@@ -54,6 +55,7 @@ const SHORTCUT_GROUPS = [
 ];
 
 function KeyboardShortcutsPanelImpl({ open, onClose }: Props) {
+  const dialogRef = useDialogFocus({ open, onClose });
   return (
     <AnimatePresence>
       {open && (
@@ -66,11 +68,12 @@ function KeyboardShortcutsPanelImpl({ open, onClose }: Props) {
           onClick={onClose}
         >
           <motion.div
+            ref={dialogRef} role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" tabIndex={-1}
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.95, opacity: 0 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className="relative w-[420px] max-w-[90vw] rounded-xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+            className="relative max-h-[calc(100dvh-32px)] w-[420px] max-w-[90vw] overflow-y-auto rounded-xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
             onClick={(e) => e.stopPropagation()}
           >
             <button

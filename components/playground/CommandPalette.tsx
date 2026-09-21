@@ -4,12 +4,13 @@
  */
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
 import {
   Undo2, Redo2, Trash2, FileJson, FileImage, Film, Play, Pause,
   Wand2, Maximize, Download, Keyboard, Repeat,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { useDialogFocus } from "../diagrammatic/shared/useDialogFocus";
 
 interface Command {
   id: string;
@@ -29,6 +30,7 @@ interface Props {
 function CommandPaletteImpl({ open, onClose, commands }: Props) {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useDialogFocus({ open, onClose, initialFocusRef: inputRef });
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   const filtered = useMemo(() => {
@@ -39,19 +41,12 @@ function CommandPaletteImpl({ open, onClose, commands }: Props) {
     );
   }, [commands, query]);
 
-  // Focus input when opening (no setState needed — fresh mount via key resets state)
-  useEffect(() => {
-    if (open) {
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
-  }, [open]);
-
   // Keyboard navigation
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setSelectedIndex((i) => Math.min(i + 1, filtered.length - 1));
+        setSelectedIndex((i) => Math.max(0, Math.min(i + 1, filtered.length - 1)));
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         setSelectedIndex((i) => Math.max(i - 1, 0));
@@ -62,8 +57,6 @@ function CommandPaletteImpl({ open, onClose, commands }: Props) {
           cmd.action();
           onClose();
         }
-      } else if (e.key === "Escape") {
-        onClose();
       }
     },
     [filtered, selectedIndex, onClose]
@@ -83,15 +76,16 @@ function CommandPaletteImpl({ open, onClose, commands }: Props) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.12 }}
-          className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 pt-[15vh] backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 pt-4 backdrop-blur-sm sm:pt-[10vh]"
           onClick={onClose}
         >
           <motion.div
+            ref={dialogRef} role="dialog" aria-modal="true" aria-label="Command palette" tabIndex={-1}
             initial={{ y: -10, opacity: 0, scale: 0.98 }}
             animate={{ y: 0, opacity: 1, scale: 1 }}
             exit={{ y: -10, opacity: 0, scale: 0.98 }}
             transition={{ duration: 0.12, ease: "easeOut" }}
-            className="w-[460px] max-w-[90vw] overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
+            className="flex max-h-[80dvh] w-[460px] max-w-[90vw] flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Search input */}
@@ -99,6 +93,7 @@ function CommandPaletteImpl({ open, onClose, commands }: Props) {
               <input
                 ref={inputRef}
                 type="text"
+                aria-label="Search commands"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -108,7 +103,8 @@ function CommandPaletteImpl({ open, onClose, commands }: Props) {
             </div>
 
             {/* Results */}
-            <div className="max-h-[300px] overflow-y-auto py-1">
+            <p role="status" className="sr-only">{filtered.length} commands. {filtered[selectedIndex]?.label ?? "No command selected."}</p>
+            <div className="min-h-0 max-h-[300px] overflow-y-auto py-1">
               {filtered.length === 0 && (
                 <p className="px-3 py-4 text-center text-xs text-zinc-400">No commands found.</p>
               )}

@@ -47,6 +47,7 @@ import { generatedArchitectureSchema } from "@/lib/ai-mode-prompts";
 import WhiteboardConvertModal from "./shared/WhiteboardConvertModal";
 import { collectWhiteboardConversionSource, resolveConversionIcon } from "@/lib/whiteboard-conversion";
 import DiagramLibraryModal from "./shared/DiagramLibraryModal";
+import { ResponsivePanel } from "./shared/ResponsivePanel";
 import { useDiagramDocuments } from "./shared/useDiagramDocuments";
 import { MODE_REGISTRY } from "./shared/modeCatalog";
 import {
@@ -177,6 +178,12 @@ export function Workspace({
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [deployModalOpen, setDeployModalOpen] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
+  const [assetsOpen, setAssetsOpen] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const modeTabsRef = useRef<HTMLElement | null>(null);
+  const libraryOpenerRef = useRef<HTMLElement | null>(null);
+  const [tabFocusRequest, setTabFocusRequest] = useState(0);
+  const restoredTabFocusRequest = useRef(0);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [documentRevision, setDocumentRevision] = useState(0);
   const [canvasEpochs, setCanvasEpochs] = useState<Partial<Record<DiagrammaticMode, number>>>({});
@@ -429,6 +436,7 @@ export function Workspace({
 
   const handleSave = useCallback(async () => {
     if (!currentDocument) {
+      libraryOpenerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       setLibraryOpen(true);
       return;
     }
@@ -444,6 +452,7 @@ export function Workspace({
   }, [currentDocument, saveCurrentDocument]);
 
   const handleOpenLibrary = useCallback(async () => {
+    libraryOpenerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     try {
       await saveCurrentDocument();
       setLibraryOpen(true);
@@ -780,6 +789,7 @@ export function Workspace({
       if (!library.ready || library.busy || (mode === "architecture" && !architectureReady)) return;
       const meta = e.metaKey || e.ctrlKey;
       const target = e.target as HTMLElement | null;
+      if (e.defaultPrevented || target?.closest('[role="dialog"]')) return;
       const inField =
         target &&
         (target.tagName === "INPUT" ||
@@ -808,6 +818,11 @@ export function Workspace({
   }, [handleSave, mode, library.ready, library.busy, architectureReady]);
 
   const workspaceLoading = !library.ready || library.busy || (mode === "architecture" && !architectureReady);
+  useEffect(() => {
+    if (workspaceLoading || restoredTabFocusRequest.current === tabFocusRequest) return;
+    restoredTabFocusRequest.current = tabFocusRequest;
+    modeTabsRef.current?.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]')?.focus({ preventScroll: true });
+  }, [tabFocusRequest, workspaceLoading]);
   return (
     <>
     {workspaceLoading && <p role="status" className="sr-only">Loading saved diagram and canvas.</p>}
@@ -835,6 +850,15 @@ export function Workspace({
       <Toolbar
         title={currentDocument ? `${currentDocument.name} / ${meta.label}` : meta.label}
         onOpenLibrary={() => void handleOpenLibrary()}
+        onOpenAssets={mode === "architecture" || mode === "whiteboard" ? () => {
+          setAssetsOpen((value) => !value); setInspectorOpen(false); setCommentsOpen(false); setVersionsOpen(false);
+        } : undefined}
+        assetsLabel={mode === "whiteboard" ? "Open Whiteboard assets" : "Open architecture components"}
+        assetsOpen={assetsOpen}
+        onOpenInspector={mode === "architecture" ? () => {
+          setInspectorOpen((value) => !value); setAssetsOpen(false); setCommentsOpen(false); setVersionsOpen(false);
+        } : undefined}
+        inspectorOpen={inspectorOpen}
         onGoHome={() => void goHome()}
         onFit={() => (mode === "architecture" ? canvasRef.current?.fit() : otherCanvasRef.current?.fit())}
         onUndo={() => (mode === "architecture" ? canvasRef.current?.undo() : otherCanvasRef.current?.undo())}
@@ -885,10 +909,12 @@ export function Workspace({
         }
         onToggleComments={() => {
           setCommentsOpen((v) => !v);
+          setVersionsOpen(false); setAssetsOpen(false); setInspectorOpen(false);
         }}
         commentsOpen={commentsOpen}
         onToggleVersions={() => {
           setVersionsOpen((v) => !v);
+          setCommentsOpen(false); setAssetsOpen(false); setInspectorOpen(false);
         }}
         versionsOpen={versionsOpen}
         saving={saving || library.busy}
@@ -897,9 +923,20 @@ export function Workspace({
 
       {/* Mode tab strip */}
       <nav
+        ref={modeTabsRef}
         className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-slate-800 bg-[#0b1220] px-3 py-1.5 [scrollbar-width:none]"
         aria-label="Workspace modes"
         role="tablist"
+        onKeyDown={(event) => {
+          if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+          const tabs = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+          const index = tabs.findIndex((tab) => tab === document.activeElement);
+          if (index < 0) return;
+          event.preventDefault();
+          const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1
+            : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+          tabs[next]?.focus();
+        }}
       >
         {(Object.keys(MODE_META) as DiagrammaticMode[]).map((m) => {
           const meta = MODE_META[m];
@@ -911,8 +948,12 @@ export function Workspace({
               type="button"
               role="tab"
               aria-selected={active}
+              tabIndex={active ? 0 : -1}
               aria-label={meta.label}
-              onClick={() => void switchMode(m)}
+              onClick={async () => {
+                await switchMode(m);
+                setTabFocusRequest((request) => request + 1);
+              }}
               title={meta.tagline}
               className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition ${
                 active
@@ -949,15 +990,19 @@ export function Workspace({
       )}
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        {mode === "architecture" && <Palette icons={icons} />}
+        {mode === "architecture" && <ResponsivePanel id="workspace-assets" title="Architecture components" side="left" open={assetsOpen} onClose={() => setAssetsOpen(false)}>
+          <Palette icons={icons} onInsert={() => setAssetsOpen(false)} />
+        </ResponsivePanel>}
         {mode === "whiteboard" && (
+          <ResponsivePanel id="workspace-assets" title="Whiteboard assets" side="left" open={assetsOpen} onClose={() => setAssetsOpen(false)}>
           <WhiteboardAssetPalette
-            onInsert={insertWhiteboardAsset}
+            onInsert={(asset) => { insertWhiteboardAsset(asset); setAssetsOpen(false); }}
             insertingId={insertingWhiteboardAsset}
           />
+          </ResponsivePanel>
         )}
         <main
-          className="diagrammatic-canvas-surface relative flex-1"
+          className="diagrammatic-canvas-surface relative min-h-0 min-w-0 flex-1"
           data-canvas-theme={canvasTheme}
         >
           {mode === "architecture" ? (
@@ -1052,6 +1097,7 @@ export function Workspace({
         </main>
 
         {mode === "architecture" && (
+          <ResponsivePanel id="architecture-properties" title="Architecture properties" open={inspectorOpen} onClose={() => setInspectorOpen(false)} desktopVisible={!commentsOpen && !versionsOpen}>
           <Inspector
             issues={issues}
             architectureMetadata={archPayload.metadata}
@@ -1060,7 +1106,9 @@ export function Workspace({
             onDeleteSelection={() => canvasRef.current?.deleteSelection()}
             onFocusNode={(nodeId) => canvasRef.current?.focusElement(nodeId)}
           />
+          </ResponsivePanel>
         )}
+        <ResponsivePanel id="workspace-comments" title="Diagram comments" open={commentsOpen} desktopVisible={commentsOpen} onClose={() => setCommentsOpen(false)}>
         <CommentsPanel
           key={`comments:${mode}:${currentDocument?.id ?? "draft"}`}
           scopeId={`${mode}:${currentDocument?.id ?? "draft"}`}
@@ -1069,6 +1117,8 @@ export function Workspace({
           open={commentsOpen}
           onClose={() => setCommentsOpen(false)}
         />
+        </ResponsivePanel>
+        <ResponsivePanel id="workspace-versions" title="Diagram versions" open={versionsOpen} desktopVisible={versionsOpen} onClose={() => setVersionsOpen(false)}>
         <VersionsPanel
           key={`versions:${mode}:${currentDocument?.id ?? "draft"}`}
           scopeId={`${mode}:${currentDocument?.id ?? "draft"}`}
@@ -1097,6 +1147,7 @@ export function Workspace({
             }
           }}
         />
+        </ResponsivePanel>
       </div>
 
       {library.recoveryIssues.length > 0 && (
@@ -1153,6 +1204,7 @@ export function Workspace({
 
       <CommandPalette open={cmdOpen} onOpenChange={setCmdOpen} onAction={handleCommand} />
       <DiagramLibraryModal
+        returnFocusRef={libraryOpenerRef}
         open={libraryOpen && library.ready}
         onClose={() => setLibraryOpen(false)}
         currentMode={mode}

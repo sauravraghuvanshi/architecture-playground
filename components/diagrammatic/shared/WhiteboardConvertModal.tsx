@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Loader2, ScanLine, X } from "lucide-react";
 import type { ArchPayload } from "../modes/architecture/ArchitectureCanvas";
 import { ARCHITECTURE_IMAGE_MAX_BYTES } from "@/lib/architecture-review";
 import { conversionSourceSchema, parseWhiteboardConversionResponse, type ConversionIcon, type ConversionSourceNode, type WhiteboardConversion } from "@/lib/whiteboard-conversion";
 import { AiPrivacyNotice } from "./AiPrivacyNotice";
+import { useDialogFocus } from "./useDialogFocus";
 
 export interface WhiteboardConvertModalProps {
   open: boolean;
@@ -35,7 +37,7 @@ function readPng(blob: Blob, signal: AbortSignal): Promise<string> {
 }
 
 export default function WhiteboardConvertModal(props: WhiteboardConvertModalProps) {
-  return props.open ? <ConversionDialog {...props} /> : null;
+  return props.open && typeof document !== "undefined" ? <ConversionDialog {...props} /> : null;
 }
 
 function ConversionDialog({ onClose, onResult, getImage, icons, getSourceNodes }: WhiteboardConvertModalProps) {
@@ -45,12 +47,9 @@ function ConversionDialog({ onClose, onResult, getImage, icons, getSourceNodes }
   const [preview, setPreview] = useState<WhiteboardConversion | null>(null);
   const [consent, setConsent] = useState(false);
   const controller = useRef<AbortController | null>(null);
-  const dialog = useRef<HTMLDivElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
-  const closeRef = useRef(onClose);
   const committing = useRef(false);
   const mounted = useRef(true);
-  useEffect(() => { closeRef.current = onClose; }, [onClose]);
 
   function cancel() {
     if (committing.current) return;
@@ -58,35 +57,14 @@ function ConversionDialog({ onClose, onResult, getImage, icons, getSourceNodes }
     controller.current = null;
     onClose();
   }
+  const dialog = useDialogFocus({ open: true, onClose: cancel, initialFocusRef: closeButton, canClose: () => !committing.current });
 
   useEffect(() => {
     mounted.current = true;
-    const previousFocus = document.activeElement;
-    closeButton.current?.focus();
-    const keydown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        if (committing.current) return;
-        controller.current?.abort();
-        controller.current = null;
-        closeRef.current();
-      }
-      if (event.key === "Tab") {
-        const elements = dialog.current?.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled), [tabindex='0']");
-        if (!elements?.length) return;
-        const first = elements[0];
-        const last = elements[elements.length - 1];
-        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-      }
-    };
-    document.addEventListener("keydown", keydown);
     return () => {
       mounted.current = false;
       controller.current?.abort();
       controller.current = null;
-      document.removeEventListener("keydown", keydown);
-      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
     };
   }, []);
 
@@ -155,14 +133,14 @@ function ConversionDialog({ onClose, onResult, getImage, icons, getSourceNodes }
   const iconCount = preview?.payload.nodes.filter((node) => node.kind !== "shape" && node.kind !== "group").length ?? 0;
   const labels = new Map(preview?.payload.nodes.map((node) => [node.id, node.label]));
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) cancel(); }}>
-      <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby="whiteboard-convert-title" className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl border border-cyan-400/25 bg-[#0b1424] text-slate-100 shadow-2xl">
-        <header className="flex items-center justify-between border-b border-white/10 p-5">
+      <div ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="whiteboard-convert-title" className="flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-cyan-400/25 bg-[#0b1424] text-slate-100 shadow-2xl">
+        <header className="flex shrink-0 items-center justify-between border-b border-white/10 p-5">
           <h2 id="whiteboard-convert-title" className="flex items-center gap-2 font-semibold"><ScanLine size={20} className="text-cyan-300" />Convert Whiteboard to architecture</h2>
           <button ref={closeButton} onClick={cancel} disabled={applying} aria-label="Close conversion" className="rounded p-2 text-slate-400 hover:bg-white/10 disabled:opacity-40"><X size={18} /></button>
         </header>
-        <div className="space-y-4 overflow-y-auto p-5">
+        <div className="min-h-0 space-y-4 overflow-y-auto p-5">
           <AiPrivacyNotice capability="chat" />
           <p className="text-sm text-slate-300">Analyze the current Whiteboard as a PNG using your configured Azure OpenAI vision deployment. Explicit service identities, when available, accompany the image so renamed services keep their official icons. Unknown services remain generic shapes. The conversion does not save the image to files, browser storage, or application logs. Your original Whiteboard is unchanged.</p>
           <p className="text-xs text-slate-400">Only send content you are authorized to process. The configured Azure service&apos;s data handling policies apply. AI may miss or misread evidence; check every component and connection before creating a document.</p>
@@ -193,12 +171,13 @@ function ConversionDialog({ onClose, onResult, getImage, icons, getSourceNodes }
             </label>
           </section>}
         </div>
-        <footer className="flex justify-end gap-2 border-t border-white/10 p-4">
+        <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-white/10 p-4">
           <button onClick={cancel} disabled={applying} className="rounded-lg px-4 py-2 text-sm text-slate-300 hover:bg-white/10 disabled:opacity-40">Cancel</button>
           <button onClick={analyze} disabled={busy || applying} className="rounded-lg border border-cyan-300/30 px-4 py-2 text-sm text-cyan-200 disabled:opacity-40">{preview ? "Analyze again" : "Analyze Whiteboard"}</button>
           {preview && <button onClick={apply} disabled={!consent || busy || applying} className="rounded-lg bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-40">Create architecture document</button>}
         </footer>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

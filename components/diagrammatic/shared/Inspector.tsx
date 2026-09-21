@@ -76,7 +76,7 @@ export function Inspector({
   );
 
   return (
-    <aside className="hidden w-[304px] shrink-0 flex-col overflow-y-auto border-l border-slate-800 bg-[#0b1220] text-slate-300 xl:flex">
+    <aside className="flex h-full w-[304px] max-w-full shrink-0 flex-col overflow-y-auto border-l border-slate-800 bg-[#0b1220] text-slate-300">
       {/* Properties */}
       <Section
         open={propsOpen}
@@ -230,6 +230,7 @@ function SelectionProperties({
 
       <Field label={selection.kind === "edge" ? "Protocol / label" : "Display name"}>
         <input
+          key={`${selection.id}:${selection.label}`}
           defaultValue={selection.label}
           onBlur={(event) => commitText("label", event.currentTarget.value)}
           onKeyDown={(event) => {
@@ -243,6 +244,7 @@ function SelectionProperties({
       {selection.kind === "node" && selection.nodeKind !== "group" && (
         <Field label="Context / responsibility">
           <input
+            key={`${selection.id}:${selection.subtitle ?? ""}`}
             defaultValue={selection.subtitle ?? ""}
             onBlur={(event) => commitText("subtitle", event.currentTarget.value)}
             onKeyDown={(event) => {

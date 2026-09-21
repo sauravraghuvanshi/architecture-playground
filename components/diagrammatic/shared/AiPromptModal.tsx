@@ -15,9 +15,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Loader2, Sparkles, X } from "lucide-react";
 import type { DiagrammaticMode } from "./types";
 import { AiPrivacyNotice } from "./AiPrivacyNotice";
+import { useDialogFocus } from "./useDialogFocus";
 import { AI_LOCAL_CLEAR_NOTICE } from "@/lib/ai-privacy-contract";
 import { consumeImageResponse, imageFailureMessage } from "@/lib/ai-image-events";
 import { IMAGE_STYLES, imageCanvasContextSchema, type ImageCanvasContext } from "@/lib/image-styles";
@@ -97,6 +99,18 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult, ge
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const commitRef = useRef(false);
+  const cancel = () => {
+    if (commitRef.current) return;
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setBusy(false);
+  };
+  const close = () => {
+    if (commitRef.current) return;
+    cancel();
+    onClose();
+  };
+  const dialog = useDialogFocus({ open, onClose: close, initialFocusRef: inputRef, canClose: () => !commitRef.current });
 
   useEffect(() => {
     if (open) {
@@ -105,7 +119,6 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult, ge
       setBusy(false);
       setElapsed(0);
       setGenerated(null);
-      setTimeout(() => inputRef.current?.focus(), 50);
     } else {
       // Closing the modal cancels any in-flight request.
       abortRef.current?.abort();
@@ -125,7 +138,7 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult, ge
   // Cancel any in-flight stream when the component unmounts (route nav).
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  if (!open) return null;
+  if (!open || typeof document === "undefined") return null;
 
   async function commitGraph(graph: unknown) {
     if (commitRef.current) return;
@@ -249,30 +262,20 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult, ge
     }
   };
 
-  const cancel = () => {
-    if (commitRef.current) return;
-    abortRef.current?.abort();
-    abortRef.current = null;
-    setBusy(false);
-  };
-  const close = () => {
-    if (commitRef.current) return;
-    cancel();
-    onClose();
-  };
-
   const suggestions = SUGGESTED[mode] ?? [];
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-start justify-center bg-slate-950/75 px-4 pt-24 backdrop-blur-sm" onClick={busy ? undefined : close}>
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm" onClick={busy ? undefined : close}>
       <div
-        className="flex max-h-[80vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-[#0b1220] shadow-2xl"
+        ref={dialog}
+        tabIndex={-1}
+        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-[#0b1220] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-label="AI Assist"
       >
-        <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
+        <div className="flex shrink-0 items-center justify-between border-b border-zinc-800 px-4 py-3">
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-cyan-300" />
             <span className="text-sm font-semibold text-zinc-100">
@@ -283,10 +286,11 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult, ge
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="overflow-y-auto px-4 py-4">
+        <div className="min-h-0 overflow-y-auto px-4 py-4">
           <AiPrivacyNotice capability={isImageMode ? "image" : "chat"} active={open} />
           <div className="mb-3 text-[11px] text-slate-400">
             <button type="button" disabled={committing} onClick={() => {
+              if (commitRef.current) return;
               cancel(); setPrompt(""); setConstraints({}); setGenerated(null); setError(null); setElapsed(0);
             }} className="mb-1 rounded border border-slate-600 px-2 py-1 text-slate-200">Clear AI session</button>
             <p>{AI_LOCAL_CLEAR_NOTICE}</p>
@@ -415,7 +419,7 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult, ge
             </section>
           )}
         </div>
-        <div className="flex items-center justify-between gap-3 border-t border-zinc-800 px-4 py-3">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-zinc-800 px-4 py-3">
           <span className="text-[10px] text-zinc-500">⌘↵ to send · {prompt.length}/{isImageMode ? 1000 : 2000}</span>
           <div className="flex items-center gap-2">
             {busy ? (
@@ -439,7 +443,8 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult, ge
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

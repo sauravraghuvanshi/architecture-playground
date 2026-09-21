@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowUpRight,
   FileJson,
@@ -28,6 +29,7 @@ import { assessDiagramWellArchitected, type WafDiagramAssessment } from "./well-
 import { parseArchitectureDocument } from "@/lib/architecture-document";
 import { AiPrivacyNotice } from "../shared/AiPrivacyNotice";
 import { AI_LOCAL_CLEAR_NOTICE } from "@/lib/ai-privacy-contract";
+import { useDialogFocus } from "../shared/useDialogFocus";
 
 interface Props {
   open: boolean;
@@ -77,6 +79,11 @@ export function ArchitectureReviewModal({
   });
   const requestId = useRef(0);
   const activeRequest = useRef<AbortController | null>(null);
+  const close = () => {
+    activeRequest.current?.abort();
+    onClose();
+  };
+  const dialog = useDialogFocus({ open, onClose: close });
   const evidencePayload = source === "canvas" ? payload : source === "import" ? importedPayload : null;
   const baselineSource = source === "canvas" || source === "import" ? source : null;
   const diagramAssessment = useMemo(
@@ -98,7 +105,7 @@ export function ArchitectureReviewModal({
     setBaselines({ ...baselines, [baselineSource]: diagramAssessment });
   }
 
-  if (!open) return null;
+  if (!open || typeof document === "undefined") return null;
 
   const importJson = async (file: File) => {
     activeRequest.current?.abort();
@@ -246,15 +253,12 @@ export function ArchitectureReviewModal({
     setReview(null); setReviewPayloadSnapshot(null); setReviewFingerprint("");
   };
 
-  return (
+  return createPortal(
     <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Review my architecture"
-      className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/80 p-5 backdrop-blur-sm"
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
     >
-      <div className="flex h-[min(52rem,92vh)] w-[min(78rem,96vw)] flex-col overflow-hidden rounded-3xl border border-slate-700 bg-[#08111f] shadow-2xl">
-        <header className="flex items-start justify-between border-b border-slate-800 px-5 py-4">
+      <div ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Review my architecture" className="flex h-[min(52rem,calc(100dvh-2rem))] w-full max-w-[78rem] flex-col overflow-hidden rounded-3xl border border-slate-700 bg-[#08111f] shadow-2xl">
+        <header className="flex shrink-0 items-start justify-between border-b border-slate-800 px-5 py-4">
           <div>
             <div className="flex items-center gap-2 text-base font-semibold text-white">
               <ShieldCheck className="h-5 w-5 text-cyan-300" />
@@ -266,10 +270,7 @@ export function ArchitectureReviewModal({
           </div>
           <button
             type="button"
-            onClick={() => {
-              activeRequest.current?.abort();
-              onClose();
-            }}
+            onClick={close}
             aria-label="Close architecture review"
             className="cursor-pointer rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white"
           >
@@ -277,8 +278,8 @@ export function ArchitectureReviewModal({
           </button>
         </header>
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[20rem_minmax(0,1fr)]">
-          <aside className="overflow-y-auto border-r border-slate-800 p-4">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:grid md:grid-cols-[20rem_minmax(0,1fr)] md:overflow-hidden">
+          <aside className="shrink-0 border-r border-slate-800 p-4 md:overflow-y-auto">
             <div className="space-y-1">
               {SOURCE_OPTIONS.map((option) => {
                 const Icon = option.icon;
@@ -430,7 +431,7 @@ export function ArchitectureReviewModal({
             )}
           </aside>
 
-          <main className="overflow-y-auto p-5">
+          <main className="min-w-0 shrink-0 p-5 md:overflow-y-auto">
             {staleReview && (
               <p role="status" className="mb-4 rounded-xl border border-amber-400/30 p-3 text-xs text-amber-200">
                 Your architecture or business context changed since this review. Offline WAF scores reflect the current diagram; run the Foundry review again for updated advice.
@@ -467,7 +468,8 @@ export function ArchitectureReviewModal({
           </main>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
