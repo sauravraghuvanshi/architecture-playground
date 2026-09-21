@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { readCanvasPayload } from "./read-canvas-payload";
 import { readSavedDiagram } from "./read-saved-diagram";
+import { assertCanvasErrors } from "./assert-canvas-errors";
 
 const rectangle = { id: "retained", type: "rectangle", x: 50, y: 60, width: 200, height: 120 };
 
@@ -37,7 +38,7 @@ for (const [name, payload] of Object.entries({
     await page.getByRole("button", { name: "Save recovery copy", exact: true }).click();
     await expect.poll(async () => (await readSavedDiagram(page, "Whiteboard (recovery copy)"))?.mode).toBe("whiteboard");
     expect(await page.evaluate(() => localStorage.getItem("diagrammatic.draft.whiteboard"))).toBe(raw);
-    expect(failures).toEqual([]);
+    await assertCanvasErrors(page, failures);
   });
 }
 

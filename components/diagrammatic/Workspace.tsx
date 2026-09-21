@@ -67,6 +67,9 @@ import { CommentsPanel } from "./shared/CommentsPanel";
 import { VersionsPanel } from "./shared/VersionsPanel";
 import { ArchitectureReviewModal } from "./csa/ArchitectureReviewModal";
 import { dataUrlToBlob } from "@/lib/data-url";
+import { getExportFontCss } from "@/lib/export-fonts";
+import { includeDiagramExportNode } from "@/lib/export-filter";
+import { releaseExportCanvas, toExportPng } from "@/lib/export-raster";
 import { AzureDeployModal } from "./csa/AzureDeployModal";
 import {
   WhiteboardAssetPalette,
@@ -187,6 +190,12 @@ export function Workspace({
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [documentRevision, setDocumentRevision] = useState(0);
   const [canvasEpochs, setCanvasEpochs] = useState<Partial<Record<DiagrammaticMode, number>>>({});
+  const canvasGenerations = useRef<Partial<Record<DiagrammaticMode, number>>>({});
+  const advanceCanvas = useCallback((target: DiagrammaticMode) => {
+    const generation = (canvasGenerations.current[target] ?? 0) + 1;
+    canvasGenerations.current[target] = generation;
+    setCanvasEpochs((previous) => ({ ...previous, [target]: generation }));
+  }, []);
   const [canvasThemes, setCanvasThemes] = useState<
     Partial<Record<DiagrammaticMode, CanvasTheme>>
   >({});
@@ -199,6 +208,9 @@ export function Workspace({
     kind: "working" | "success" | "error";
     message: string;
   } | null>(null);
+  const exportRun = useRef(false);
+  const exportNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (exportNoticeTimer.current) clearTimeout(exportNoticeTimer.current); }, []);
   const [insertingWhiteboardAsset, setInsertingWhiteboardAsset] = useState<string | null>(null);
   const canvasRef = useRef<ArchitectureCanvasHandle | null>(null);
   const [documentSaveError, setDocumentSaveError] = useState<string | null>(null);
@@ -211,6 +223,9 @@ export function Workspace({
     mode, revision: documentRevision, externalSeed, suspended: libraryOpen,
     requestedId: searchParams?.get("document"),
     capture: (targetMode): unknown => {
+      if ((canvasGenerations.current[targetMode] ?? 0) !== (canvasEpochs[targetMode] ?? 0)) {
+        throw new Error("The canvas is changing documents. Wait for it to finish before saving.");
+      }
       if (targetMode === "architecture") return mode === targetMode ? canvasRef.current?.serialize() ?? archPayload : archPayload;
       if (targetMode === mode && otherCanvasRef.current) return otherCanvasRef.current.serialize();
       if (otherPayloads[targetMode] !== undefined) return otherPayloads[targetMode];
@@ -227,7 +242,7 @@ export function Workspace({
         setOtherPayloads((previous) => ({ ...previous, [document.mode]: checked }));
       }
       setCanvasThemes((previous) => ({ ...previous, [document.mode]: document.canvasTheme }));
-      setCanvasEpochs((previous) => ({ ...previous, [document.mode]: (previous[document.mode] ?? 0) + 1 }));
+      advanceCanvas(document.mode);
       setSelection(null);
       setCommentsOpen(false);
       setVersionsOpen(false);
@@ -314,7 +329,7 @@ export function Workspace({
       const icon = iconById.current.get(ce.detail.payload);
       if (icon && canvasRef.current) {
         canvasRef.current.dropIcon(icon, ce.detail.clientX, ce.detail.clientY);
-      }
+      } else if (!icon) setExportNotice({ kind: "error", message: "The dragged service is not in the bundled catalog. Choose a service from the palette." });
     };
     const onAdd = (e: Event) => {
       const ce = e as CustomEvent<{ id: string }>;
@@ -363,9 +378,12 @@ export function Workspace({
         }),
         hasDraft: !!result.payload,
       });
-      if (result.payload?.nodes.length) setArchPayload(result.payload);
+      if (result.payload?.nodes.length) {
+        advanceCanvas("architecture");
+        setArchPayload(result.payload);
+      }
     });
-  }, [searchParams, icons]);
+  }, [searchParams, icons, advanceCanvas]);
 
   // Templates Gallery handoff: parameterized template resolved into a
   // playground-format graph stowed in localStorage under a unique handoff key
@@ -388,6 +406,7 @@ export function Workspace({
         handoffApplied.current = true;
         promptApplied.current = true; // suppress the prompt path on the same load
         requestAnimationFrame(() => {
+          advanceCanvas("architecture");
           setArchPayload(arch);
         });
         if (storeKey) {
@@ -406,11 +425,11 @@ export function Workspace({
 
   // Mark unsaved when canvas state changes.
   const handleArchChange = useCallback((next: ArchPayload) => {
-    if (!library.ready) return;
+    if (!library.ready || (canvasGenerations.current.architecture ?? 0) !== (canvasEpochs.architecture ?? 0)) return;
     setArchPayload(next);
     setSaved(false);
     setDocumentRevision((value) => value + 1);
-  }, [library.ready]);
+  }, [library.ready, canvasEpochs.architecture]);
 
   const saveCurrentDocument = useCallback(async (name?: string) => {
     try {
@@ -471,10 +490,11 @@ export function Workspace({
   }, [router, saveCurrentDocument]);
 
   const captureActiveCanvas = useCallback(() => {
+    if ((canvasGenerations.current[mode] ?? 0) !== (canvasEpochs[mode] ?? 0)) throw new Error("The canvas is changing documents. Wait before leaving.");
     const canvas = mode === "architecture" ? canvasRef.current : otherCanvasRef.current;
     if (!canvas) throw new Error("The canvas is still loading. Wait before leaving.");
     return canvas.serialize();
-  }, [mode]);
+  }, [mode, canvasEpochs]);
 
   const persistScratchDraft = useCallback((payload: unknown) => {
     if (library.blockedDrafts[mode]) {
@@ -643,6 +663,12 @@ export function Workspace({
 
   const handleExport = useCallback(
     async (format: ExportFormat) => {
+      if (exportRun.current) {
+        setExportNotice({ kind: "working", message: "An export is already being prepared. Wait for it to finish." });
+        return;
+      }
+      exportRun.current = true;
+      if (exportNoticeTimer.current) clearTimeout(exportNoticeTimer.current);
       const label = format.toUpperCase();
       setExportNotice({ kind: "working", message: `Preparing ${label} export…` });
       try {
@@ -659,7 +685,8 @@ export function Workspace({
           message: error instanceof Error ? error.message : `${label} export failed`,
         });
       }
-      window.setTimeout(() => setExportNotice(null), 3200);
+      exportRun.current = false;
+      exportNoticeTimer.current = setTimeout(() => setExportNotice(null), 3200);
     },
     [mode, canvasTheme]
   );
@@ -688,7 +715,7 @@ export function Workspace({
 
   const handleOtherChange = useCallback(
     (payload: unknown) => {
-      if (!library.ready) return;
+      if (!library.ready || (canvasGenerations.current[mode] ?? 0) !== (canvasEpochs[mode] ?? 0)) return;
       setOtherPayloads((previous) => ({ ...previous, [mode]: payload }));
       setSaved(false);
       setDocumentRevision((value) => value + 1);
@@ -699,7 +726,7 @@ export function Workspace({
         reportPersistenceFailure(cause);
       }
     },
-    [mode, library.ready, library.blockedDrafts, currentDocument, persistScratchDraft, reportPersistenceFailure]
+    [mode, canvasEpochs, library.ready, library.blockedDrafts, currentDocument, persistScratchDraft, reportPersistenceFailure]
   );
 
   const handleOtherMount = useCallback((handle: BaseCanvasHandle | null) => {
@@ -1021,7 +1048,7 @@ export function Workspace({
               />
               {archPayload.nodes.length === 0 && (
                 <div className="pointer-events-none absolute inset-0 grid place-items-center p-6">
-                  <div className="pointer-events-auto w-full max-w-xl rounded-3xl border border-slate-200 bg-white/95 p-7 shadow-[0_30px_80px_-34px_rgba(15,23,42,0.35)] backdrop-blur">
+                  <div className="pointer-events-none w-full max-w-xl rounded-3xl border border-slate-200 bg-white/95 p-7 shadow-[0_30px_80px_-34px_rgba(15,23,42,0.35)] backdrop-blur">
                     <div className="flex items-start gap-4">
                       <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-sky-600 text-white shadow-lg shadow-sky-600/20">
                         <CloudCog className="h-5 w-5" />
@@ -1040,7 +1067,7 @@ export function Workspace({
                       </div>
                     </div>
                     <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-                      <Link href="/templates" className="font-semibold text-sky-700 hover:underline">Browse starting designs</Link>
+                      <Link href="/templates" className="pointer-events-auto font-semibold text-sky-700 hover:underline">Browse starting designs</Link>
                       <p className="mt-1">The gallery contains reusable blueprints. Once you build your diagram, use Review my architecture for personalized findings.</p>
                     </div>
                     <div className="mt-5 flex items-center gap-3 border-t border-slate-100 pt-4 text-[10px] text-slate-400">
@@ -1087,7 +1114,7 @@ export function Workspace({
           {/* Floating ⌘K hint */}
           <button
             type="button"
-            onClick={() => setCmdOpen(true)}
+            onClick={(event) => { event.currentTarget.focus({ preventScroll: true }); setCmdOpen(true); }}
             className="absolute bottom-4 right-4 inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-zinc-300 bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 rounded-lg shadow-lg backdrop-blur transition-colors cursor-pointer"
             aria-label="Open command palette"
           >
@@ -1221,7 +1248,7 @@ export function Workspace({
             if (removed.mode === "architecture") setArchPayload(structuredClone(ARCHITECTURE_EMPTY_PAYLOAD));
             else setOtherPayloads((previous) => ({ ...previous, [removed.mode]: structuredClone(blank) }));
             localStorage.removeItem(removed.mode === "architecture" ? "diagrammatic.draft" : `diagrammatic.draft.${removed.mode}`);
-            setCanvasEpochs((previous) => ({ ...previous, [removed.mode]: (previous[removed.mode] ?? 0) + 1 }));
+            advanceCanvas(removed.mode);
           }
           library.deleted(id);
         }}
@@ -1527,10 +1554,12 @@ async function exportCanvas(
   const viewport = document.querySelector(".react-flow__viewport") as HTMLElement | null;
   if (!viewport) throw new Error("Unable to locate the diagram export surface");
 
-  const { toPng, toSvg, toCanvas } = await import("html-to-image");
+  const { toSvg, toCanvas } = await import("html-to-image");
   const bounds = handle.getExportBounds();
   const layout = createExportLayout(bounds, format === "gif" ? 1280 : 2400, format === "gif" ? 900 : 1800);
   const commonOptions = {
+    fontEmbedCSS: await getExportFontCss(viewport),
+    filter: includeDiagramExportNode,
     cacheBust: true,
     backgroundColor: canvasTheme === "light" ? "#f8fafc" : "#05080d",
     width: layout.width,
@@ -1544,7 +1573,7 @@ async function exportCanvas(
   };
 
   if (format === "png") {
-    const dataUrl = await toPng(viewport, {
+    const dataUrl = await toExportPng(viewport, {
       ...commonOptions,
       pixelRatio: 2,
     });
@@ -1553,7 +1582,7 @@ async function exportCanvas(
     const dataUrl = await toSvg(viewport, commonOptions);
     triggerDataUrlDownload(dataUrl, `${filename}.svg`);
   } else if (format === "pdf") {
-    const dataUrl = await toPng(viewport, {
+    const dataUrl = await toExportPng(viewport, {
       ...commonOptions,
       pixelRatio: 2,
     });
@@ -1634,6 +1663,7 @@ async function exportSequenceGif(
       ...commonOptions,
       pixelRatio: 1,
     });
+    try {
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Unable to create the GIF image renderer.");
     const data = ctx.getImageData(0, 0, outW, outH).data;
@@ -1645,6 +1675,7 @@ async function exportSequenceGif(
       delay: overview ? 1200 : 120,
     });
     frameCount += 1;
+    } finally { releaseExportCanvas(canvas); }
   });
 
   if (!frameCount) throw new Error("GIF capture produced no frames");
@@ -1741,17 +1772,20 @@ async function exportOther(
     throw new Error("Unable to locate the diagram export surface.");
   }
   try {
-    const { toPng, toSvg } = await import("html-to-image");
+    const { toSvg } = await import("html-to-image");
+    const fontEmbedCSS = await getExportFontCss(target);
     if (format === "png") {
-      const dataUrl = await toPng(target, { cacheBust: true, backgroundColor: canvasTheme === "light" ? "#f8fafc" : "#05080d", pixelRatio: 2 });
+      const dataUrl = await toExportPng(target, { filter: includeDiagramExportNode, fontEmbedCSS, cacheBust: true, backgroundColor: canvasTheme === "light" ? "#f8fafc" : "#05080d", pixelRatio: 2 });
       const blob = await dataUrlToBlob(dataUrl);
       triggerDownload(blob, `${mode}-${stamp}.png`);
     } else if (format === "svg") {
-      const dataUrl = await toSvg(target, { cacheBust: true, backgroundColor: canvasTheme === "light" ? "#f8fafc" : "#05080d" });
+      const dataUrl = await toSvg(target, { filter: includeDiagramExportNode, fontEmbedCSS, cacheBust: true, backgroundColor: canvasTheme === "light" ? "#f8fafc" : "#05080d" });
       const blob = await dataUrlToBlob(dataUrl);
       triggerDownload(blob, `${mode}-${stamp}.svg`);
     } else if (format === "pdf") {
-      const dataUrl = await toPng(target, {
+      const dataUrl = await toExportPng(target, {
+        fontEmbedCSS,
+        filter: includeDiagramExportNode,
         cacheBust: true,
         backgroundColor: canvasTheme === "light" ? "#f8fafc" : "#05080d",
         pixelRatio: 2,

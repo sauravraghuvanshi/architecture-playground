@@ -24,6 +24,11 @@ test("connects bundled symbols with a flow arrow and exports an animated GIF", a
     .first()
     .dragTo(whiteboard, { targetPosition: { x: 760, y: 300 } });
 
+  await expect.poll(async () => {
+    const payload = await readCanvasPayload(page, "whiteboard") as { elements?: Array<{ type: string; isDeleted?: boolean }> } | undefined;
+    return payload?.elements?.filter((element) => element.type === "image" && !element.isDeleted).length;
+  }).toBe(2);
+
   await page.getByRole("button", { name: "Activate Whiteboard flow arrow" }).click();
   await expect(page.getByText("Flow arrow active", { exact: false })).toBeVisible();
 

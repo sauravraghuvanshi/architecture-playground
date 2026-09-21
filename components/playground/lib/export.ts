@@ -14,25 +14,22 @@
  */
 "use client";
 
-import { toPng, toCanvas } from "html-to-image";
+import { toCanvas } from "html-to-image";
+import { releaseExportCanvas, toExportPng } from "../../../lib/export-raster";
+import { getExportFontCss } from "../../../lib/export-fonts";
+import { includeDiagramExportNode } from "../../../lib/export-filter";
 import type { PlaygroundGraph } from "./types";
 import { CURRENT_SCHEMA_VERSION } from "./types";
 
 interface DownloadOptions { filename: string; }
 
 export async function exportPng(viewportEl: HTMLElement, opts: DownloadOptions = { filename: "architecture.png" }) {
-  const dataUrl = await toPng(viewportEl, {
+  const dataUrl = await toExportPng(viewportEl, {
+    fontEmbedCSS: await getExportFontCss(viewportEl),
     cacheBust: true,
     pixelRatio: 2,
     backgroundColor: "#ffffff",
-    filter: (node) => {
-      // Skip React Flow chrome (controls, minimap, attribution)
-      if (!(node instanceof Element)) return true;
-      if (node.classList?.contains("react-flow__minimap")) return false;
-      if (node.classList?.contains("react-flow__controls")) return false;
-      if (node.classList?.contains("react-flow__attribution")) return false;
-      return true;
-    },
+    filter: includeDiagramExportNode,
   });
   triggerDownload(dataUrl, opts.filename);
 }
@@ -85,9 +82,11 @@ export async function exportGif(
   if (totalFrames === 0) throw new Error("No frames to capture — set steps on edges first.");
 
   // Eagerly render once to learn dimensions (also primes asset loading).
-  const probeCanvas = await toCanvas(viewportEl, { pixelRatio: scale, cacheBust: true });
+  const fontEmbedCSS = await getExportFontCss(viewportEl);
+  const probeCanvas = await toCanvas(viewportEl, { filter: includeDiagramExportNode, fontEmbedCSS, pixelRatio: scale, cacheBust: true });
   const width = probeCanvas.width;
   const height = probeCanvas.height;
+  releaseExportCanvas(probeCanvas);
 
   const worker = new Worker("/playground/gif-encoder.worker.js");
   let resolveDone!: () => void;
@@ -121,7 +120,8 @@ export async function exportGif(
       await driver.setFrame(i);
       // Wait two RAFs so React commits + browser paints before snapshot.
       await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
-      const canvas = await toCanvas(viewportEl, { pixelRatio: scale, cacheBust: false, width, height });
+      const canvas = await toCanvas(viewportEl, { filter: includeDiagramExportNode, fontEmbedCSS, pixelRatio: scale, cacheBust: false, width, height });
+      try {
       const ctx = canvas.getContext("2d");
       if (!ctx) throw new Error("Canvas 2D context unavailable");
       const imgData = ctx.getImageData(0, 0, width, height);
@@ -130,6 +130,7 @@ export async function exportGif(
         { type: "frame", index: i, data: imgData.data.buffer, width, height },
         [imgData.data.buffer]
       );
+      } finally { releaseExportCanvas(canvas); }
       onProgress?.((i + 1) / totalFrames);
     }
     worker.postMessage({ type: "finalize" });

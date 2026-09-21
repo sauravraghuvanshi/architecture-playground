@@ -5,6 +5,7 @@ import vm from "node:vm";
 import ts from "typescript";
 import * as appearance from "../lib/whiteboard-appearance.ts";
 import { parseWhiteboardDocument } from "../lib/diagram-payload.ts";
+import * as diagramDrag from "../lib/diagram-drag.ts";
 
 const source = readFileSync(new URL("../components/diagrammatic/modes/whiteboard/Canvas.tsx", import.meta.url), "utf8");
 const compiled = ts.transpileModule(source, {
@@ -80,6 +81,7 @@ function canvasHarness({ ready = true, pngFailure, gifFailure, imageWidth = 1200
       },
     },
     "@/lib/diagram-payload": { parseWhiteboardDocument },
+    "@/lib/diagram-drag": diagramDrag,
   };
   const exports = {};
   vm.runInNewContext(compiled, {
@@ -96,7 +98,13 @@ function canvasHarness({ ready = true, pngFailure, gifFailure, imageWidth = 1200
   });
   const ref = { current: null };
   const rendered = exports.WhiteboardCanvas({ value: { elements: [], files: {} } }, ref);
-  return { handle: ref.current, calls, files, png, gif, onChange: rendered.props.children.props.onChange };
+  return {
+    handle: ref.current, calls, files, png, gif,
+    onChange: rendered.props.children.props.onChange,
+    pointerDown: rendered.props.children.props.onPointerDown,
+    pointerUp: rendered.props.children.props.onPointerUp,
+    stageElements: (next) => { elements = next; },
+  };
 }
 
 test("snapshot hydration restores validated image binaries before elements after a fresh mount", () => {
@@ -215,7 +223,7 @@ test("undo, redo and delete use only this canvas's Excalidraw controls", () => {
 test("each custom image and symbol insertion registers files before an immediate history checkpoint", async () => {
   const { handle, calls, files } = canvasHarness();
   await handle.insertImage(pngData.split(",")[1], "image/png");
-  handle.insertSvgAsset('<svg xmlns="http://www.w3.org/2000/svg"><rect width="10" height="10"/></svg>', "Symbol");
+  handle.insertSvgAsset('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10"/></svg>', "Symbol");
   const updates = calls.filter(([operation]) => operation === "updateScene");
   assert.equal(updates.length, 2);
   assert.deepEqual(updates.map(([, scene]) => scene.captureUpdate), ["IMMEDIATELY", "IMMEDIATELY"]);
@@ -223,6 +231,13 @@ test("each custom image and symbol insertion registers files before an immediate
   assert.equal(updates[1][1].elements.length, 2);
   assert.equal(Object.keys(files).length, 2);
   assert.deepEqual(calls.map(([operation]) => operation), ["addFiles", "updateScene", "addFiles", "updateScene"]);
+});
+
+test("malformed dragged SVG cannot register a file or mutate the scene before validation", () => {
+  const { handle, calls, files } = canvasHarness();
+  assert.throws(() => handle.insertSvgAsset('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>', "Invalid"), /Invalid Whiteboard/);
+  assert.equal(calls.length, 0);
+  assert.deepEqual(files, {});
 });
 
 test("decoded aspect ratio and captured request surface survive insertion and serialization", async () => {
@@ -261,4 +276,19 @@ test("semantic annotation waits until a live native drawing gesture finishes", (
   assert.deepEqual(plain(calls[0][1].elements[0].points), [[0, 0], [240, 0]]);
   assert.equal(calls[0][1].elements[0].customData.diagrammaticForeground, "#f8fafc");
   assert.equal(calls[0][1].captureUpdate, "NEVER");
+});
+
+test("pointer callbacks protect live geometry even when an onChange snapshot lacks interaction flags", () => {
+  const h = canvasHarness();
+  const early = { id: "arrow", type: "arrow", x: 0, y: 0, width: 20, height: 0, points: [[0, 0], [20, 0]], strokeColor: "#f8fafc" };
+  const final = { ...early, width: 240, points: [[0, 0], [240, 0]] };
+  h.pointerDown();
+  h.onChange([early], { viewBackgroundColor: "#05080d" }, {});
+  assert.equal(h.calls.length, 0);
+  assert.throws(() => h.handle.serialize(), /Finish or cancel/);
+  h.stageElements([final]);
+  h.pointerUp();
+  const update = h.calls.find(([operation]) => operation === "updateScene");
+  assert.equal(update[1].elements[0].width, 240);
+  assert.deepEqual(plain(update[1].elements[0].points), final.points);
 });

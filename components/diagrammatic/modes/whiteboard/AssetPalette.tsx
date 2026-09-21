@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { BadgeCheck, Loader2, Search } from "lucide-react";
+import { writeDiagramDrag } from "@/lib/diagram-drag";
 
 export interface WhiteboardAsset {
   id: string;
@@ -131,11 +132,7 @@ export function WhiteboardAssetPalette({ onInsert, insertingId }: Props) {
                 type="button"
                 draggable
                 onDragStart={(event) => {
-                  event.dataTransfer.setData(
-                    "application/x-diagrammatic-whiteboard-asset",
-                    JSON.stringify({ svg: asset.svg, label: asset.label })
-                  );
-                  event.dataTransfer.effectAllowed = "copy";
+                  writeDiagramDrag(event.dataTransfer, "whiteboard", JSON.stringify({ svg: asset.svg, label: asset.label }));
                 }}
                 onClick={() => onInsert(asset)}
                 disabled={inserting}

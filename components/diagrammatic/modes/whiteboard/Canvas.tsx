@@ -25,6 +25,7 @@ import {
 } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import { parseWhiteboardDocument } from "@/lib/diagram-payload";
+import { mayContainDiagramDrag, readDiagramDrag } from "@/lib/diagram-drag";
 import type { BaseCanvasHandle } from "../../shared/modeRegistry";
 import type { CanvasTheme } from "../../shared/types";
 import { exportWhiteboardFlowGif } from "./export-gif";
@@ -159,6 +160,7 @@ const VOLATILE_APP_STATE_KEYS = [
   "editingTextElement",
   "editingGroupId",
   "editingLinearElement",
+  "errorMessage",
   "elementLocked",
   "lastPointerDownWith",
   "newElement",
@@ -196,6 +198,8 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
   const apiRef = useRef<ExcalidrawAPI | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const sceneEpoch = useRef(0);
+  const pointerActive = useRef(false);
+  const pointerSettleFrame = useRef<number | null>(null);
   const initialAppearance = whiteboardAppearance(canvasTheme, value.appState);
   const foregroundRef = useRef(initialAppearance.foregroundColor);
   const knownElementsRef = useRef(new Set((value.elements as ForegroundElement[] ?? []).map((element) => element.id)));
@@ -265,7 +269,7 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
     const liveAppState = (appState ?? api.getAppState()) as Record<string, unknown>;
     const nextAppState = appStateForPersistence(liveAppState);
     const nextFiles = files ?? api.getFiles();
-    const interacting = isWhiteboardInteractionActive(liveAppState);
+    const interacting = pointerActive.current || isWhiteboardInteractionActive(liveAppState);
     const foreground = whiteboardForeground(whiteboardSurfaceColor(String(nextAppState.viewBackgroundColor ?? initialAppearance.backgroundColor), canvasTheme));
     let changed = false;
     const additions: Parameters<ExcalidrawAPI["addFiles"]>[0] = [];
@@ -321,6 +325,29 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
     });
   }, [onChange, initialAppearance.backgroundColor, canvasTheme]);
 
+  const startPointer = useCallback(() => {
+    if (pointerSettleFrame.current) cancelAnimationFrame(pointerSettleFrame.current);
+    pointerSettleFrame.current = null;
+    pointerActive.current = true;
+  }, []);
+
+  const settlePointer = useCallback(() => {
+    const api = apiRef.current;
+    const epoch = sceneEpoch.current;
+    if (pointerSettleFrame.current) cancelAnimationFrame(pointerSettleFrame.current);
+    // Native pointer-up can finish a queued geometry update on the next paint.
+    // Never replace its live elements with an earlier onChange snapshot.
+    pointerSettleFrame.current = requestAnimationFrame(() => {
+      pointerSettleFrame.current = requestAnimationFrame(() => {
+        pointerSettleFrame.current = null;
+        if (sceneEpoch.current !== epoch) return;
+        pointerActive.current = false;
+        if (!api || apiRef.current !== api) return;
+        onAnyChange(api.getSceneElements(), api.getAppState(), api.getFiles());
+      });
+    });
+  }, [onAnyChange]);
+
   const insertImageData = useCallback(
     (
       b64: string,
@@ -338,14 +365,12 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
       const api = apiRef.current;
       if (!api) return;
       const fileId = `${opts?.idPrefix ?? "image"}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-      api.addFiles([
-        {
-          id: fileId,
-          mimeType: mime,
-          dataURL: `data:${mime};base64,${b64}`,
-          created: Date.now(),
-        },
-      ]);
+      const file = {
+        id: fileId,
+        mimeType: mime,
+        dataURL: `data:${mime};base64,${b64}`,
+        created: Date.now(),
+      };
       const appState = api.getAppState() as {
         scrollX?: number;
         scrollY?: number;
@@ -380,8 +405,10 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
           ...(opts?.canvas ? { customData: { diagrammaticImageCanvas: opts.canvas } } : {}),
         },
       ] as never);
+      const checked = parseWhiteboardDocument({ elements, files: { [fileId]: file } });
+      api.addFiles(Object.values(checked.files ?? {}));
       api.updateScene({
-        elements: [...api.getSceneElements(), ...elements],
+        elements: [...api.getSceneElements(), ...checked.elements],
         captureUpdate: CaptureUpdateAction.IMMEDIATELY,
       });
     },
@@ -394,11 +421,7 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
       event.dataTransfer.dropEffect = "none";
       return;
     }
-    if (
-      Array.from(event.dataTransfer.types).includes(
-        "application/x-diagrammatic-whiteboard-asset"
-      )
-    ) {
+    if (mayContainDiagramDrag(event.dataTransfer, "whiteboard")) {
       event.preventDefault();
       event.dataTransfer.dropEffect = "copy";
     }
@@ -411,15 +434,16 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
         event.stopPropagation();
         return;
       }
-      const raw = event.dataTransfer.getData(
-        "application/x-diagrammatic-whiteboard-asset"
-      );
-      if (!raw) return;
-      event.preventDefault();
-      event.stopPropagation();
       try {
-        const asset = JSON.parse(raw) as { svg?: string; label?: string };
-        if (!asset.svg || !asset.label) return;
+        const raw = readDiagramDrag(event.dataTransfer, "whiteboard");
+        if (!raw) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const asset: unknown = JSON.parse(raw);
+        if (!asset || typeof asset !== "object" || !("svg" in asset) || typeof asset.svg !== "string" || !asset.svg ||
+          !("label" in asset) || typeof asset.label !== "string" || !asset.label.trim() || asset.label.length > 200) {
+          throw new Error("Invalid dragged symbol.");
+        }
         const owned = isNeutralWhiteboardSymbol(asset.svg);
         insertImageData(utf8ToBase64(colorWhiteboardSymbol(asset.svg, foregroundRef.current)), "image/svg+xml", {
           width: 180,
@@ -430,7 +454,11 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
           ...(owned ? { symbolSvg: asset.svg } : {}),
         });
       } catch {
-        // Ignore malformed external drag payloads.
+        event.preventDefault();
+        event.stopPropagation();
+        const message = "The dragged symbol is invalid. Choose a palette item and retry.";
+        if (apiRef.current) apiRef.current.updateScene({ appState: { errorMessage: message }, captureUpdate: CaptureUpdateAction.NEVER });
+        else console.error(message);
       }
     },
     [insertImageData]
@@ -438,11 +466,13 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
 
   useEffect(() => () => {
     sceneEpoch.current += 1;
+    if (pointerSettleFrame.current) cancelAnimationFrame(pointerSettleFrame.current);
     if (notifyRef.current) cancelAnimationFrame(notifyRef.current);
   }, []);
 
   useImperativeHandle(ref, () => ({
     serialize: () => {
+      if (pointerActive.current) throw new Error("Finish or cancel the current Whiteboard gesture before saving.");
       if (!apiRef.current) return parseWhiteboardDocument(value);
       return parseWhiteboardDocument({
         elements: [...apiRef.current.getSceneElements()],
@@ -455,6 +485,9 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
       if (!api) throw new Error("Whiteboard is not ready to restore a snapshot.");
       const data = parseWhiteboardDocument(p);
       sceneEpoch.current += 1;
+      pointerActive.current = false;
+      if (pointerSettleFrame.current) cancelAnimationFrame(pointerSettleFrame.current);
+      pointerSettleFrame.current = null;
       if (notifyRef.current) {
         cancelAnimationFrame(notifyRef.current);
         notifyRef.current = null;
@@ -560,11 +593,14 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
       onDragOverCapture={handleAssetDragOver}
       onDropCapture={handleAssetDrop}
       onKeyDownCapture={blockExternalWhiteboardShortcuts}
+      onPointerCancelCapture={settlePointer}
     >
       <Excalidraw
         excalidrawAPI={registerExcalidrawApi}
         initialData={initialData}
         onChange={onAnyChange}
+        onPointerDown={startPointer}
+        onPointerUp={settlePointer}
         theme="light"
         UIOptions={{ canvasActions: { saveToActiveFile: false, loadScene: false, export: false, saveAsImage: true, toggleTheme: false, changeViewBackgroundColor: true, clearCanvas: true } }}
       >

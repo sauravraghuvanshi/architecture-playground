@@ -28,6 +28,7 @@ import {
 import type { IconLite } from "./types";
 import type { ArchShape } from "../modes/architecture/ArchitectureCanvas";
 import { searchServiceIcons } from "@/lib/service-identity";
+import { writeDiagramDrag } from "@/lib/diagram-drag";
 
 interface Props {
   icons: IconLite[];
@@ -154,8 +155,7 @@ export function Palette({ icons, onInsert }: Props) {
                 type="button"
                 draggable
                 onDragStart={(event) => {
-                  event.dataTransfer.setData("application/x-diagrammatic-shape", shape);
-                  event.dataTransfer.effectAllowed = "copy";
+                  writeDiagramDrag(event.dataTransfer, "shape", shape);
                 }}
                 onClick={() => addShape(shape)}
                 className="group flex min-h-16 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-slate-800 bg-slate-900/70 p-2 text-slate-400 transition hover:-translate-y-0.5 hover:border-cyan-500/60 hover:bg-slate-900 hover:text-cyan-300"
@@ -189,8 +189,7 @@ export function Palette({ icons, onInsert }: Props) {
                   type="button"
                   draggable
                   onDragStart={(e) => {
-                    e.dataTransfer.setData("application/x-diagrammatic-icon", icon.id);
-                    e.dataTransfer.effectAllowed = "copy";
+                    writeDiagramDrag(e.dataTransfer, "icon", icon.id);
                   }}
                   onClick={() => {
                     // Click-to-add: surfaces the icon at the canvas center.

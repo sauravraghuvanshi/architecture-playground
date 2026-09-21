@@ -1,9 +1,117 @@
 # Azure Deployment Plan
 
-> **Status:** Deployed and Verified
+> **Status:** Validated
 
 Generated: 2026-08-12
 Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
+
+## Priority 15 - Cross-browser reliability
+
+- **Baseline:** Verified application `d81a0fd`; documentation `fc336ac`.
+- **Latest authorization:** Finish and verify priority 15, then stop. The user
+  has a new issue to address before any further backlog work. Do not start 16.
+- **Plan:** Reproduce current Firefox/WebKit failures using the production build;
+  distinguish application bugs, test-driver defects and unsupported environments;
+  fix root causes with browser-backed regressions, publish an evidence-bounded
+  support policy, validate/deploy and verify hosted, then pause for the new issue.
+- **Recipe:** Existing application-only App Service pipeline. No infrastructure,
+  model calls, credentials or provider configuration changes.
+- **State:** Implementation and local verification complete; publish and verify
+  this current task only, then stop for the user's new issue.
+- **Boundary:** Playwright WebKit on Windows is not real Safari/iOS device
+  certification. Do not make device-support promises without direct evidence.
+
+### Priority 15 - Current-release reproduction
+
+- Exact historical 22-case Firefox/WebKit suite: **19 passed, 3 failed**.
+  Firefox Whiteboard reload now passes; Firefox architecture raster export and
+  WebKit Whiteboard drag/connected-arrow cases remain reproducible.
+- Firefox console evidence identifies `html-to-image` calling `.trim()` on
+  undefined `CSSFontFaceDescriptors.fontFamily`. Standard
+  `getPropertyValue("font-family")` is available. The upstream source still uses
+  the failing camel-case property; no vendor files or prototypes are patched.
+- WebKit event traces show the application custom MIME disappearing between
+  dragstart and drop while standard text MIME survives. Both Whiteboard symbols
+  were absent, explaining the downstream unbound arrow. A versioned marked
+  text envelope supplements existing custom MIME across both canvases.
+- Implemented bounded font CSS embedding through the library's public option,
+  preserving fonts rather than disabling them. It is prepared once per export
+  and reused for GIF frames. All native/compatibility raster/SVG surfaces share it.
+- Drag payloads are bounded and validated; ordinary external text stays with
+  the native editor. Custom symbol data is validated before files/elements mutate.
+- Browser verification of these changes and support-policy evidence follows.
+- Further evidence: WebKit's missing blueprint retained the new intent but lost
+  its nodes. The old count-based prop hydration and queued old-canvas notifications
+  could race external seeds. Document replacements now advance an explicit canvas
+  generation; stale notifications/captures are rejected, and same-canvas restores
+  cancel pending notifications instead of guessing from node counts.
+- Native WebKit drops now succeed; connected arrows pass when the fixture waits
+  for both images rather than drawing before their scene commits. The Firefox
+  reload fixture previously cleared storage on every navigation; it now verifies
+  the exact retained binary and passed three consecutive genuine reloads.
+- Playback tests now observe the actual dimmed/animated state instead of a fixed
+  200ms sleep. No assertion thresholds or export deadlines are increased.
+- WebKit GIF profiling showed steady 1280x447 frame rendering, not decode
+  rejection, at roughly 1-2 seconds per frame. Known invisible editing controls
+  are excluded through a shared export filter; actual paths/labels/icons remain.
+  Export notices cannot be cleared by an older completed export's timer, and
+  overlapping captures are explicitly prevented.
+- Firefox reload investigation distinguished an automation failure from app
+  failure: a same-origin independent observer saw the timed-out page at
+  `readyState=complete`, two restored nodes, `aria-busy=false` and saved state
+  while Playwright's original page context could not evaluate. A local-only
+  Firefox profile showed idle main threads, not an application JavaScript loop.
+  Exit-handler/cache/observer probes did not resolve the stalled context.
+- The installed runner is Playwright 1.59.1; current 1.63.0 supports Node >=20.
+  Update the test runner and matching browser binaries, then requalify the real
+  reload cases rather than accepting a timeout, disabling caching or weakening
+  restored-content assertions. Profiles are not uploaded or committed.
+- The repository-wide npm lock operation again hit the existing unrelated
+  Tailwind WASI mirror 404. No registry/certificate/access policy was bypassed.
+  A minimal isolated npm install retrieved only the three approved Playwright
+  packages; their authoritative metadata updated only the corresponding lock
+  entries. Local package directories were verified non-shared and replaced
+  with the npm-installed versions, with backups retained until qualification.
+  Clean Linux `npm ci` remains a required release check.
+- Playwright 1.63.0 and matching browsers are installed. Six repeated Firefox
+  architecture/Whiteboard reload cases now pass with exact identity/binary
+  assertions. Restore the original full-load navigation condition for the
+  final matrix; no cache-disabled or diagnostic monkeypatch is used.
+- A rapid WebKit pointer-up could race appearance reconciliation and truncate a
+  bound arrow. Explicit pointer lifecycle tracking now delays reconciliation
+  until native geometry settles and reads the current scene, not an old callback.
+  The original native gesture/GIF journey passed five consecutive runs.
+- The broad three-engine run passed **447/456** initially. The remaining cases
+  were investigated rather than skipped: pointer-invoked controls needed explicit
+  focus in WebKit; disclosure Escape needed an active-modal-aware document
+  handler; bounded standard ResizeObserver deferred-delivery notices are recorded
+  with stable-layout/content checks. Final affected WebKit recheck: **43/43**.
+- One Firefox mocked-Portal navigation assertion was transient: three isolated
+  repeats passed. A read-only review found no document.write/parser lifetime bug;
+  the app preopens about:blank, clears opener and navigates after validated
+  publication. No speculative Portal behavior change was made.
+
+### Priority 15 - All validation checks pass
+
+- [x] **355/355** application contracts, full lint, strict TypeScript and final
+  standalone production build pass.
+- [x] All **456 distinct** selected browser cases passed across the main matrix
+  and focused rechecks. This is aggregate coverage, not a claim of one clean
+  456-case run. Chromium's 152 cases passed in the main run; Firefox's one
+  intermittent mocked-popup case passed 3/3 repeats; final affected WebKit
+  focus/layout/restoration suite passed 43/43 after fixes.
+- [x] Actual PNG/PDF/GIF downloads and full ordered frame counts are asserted.
+  SVG checks parse the downloaded document, verify embedded fonts and visible
+  graph content, and avoid reporting harmless invisible SVG hit paths as pixels.
+- [x] Exact tested engines: Chromium 153.0.8010.12, Firefox 155.0, WebKit 26.6.
+  Real macOS Safari/iOS devices are explicitly unqualified.
+- [x] Existing app-only ZIP target, unchanged roles/resources/model endpoints.
+  Docker/IaC/What-If do not apply. No live model or customer deployment calls.
+- [x] Proof: `p15-gesture-contracts` 355 pass; `p15-modal-safe-build` exit 0;
+  `p15-final-local-matrix` 447/456; `p15-webkit-final-verified` 43/43;
+  `p15-firefox-popup-recheck` 3/3; `p15-webkit-rapid-gestures` 5/5.
+- [ ] Clean Linux install, exact application rollout and hosted verification.
+- **Stop boundary:** Do not begin priority 16 after this release.
 
 ## Priority 14 - Responsive and keyboard-accessible editing
 

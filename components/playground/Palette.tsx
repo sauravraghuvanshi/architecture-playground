@@ -8,6 +8,7 @@
  *   - HTML5 drag AND tap-to-place
  */
 "use client";
+import { writeDiagramDrag } from "../../lib/diagram-drag";
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Search, Box, StickyNote, ChevronDown, ChevronRight, Layers } from "lucide-react";
@@ -82,8 +83,7 @@ export function Palette({ icons }: Props) {
   }, []);
 
   const handleDragStart = useCallback((e: React.DragEvent, payload: object) => {
-    e.dataTransfer.setData("application/playground-item", JSON.stringify(payload));
-    e.dataTransfer.effectAllowed = "copy";
+    writeDiagramDrag(e.dataTransfer, "playground", JSON.stringify(payload));
   }, []);
 
   const handleSelectForPlacement = useCallback((iconId: string, label: string) => {

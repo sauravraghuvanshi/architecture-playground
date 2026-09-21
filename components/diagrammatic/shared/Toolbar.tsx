@@ -9,7 +9,7 @@ import Link from "next/link";
 import { Undo2, Redo2, Maximize2, Trash2, Activity, Save, Loader2, Check, LayoutGrid, Play, Square, ChevronDown, Download, FolderOpen, Sparkles, MessageSquare, History, CloudCog, Home, FilePlus2, CloudUpload, Moon, MoveRight, Sun, PanelLeft, SlidersHorizontal } from "lucide-react";
 import type { CanvasTheme } from "./types";
 import { ARCHITECTURE_TIERS } from "@/lib/architecture-hierarchy";
-import { ActionDropdown } from "./ActionDropdown";
+import { ActionDropdown, hasActiveModal } from "./ActionDropdown";
 
 const EXPORT_FORMATS = [
   { id: "png" as const, label: "PNG · high resolution" },
@@ -124,7 +124,13 @@ export function Toolbar({
   saved,
 }: Props) {
   return (
-    <header className="relative z-40 flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-800 bg-[#08111f] px-3 py-2 text-sm text-slate-200 sm:px-4">
+    <header className="relative z-40 flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-800 bg-[#08111f] px-3 py-2 text-sm text-slate-200 sm:px-4"
+      onClickCapture={(event) => {
+        // WebKit does not always focus a pointer-activated button before its action.
+        if (hasActiveModal()) return;
+        const button = event.target instanceof Element ? event.target.closest("button") : null;
+        if (button?.hasAttribute("data-workspace-invoker") && !button.disabled) button.focus({ preventScroll: true });
+      }}>
       <div className="flex min-w-0 items-center gap-3">
         <Link
           href="/"
@@ -147,18 +153,18 @@ export function Toolbar({
         </div>
       </div>
       <div className="flex min-w-0 flex-wrap items-center gap-1">
-        {onOpenAssets && <button type="button" onClick={onOpenAssets} aria-label={assetsLabel}
+        {onOpenAssets && <button type="button" data-workspace-invoker onClick={onOpenAssets} aria-label={assetsLabel}
           aria-expanded={!!assetsOpen} aria-controls="workspace-assets"
           className="flex items-center gap-1 rounded-lg border border-cyan-400/30 px-2 py-1.5 text-[10px] font-semibold text-cyan-200 xl:hidden">
           <PanelLeft className="h-3.5 w-3.5" /> Assets
         </button>}
-        {onOpenInspector && <button type="button" onClick={onOpenInspector} aria-label="Open architecture properties"
+        {onOpenInspector && <button type="button" data-workspace-invoker onClick={onOpenInspector} aria-label="Open architecture properties"
           aria-expanded={!!inspectorOpen} aria-controls="architecture-properties"
           className="flex items-center gap-1 rounded-lg border border-cyan-400/30 px-2 py-1.5 text-[10px] font-semibold text-cyan-200 xl:hidden">
           <SlidersHorizontal className="h-3.5 w-3.5" /> Properties
         </button>}
         {onOpenLibrary && (
-          <button type="button" onClick={onOpenLibrary} aria-label="My diagrams"
+          <button type="button" data-workspace-invoker onClick={onOpenLibrary} aria-label="My diagrams"
             className="flex items-center gap-1 rounded-lg border border-slate-700 px-2 py-1.5 text-[10px] font-semibold text-slate-200 hover:bg-slate-800">
             <FolderOpen className="h-3.5 w-3.5" /> My diagrams
           </button>
@@ -231,6 +237,7 @@ export function Toolbar({
           <button
             type="button"
             onClick={onAiAssist}
+            data-workspace-invoker
             disabled={!!aiDisabledReason}
             title={aiDisabledReason ?? "Generate from a prompt with AI"}
             aria-label="AI Assist"
@@ -244,6 +251,7 @@ export function Toolbar({
           <button
             type="button"
             onClick={onReviewArchitecture}
+            data-workspace-invoker
             title="Get findings and recommendations based on this architecture"
             aria-label="Review my architecture"
             className="flex cursor-pointer items-center gap-1 rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-2 py-1.5 text-[10px] font-semibold text-emerald-200 transition hover:bg-emerald-400/20 hover:text-white"
@@ -256,6 +264,7 @@ export function Toolbar({
           <button
             type="button"
             onClick={onDeployAzure}
+            data-workspace-invoker
             title="Generate and review deployment code, then hand off to Azure Portal"
             aria-label="Deploy architecture to Azure"
             className="flex cursor-pointer items-center gap-1 rounded-lg bg-sky-400 px-2 py-1.5 text-[10px] font-bold text-slate-950 transition hover:bg-sky-300"
@@ -278,6 +287,7 @@ export function Toolbar({
         )}
         {onConvertWhiteboard && (
           <button type="button" onClick={onConvertWhiteboard}
+            data-workspace-invoker
             aria-label="Convert Whiteboard to architecture"
             className="flex shrink-0 items-center gap-1 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-2 py-1.5 text-[10px] font-semibold text-cyan-200 hover:bg-cyan-400/20">
             <CloudCog className="h-3.5 w-3.5" /> To architecture
@@ -376,6 +386,7 @@ export function Toolbar({
               <button
                 type="button"
                 onClick={onToggleVersions}
+                data-workspace-invoker
                 title="Version history"
                 aria-label="Toggle version history"
                 aria-pressed={!!versionsOpen}
@@ -388,6 +399,7 @@ export function Toolbar({
               <button
                 type="button"
                 onClick={onToggleComments}
+                data-workspace-invoker
                 title="Comments"
                 aria-label="Toggle comments"
                 aria-pressed={!!commentsOpen}
@@ -399,6 +411,7 @@ export function Toolbar({
             <button
               type="button"
               onClick={onSave}
+              data-workspace-invoker
               disabled={saving}
               className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-cyan-400 px-3 py-1.5 text-[11px] font-bold text-slate-950 transition hover:bg-cyan-300 disabled:opacity-60"
             >

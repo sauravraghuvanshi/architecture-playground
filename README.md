@@ -622,6 +622,12 @@ npm run test:artifact-parsers
 npm run build
 ```
 
+Cross-browser qualification uses Playwright 1.63.0 with matching browser binaries.
+Set `PLAYWRIGHT_CROSS_BROWSER=true` to enable the Firefox and WebKit projects;
+the default remains Chromium. See [browser support and qualification](docs/browser-support.md)
+for exact engine versions, native-gesture checks and the distinction between
+WebKit automation and real Safari/device certification.
+
 Trusted artifact validators require .NET SDK 10.0.400 and Go 1.27.1 for builds;
 the deployed application includes the compiled helpers, not the SDKs. See the
 [build and isolation contract](docs/engineering-validation.md#build-and-test).

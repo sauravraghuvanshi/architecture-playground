@@ -1,10 +1,8 @@
 import { expect, test } from "@playwright/test";
+import { readCanvasPayload } from "./read-canvas-payload";
+import { assertCanvasErrors } from "./assert-canvas-errors";
 
 test.describe("Curated Whiteboard assets", () => {
-  test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => localStorage.clear());
-  });
-
   test("ships 600 unique ISC-licensed symbols", async ({ request }) => {
     const response = await request.get("/whiteboard-assets.json");
     expect(response.ok()).toBe(true);
@@ -40,10 +38,18 @@ test.describe("Curated Whiteboard assets", () => {
       const parsed = JSON.parse(raw) as { payload?: { elements?: Array<{ type?: string }> } };
       return parsed.payload?.elements?.some((element) => element.type === "image") ?? false;
     });
+    const before = await readCanvasPayload(page, "whiteboard") as { elements: Array<{ type: string; fileId?: string }>; files: Record<string, { dataURL: string }> };
+    const image = before.elements.find((element) => element.type === "image");
+    if (!image?.fileId) throw new Error("Inserted image is missing");
+    const bytes = before.files[image.fileId].dataURL;
     await page.reload();
     await expect(page.locator(".excalidraw").first()).toBeVisible({ timeout: 30_000 });
-    await page.waitForTimeout(500);
-    expect(pageErrors.filter((message) => message.includes("Maximum update depth"))).toEqual([]);
+    await expect.poll(async () => {
+      const restored = await readCanvasPayload(page, "whiteboard") as typeof before | undefined;
+      const restoredImage = restored?.elements.find((element) => element.type === "image");
+      return restoredImage?.fileId ? restored?.files[restoredImage.fileId]?.dataURL : undefined;
+    }).toBe(bytes);
+    await assertCanvasErrors(page, pageErrors);
   });
 
   test("sanitizes legacy persisted UI state without a render loop", async ({

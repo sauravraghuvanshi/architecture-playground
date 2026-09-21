@@ -35,12 +35,15 @@ import { StickyNoteNode } from "./nodes/StickyNoteNode";
 import { LabeledEdge } from "./edges/LabeledEdge";
 import { usePlaygroundUI } from "./PlaygroundUIContext";
 import type { IconManifestEntry } from "./lib/types";
+import { z } from "zod";
+import { readDiagramDrag } from "../../lib/diagram-drag";
 
-interface DropPayload {
-  kind: "service" | "group" | "sticky";
-  iconId?: string;
-  variant?: string;
-}
+const dropPayloadSchema = z.object({
+  kind: z.enum(["service", "group", "sticky"]),
+  iconId: z.string().min(1).max(300).optional(),
+  variant: z.string().min(1).max(100).optional(),
+}).strict();
+type DropPayload = z.infer<typeof dropPayloadSchema>;
 
 interface Props {
   nodes: Node[];
@@ -135,14 +138,16 @@ function CanvasInner({
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
-      const raw = e.dataTransfer.getData("application/playground-item");
-      if (!raw) return;
       let payload: DropPayload;
-      try { payload = JSON.parse(raw); } catch { return; }
+      try {
+        const raw = readDiagramDrag(e.dataTransfer, "playground");
+        if (!raw) return;
+        payload = dropPayloadSchema.parse(JSON.parse(raw));
+      } catch { announce("The dragged item is invalid. Choose an item from the palette and retry."); return; }
       const pos = rfApi.screenToFlowPosition({ x: e.clientX, y: e.clientY });
       const parent = payload.kind === "group" ? undefined : findGroupAt(pos);
       const node = buildNodeFromPayload(payload, pos, parent);
-      if (!node) return;
+      if (!node) { announce("The dragged item is not available in this palette."); return; }
       onNodesChange((prev) => [...prev, node]);
       onCommit();
       announce(`${(node.data as { label?: string }).label ?? node.type} added.`);

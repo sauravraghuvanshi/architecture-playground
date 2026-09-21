@@ -6,6 +6,10 @@ Last updated: 2026-09-21, Asia/Kolkata (resumed backlog, priority 14 close-out).
 Work resumed on September 21 at the user's request. Priority 15 is next.
 Competitor-inspired additions remain after the numbered backlog.**
 
+**Latest stop instruction:** finish the current priority 15 implementation and
+its hosted verification, then pause. The user has a new higher-priority issue;
+do not start priority 16 or another backlog item before addressing it.
+
 ## User-selected interruption - 20 September 2026
 
 Deployed release `94e1abc` addresses canvas-aware AI image prompts, readable
@@ -39,9 +43,10 @@ They are not the 47 finding IDs in the original local HTML audit.
 - Handle **one numbered priority at a time**.
 - Plan, implement, test, complete readiness checks, deploy through the existing
   application workflow, then verify the deployed behavior.
-- **Latest authorization:** the user resumed remaining tasks on September 21.
-  Continue sequentially from priority 9; validate, deploy and verify each before
-  moving on. The prior stop after task 8 remains recorded as a historical close-out.
+- **Latest authorization:** finish current priority 15 and its verification,
+  then stop for the user's new issue. The earlier resumption from priority 9
+  and stop after task 8 remain historical checkpoints, not current authority
+  to continue into priority 16.
 - Competitor-audit product additions are stage 3, after the numbered backlog.
   Preserve their local WIP without mixing it into earlier priority releases.
 - Do not sacrifice verification to a time estimate; accurately record blockers

@@ -7,6 +7,7 @@ import * as flow from "@xyflow/react";
 import { MAX_PLAYBACK_STEP, parseArchitectureDocument } from "../lib/architecture-document.ts";
 import * as hierarchy from "../lib/architecture-hierarchy.ts";
 import * as architectureModel from "../lib/architecture-model.ts";
+import * as diagramDrag from "../lib/diagram-drag.ts";
 
 const source = readFileSync(new URL("../components/diagrammatic/modes/architecture/ArchitectureCanvas.tsx", import.meta.url), "utf8");
 const compiled = ts.transpileModule(source, {
@@ -55,6 +56,7 @@ function harness(initialPayload = payload) {
     "@/lib/architecture-document": { MAX_PLAYBACK_STEP, parseArchitectureDocument },
     "@/lib/architecture-hierarchy": hierarchy,
     "@/lib/architecture-model": architectureModel,
+    "@/lib/diagram-drag": diagramDrag,
     "lucide-react": Object.fromEntries(["Box", "Circle", "Database", "Diamond", "FileText", "Globe2", "Square", "UserRound"].map((name) => [name, name])),
   };
   const exports = {};

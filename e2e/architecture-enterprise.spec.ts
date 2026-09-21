@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 
 async function openAzureBlueprint(page: Page) {
   await page.goto(`/diagrammatic?prompt=${encodeURIComponent("Azure web platform with Front Door and WAF, API Management, App Service, Service Bus, Azure SQL, Key Vault, and Application Insights")}`);
@@ -86,15 +87,12 @@ test.describe("Enterprise architecture studio", () => {
 
     await page.getByRole("button", { name: "Play" }).click();
     await expect(page.getByRole("button", { name: "Stop" })).toBeVisible();
-    await page.waitForTimeout(200);
-    const animationState = await page.locator(".react-flow__edge-path").evaluateAll((paths) =>
-      paths.map((path) => ({
-        animation: getComputedStyle(path).animationName,
-        opacity: Number(getComputedStyle(path).opacity),
-      }))
-    );
-    expect(animationState.filter((edge) => edge.animation !== "none")).toHaveLength(1);
-    expect(animationState.filter((edge) => edge.opacity < 0.5)).toHaveLength(edgeCount);
+    await expect.poll(() => page.locator(".react-flow__edge-path").evaluateAll((paths) => {
+      const state = paths.map((path) => ({
+        animation: getComputedStyle(path).animationName, opacity: Number(getComputedStyle(path).opacity),
+      }));
+      return { animated: state.filter((edge) => edge.animation !== "none").length, dimmed: state.filter((edge) => edge.opacity < 0.5).length };
+    })).toEqual({ animated: 1, dimmed: edgeCount });
   });
 
   test("deleting a boundary removes child services and their connections", async ({ page }) => {
@@ -160,7 +158,10 @@ test.describe("Enterprise architecture studio", () => {
       timeout = 45_000
     ) => {
       await page.getByRole("button", { name: "Export" }).click();
-      await page.getByRole("button", { name: buttonName }).click();
+      const [download] = await Promise.all([
+        page.waitForEvent("download", { timeout }),
+        page.getByRole("button", { name: buttonName }).click(),
+      ]);
       await page.waitForFunction(
         (ext) =>
           (
@@ -171,6 +172,13 @@ test.describe("Enterprise architecture studio", () => {
         extension,
         { timeout }
       );
+      const file = await download.path();
+      if (!file) throw new Error("Export download is unavailable");
+      const bytes = await readFile(file);
+      expect(bytes.length).toBeGreaterThan(10_000);
+      if (extension === ".png") expect(bytes.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+      if (extension === ".pdf") expect(bytes.subarray(0, 4).toString("ascii")).toBe("%PDF");
+      if (extension === ".gif") expect(bytes.subarray(0, 6).toString("ascii")).toMatch(/^GIF8[79]a$/);
     };
 
     await exportFormat(/PNG · high resolution/, ".png");

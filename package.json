@@ -12,7 +12,7 @@
     "lint": "eslint",
     "build:icon-manifest": "node scripts/build-cloud-icon-manifest.mjs",
     "build:whiteboard-assets": "node scripts/build-whiteboard-assets.mjs",
-    "test:playground": "node --test scripts/test-playground.mjs scripts/test-architecture-canvas.mjs scripts/test-graph-roundtrip.mjs scripts/test-csa.mjs scripts/test-hackathon.mjs scripts/test-whiteboard-conversion.mjs scripts/test-whiteboard-canvas.mjs scripts/test-whiteboard-appearance.mjs scripts/test-whiteboard-scene.mjs scripts/test-ai-image-route.mjs scripts/test-sse-client.mjs scripts/test-ai-image-events.mjs scripts/test-design-assistance.mjs scripts/test-diagram-library.mjs scripts/test-diagram-documents.mjs scripts/test-foundry-deployment.mjs scripts/test-live-csa-smoke.mjs scripts/test-service-identity.mjs scripts/test-iac-codegen.mjs scripts/test-architecture-model.mjs scripts/test-deploy-zip.mjs scripts/test-review-contracts.mjs scripts/test-describe-contracts.mjs scripts/test-review-image.mjs scripts/test-ai-privacy.mjs scripts/test-ai-local-history.mjs",
+    "test:playground": "node --test scripts/test-playground.mjs scripts/test-architecture-canvas.mjs scripts/test-graph-roundtrip.mjs scripts/test-csa.mjs scripts/test-hackathon.mjs scripts/test-whiteboard-conversion.mjs scripts/test-whiteboard-canvas.mjs scripts/test-whiteboard-appearance.mjs scripts/test-whiteboard-scene.mjs scripts/test-diagram-drag.mjs scripts/test-export-fonts.mjs scripts/test-export-raster.mjs scripts/test-ai-image-route.mjs scripts/test-sse-client.mjs scripts/test-ai-image-events.mjs scripts/test-design-assistance.mjs scripts/test-diagram-library.mjs scripts/test-diagram-documents.mjs scripts/test-foundry-deployment.mjs scripts/test-live-csa-smoke.mjs scripts/test-service-identity.mjs scripts/test-iac-codegen.mjs scripts/test-architecture-model.mjs scripts/test-deploy-zip.mjs scripts/test-review-contracts.mjs scripts/test-describe-contracts.mjs scripts/test-review-image.mjs scripts/test-ai-privacy.mjs scripts/test-ai-local-history.mjs",
     "test:e2e": "playwright test",
     "test:powershell-preview": "node --test scripts/test-powershell-preview.mjs",
     "test:azure-cli-draft": "node --test scripts/test-azure-cli-draft.mjs",
@@ -45,7 +45,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@playwright/test": "^1.59.1",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

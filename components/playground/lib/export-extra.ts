@@ -7,16 +7,11 @@
  */
 "use client";
 
-import { toSvg, toPng } from "html-to-image";
+import { toSvg } from "html-to-image";
+import { toExportPng } from "../../../lib/export-raster";
+import { getExportFontCss } from "../../../lib/export-fonts";
+import { includeDiagramExportNode } from "../../../lib/export-filter";
 import type { PlaygroundGraph, ServiceNodeData, GroupNodeData, StickyNodeData } from "./types";
-
-const REACT_FLOW_CHROME_FILTER = (node: HTMLElement | Element) => {
-  if (!(node instanceof Element)) return true;
-  if (node.classList?.contains("react-flow__minimap")) return false;
-  if (node.classList?.contains("react-flow__controls")) return false;
-  if (node.classList?.contains("react-flow__attribution")) return false;
-  return true;
-};
 
 function triggerDownload(href: string, filename: string) {
   const a = document.createElement("a");
@@ -30,9 +25,10 @@ function triggerDownload(href: string, filename: string) {
 
 export async function exportSvg(viewportEl: HTMLElement, filename = "architecture.svg") {
   const dataUrl = await toSvg(viewportEl, {
+    fontEmbedCSS: await getExportFontCss(viewportEl),
     cacheBust: true,
     backgroundColor: "#ffffff",
-    filter: REACT_FLOW_CHROME_FILTER,
+    filter: includeDiagramExportNode,
   });
   triggerDownload(dataUrl, filename);
 }
@@ -45,11 +41,12 @@ export async function exportPngHighDpi(
   pixelRatio: 1 | 2 | 4 = 2,
   filename = "architecture.png"
 ) {
-  const dataUrl = await toPng(viewportEl, {
+  const dataUrl = await toExportPng(viewportEl, {
+    fontEmbedCSS: await getExportFontCss(viewportEl),
     cacheBust: true,
     pixelRatio,
     backgroundColor: "#ffffff",
-    filter: REACT_FLOW_CHROME_FILTER,
+    filter: includeDiagramExportNode,
   });
   triggerDownload(dataUrl, filename);
 }

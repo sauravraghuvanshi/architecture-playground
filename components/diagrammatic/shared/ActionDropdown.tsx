@@ -24,6 +24,11 @@ export function moveActionFocus(container: HTMLElement | null, key: string): boo
   return true;
 }
 
+export function hasActiveModal(): boolean {
+  return Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]'))
+    .some((element) => element.getClientRects().length > 0 && !element.closest('[inert], [aria-hidden="true"]'));
+}
+
 export function ActionDropdown({ id, label, title, trigger, buttonClassName, panelClassName, children }: Props) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -55,16 +60,26 @@ export function ActionDropdown({ id, label, title, trigger, buttonClassName, pan
     function outside(event: PointerEvent) {
       if (event.target instanceof Node && !root.current?.contains(event.target)) setOpen(false);
     }
+    function escape(event: KeyboardEvent) {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (hasActiveModal()) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setOpen(false);
+      button.current?.focus({ preventScroll: true });
+    }
     position();
     if (firstFocus.current) {
       const available = items();
       (firstFocus.current === "last" ? available.at(-1) : available[0])?.focus({ preventScroll: true });
     }
     document.addEventListener("pointerdown", outside, true);
+    document.addEventListener("keydown", escape, true);
     window.addEventListener("resize", position);
     window.addEventListener("scroll", position, true);
     return () => {
       document.removeEventListener("pointerdown", outside, true);
+      document.removeEventListener("keydown", escape, true);
       window.removeEventListener("resize", position);
       window.removeEventListener("scroll", position, true);
     };

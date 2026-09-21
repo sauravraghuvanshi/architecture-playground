@@ -66,7 +66,8 @@ import {
 import type { CanvasTheme, IconLite } from "../../shared/types";
 import { MAX_PLAYBACK_STEP, parseArchitectureDocument } from "@/lib/architecture-document";
 import { absolutePosition, boundaryAtPoint, descendantIds, expandAncestors, GROUP_INSET, nodeSize, parentFirst, reparentNode } from "@/lib/architecture-hierarchy";
-import { ARCHITECTURE_MODEL_VERSION, architectureNodeSemanticsSchema, architectureEdgeSemanticsSchema, parseConnectionHandle, serviceNodeSemantics } from "@/lib/architecture-model";
+import { ARCHITECTURE_MODEL_VERSION, architectureShapeSchema, architectureNodeSemanticsSchema, architectureEdgeSemanticsSchema, parseConnectionHandle, serviceNodeSemantics } from "@/lib/architecture-model";
+import { readDiagramDrag } from "@/lib/diagram-drag";
 import type { ArchNode, ArchShape, ArchEdgeStyle, ArchPayload, ArchitectureMetadata, ArchitectureNodeSemantics, ArchitectureEdgeSemantics } from "@/lib/architecture-model";
 export type { ArchNode, ArchShape, ArchIconNode, ArchGroupNode, ArchShapeNode, ArchEdge, ArchEdgeStyle, ArchPayload } from "@/lib/architecture-model";
 
@@ -130,6 +131,7 @@ export interface ArchitectureSelectionPatch {
 }
 
 interface Props {
+  /** Initial document; replace by key or use hydrate for an explicit undoable restore. */
   value: ArchPayload;
   onChange?: (next: ArchPayload) => void;
   onPlayingChange?: (playing: boolean) => void;
@@ -783,28 +785,6 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
     };
   }, [nodes, edges, metadata, onChange]);
 
-  const lastHydrateKey = useRef<string>("");
-  useEffect(() => {
-    const key = `${value.nodes?.length ?? 0}:${value.edges?.length ?? 0}:${value.nodes?.[0]?.id ?? ""}`;
-    if (key === lastHydrateKey.current) return;
-    const localCount = nodes.length + edges.length;
-    const incomingCount = (value.nodes?.length ?? 0) + (value.edges?.length ?? 0);
-    if (incomingCount > 0 && (localCount === 0 || Math.abs(incomingCount - localCount) >= 2)) {
-      const flow = archToFlow(value);
-      requestAnimationFrame(() => {
-        setNodes(flow.nodes);
-        setEdges(flow.edges);
-        setMetadata(flow.metadata);
-        requestAnimationFrame(() => rfInstance?.fitView({ padding: 0.2, duration: 400 }));
-      });
-    }
-    // ALWAYS update the key so subsequent local edits (which produce a new
-    // value reference but identical counts) don't keep retripping this effect
-    // and risking a stale-rehydrate on a future legitimate change.
-    lastHydrateKey.current = key;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
-
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
       const hasStructural = changes.some((c) => c.type === "add" || c.type === "remove");
@@ -953,24 +933,29 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
 
   const onDrop = useCallback((event: React.DragEvent) => {
     event.preventDefault();
-    const id = event.dataTransfer.getData("application/x-diagrammatic-icon");
-    if (id) {
-      window.dispatchEvent(
-        new CustomEvent("diagrammatic-drop", {
-          detail: { payload: id, clientX: event.clientX, clientY: event.clientY },
-        })
-      );
-      return;
+    try {
+      const id = readDiagramDrag(event.dataTransfer, "icon");
+      if (id) {
+        window.dispatchEvent(
+          new CustomEvent("diagrammatic-drop", {
+            detail: { payload: id, clientX: event.clientX, clientY: event.clientY },
+          })
+        );
+        return;
+      }
+      const rawShape = readDiagramDrag(event.dataTransfer, "shape");
+      if (rawShape) {
+        const shape = architectureShapeSchema.parse(rawShape);
+        window.dispatchEvent(
+          new CustomEvent("diagrammatic-drop-shape", {
+            detail: { shape, clientX: event.clientX, clientY: event.clientY },
+          })
+        );
+      }
+    } catch {
+      reportError("The dragged diagram item is invalid. Choose an item from the palette and retry.");
     }
-    const shape = event.dataTransfer.getData("application/x-diagrammatic-shape") as ArchShape;
-    if (shape) {
-      window.dispatchEvent(
-        new CustomEvent("diagrammatic-drop-shape", {
-          detail: { shape, clientX: event.clientX, clientY: event.clientY },
-        })
-      );
-    }
-  }, []);
+  }, [reportError]);
 
   // Assign order only to new/unordered edges. Explicit user-defined step
   // values are never normalized or overwritten.
@@ -1159,6 +1144,7 @@ const CanvasInner = forwardRef<ArchitectureCanvasHandle, Props>(function CanvasI
       serialize: () => flowToArch(nodes, edges, metadata),
       hydrate: (payload) => {
         const flow = archToFlow(payload);
+        if (notifyRef.current) cancelAnimationFrame(notifyRef.current);
         snapshot();
         setNodes(flow.nodes);
         setEdges(flow.edges);
