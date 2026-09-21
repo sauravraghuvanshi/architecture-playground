@@ -215,6 +215,7 @@ export function Workspace({
   const canvasRef = useRef<ArchitectureCanvasHandle | null>(null);
   const [documentSaveError, setDocumentSaveError] = useState<string | null>(null);
   const [architectureReady, setArchitectureReady] = useState(false);
+  const [whiteboardReady, setWhiteboardReady] = useState(false);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -813,7 +814,7 @@ export function Workspace({
   // Global keyboard shortcuts beyond ⌘K (handled inside CommandPalette).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!library.ready || library.busy || (mode === "architecture" && !architectureReady)) return;
+      if (!library.ready || library.busy || (mode === "architecture" && !architectureReady) || (mode === "whiteboard" && !whiteboardReady)) return;
       const meta = e.metaKey || e.ctrlKey;
       const target = e.target as HTMLElement | null;
       if (e.defaultPrevented || target?.closest('[role="dialog"]')) return;
@@ -842,9 +843,9 @@ export function Workspace({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [handleSave, mode, library.ready, library.busy, architectureReady]);
+  }, [handleSave, mode, library.ready, library.busy, architectureReady, whiteboardReady]);
 
-  const workspaceLoading = !library.ready || library.busy || (mode === "architecture" && !architectureReady);
+  const workspaceLoading = !library.ready || library.busy || (mode === "architecture" && !architectureReady) || (mode === "whiteboard" && !whiteboardReady);
   useEffect(() => {
     if (workspaceLoading || restoredTabFocusRequest.current === tabFocusRequest) return;
     restoredTabFocusRequest.current = tabFocusRequest;
@@ -1085,6 +1086,7 @@ export function Workspace({
               value={otherPayloads[mode] ?? (library.blockedDrafts[mode] ? EMPTY_PAYLOAD_FOR[mode] : undefined)}
               onMount={handleOtherMount}
               onChange={handleOtherChange}
+              onReadyChange={mode === "whiteboard" ? setWhiteboardReady : undefined}
               canvasTheme={canvasTheme}
             />
           )}
@@ -1345,12 +1347,14 @@ function ModeCanvasFor({
   onChange,
   onMount,
   canvasTheme,
+  onReadyChange,
 }: {
   mode: DiagrammaticMode;
   value: unknown;
   onChange: (p: unknown) => void;
   onMount: (handle: BaseCanvasHandle | null) => void;
   canvasTheme: CanvasTheme;
+  onReadyChange?: (ready: boolean) => void;
 }) {
   const entry = MODE_REGISTRY[mode];
   const initial = useMemo(() => {
@@ -1375,6 +1379,7 @@ function ModeCanvasFor({
     <Canvas
       value={initial as never}
       onChange={onChange}
+      onReadyChange={onReadyChange}
       canvasTheme={canvasTheme}
       ref={refCallback}
     />

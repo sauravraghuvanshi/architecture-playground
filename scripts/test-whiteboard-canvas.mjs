@@ -17,7 +17,7 @@ const imageElement = { id: "drawing1", type: "image", fileId: "image1", x: 0, y:
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
 // Stub the drawing engine and hook lifecycle, but execute the actual canvas handle implementation.
-function canvasHarness({ ready = true, pngFailure, gifFailure, imageWidth = 1200, imageHeight = 800, state = {}, decode } = {}) {
+function canvasHarness({ ready = true, pngFailure, gifFailure, imageWidth = 1200, imageHeight = 800, state = {}, decode, onChange } = {}) {
   const calls = [];
   const files = {};
   let elements = [];
@@ -97,9 +97,10 @@ function canvasHarness({ ready = true, pngFailure, gifFailure, imageWidth = 1200
     },
   });
   const ref = { current: null };
-  const rendered = exports.WhiteboardCanvas({ value: { elements: [], files: {} } }, ref);
+  const readiness = [];
+  const rendered = exports.WhiteboardCanvas({ value: { elements: [], files: {} }, onChange, onReadyChange: (ready) => readiness.push(ready) }, ref);
   return {
-    handle: ref.current, calls, files, png, gif,
+    handle: ref.current, calls, files, png, gif, readiness,
     onChange: rendered.props.children.props.onChange,
     pointerDown: rendered.props.children.props.onPointerDown,
     pointerUp: rendered.props.children.props.onPointerUp,
@@ -291,4 +292,21 @@ test("pointer callbacks protect live geometry even when an onChange snapshot lac
   const update = h.calls.find(([operation]) => operation === "updateScene");
   assert.equal(update[1].elements[0].width, 240);
   assert.deepEqual(plain(update[1].elements[0].points), final.points);
+});
+
+test("loading defaults cannot overwrite the document or foreground before native restoration completes", () => {
+  const state = { isLoading: true, viewBackgroundColor: "#ffffff" };
+  const changes = [];
+  const h = canvasHarness({ state, onChange: (payload) => changes.push(payload) });
+  h.onChange([], state, {});
+  assert.equal(h.calls.length, 0);
+  assert.equal(changes.length, 0);
+  assert.throws(() => h.handle.serialize(), /still restoring/);
+  state.isLoading = false;
+  state.viewBackgroundColor = "#05080d";
+  h.onChange([], state, {});
+  assert.deepEqual(h.readiness, [true]);
+  assert.equal(changes.length, 1);
+  assert.equal(changes[0].appState.viewBackgroundColor, "#05080d");
+  assert.equal(changes[0].appState.isLoading, undefined);
 });

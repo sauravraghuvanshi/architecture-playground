@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { privacyFixture } from "./ai-privacy-fixture";
 import { readCanvasPayload } from "./read-canvas-payload";
+import { waitForWorkspace } from "./wait-for-workspace";
 
 const b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgqLjyHwAEFAJMURtfXQAAAABJRU5ErkJggg==";
 const result = { type: "result", b64, mimeType: "image/png", size: "1024x1024" };
@@ -10,6 +11,7 @@ async function openImage(page: Page) {
   await page.route("**/api/ai/status", (route) => route.fulfill({ json: { imageConfigured: true, diagramConfigured: false } }));
   await page.route("**/api/ai/privacy", (route) => route.fulfill({ json: privacyFixture }));
   await page.goto("/diagrammatic?mode=whiteboard");
+  await waitForWorkspace(page);
   await expect(page.locator(".excalidraw").first()).toBeVisible();
   await page.getByRole("button", { name: "AI Assist", exact: true }).click();
   await page.getByLabel("Describe the image to generate").fill("Synthetic image stream fixture");

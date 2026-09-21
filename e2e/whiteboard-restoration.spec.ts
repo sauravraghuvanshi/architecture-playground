@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { readCanvasPayload } from "./read-canvas-payload";
 import { readSavedDiagram } from "./read-saved-diagram";
 import { assertCanvasErrors } from "./assert-canvas-errors";
+import { waitForWorkspace } from "./wait-for-workspace";
 
 const rectangle = { id: "retained", type: "rectangle", x: 50, y: 60, width: 200, height: 120 };
 
@@ -44,6 +45,7 @@ for (const [name, payload] of Object.entries({
 
 test("rejects malformed version restoration without changing the live Whiteboard or its binaries", async ({ page }) => {
   await page.goto("/diagrammatic?mode=whiteboard");
+  await waitForWorkspace(page);
   await expect(page.locator(".excalidraw").first()).toBeVisible();
   await page.getByRole("searchbox", { name: "Search Whiteboard assets" }).fill("user");
   await page.getByRole("button", { name: "User", exact: true }).first().click();
@@ -52,9 +54,14 @@ test("rejects malformed version restoration without changing the live Whiteboard
     return !!payload && typeof payload === "object" && "elements" in payload && Array.isArray(payload.elements) ? payload.elements.length : 0;
   }).toBe(1);
   await page.reload();
+  await waitForWorkspace(page);
   await expect(page.locator(".excalidraw").first()).toBeVisible();
+  await page.keyboard.press("Control+s");
+  await expect(page.getByRole("button", { name: "Saved", exact: true })).toBeVisible();
   const saved = await readSavedDiagram(page, "Whiteboard (recovered draft)");
   if (!saved) throw new Error("Whiteboard was not recovered");
+  // Seed invalid stored evidence while no editor can autosave over the fixture.
+  await page.goto("/about");
   await page.evaluate(async (id) => {
     await new Promise<void>((resolve, reject) => {
       const request = indexedDB.open("diagrammatic.library");
@@ -73,9 +80,15 @@ test("rejects malformed version restoration without changing the live Whiteboard
       };
     });
   }, saved.id);
-  await page.reload();
+  await page.goto(`/diagrammatic?mode=whiteboard&document=${encodeURIComponent(saved.id)}`);
+  await waitForWorkspace(page);
   await expect(page.locator(".excalidraw").first()).toBeVisible();
-  const before = await readCanvasPayload(page, "whiteboard") as { elements: unknown[]; files: Record<string, unknown> };
+  const before = await readCanvasPayload(page, "whiteboard") as {
+    elements: unknown[]; files: Record<string, unknown>;
+    appState?: { viewBackgroundColor?: string; isLoading?: boolean };
+  };
+  expect(before.appState?.viewBackgroundColor).toBe("#05080d");
+  expect(before.appState?.isLoading).toBeUndefined();
   await page.getByRole("button", { name: "Toggle version history", exact: true }).click();
   const row = page.getByRole("listitem").filter({ hasText: "Invalid scene fixture" });
   await row.hover();
@@ -85,6 +98,7 @@ test("rejects malformed version restoration without changing the live Whiteboard
   const after = await readCanvasPayload(page, "whiteboard") as typeof before;
   expect(normalizedBindings(after.elements)).toEqual(normalizedBindings(before.elements));
   expect(after.files).toEqual(before.files);
+  expect(after.appState?.viewBackgroundColor).toBe("#05080d");
 });
 
 test("native geometry and arrow bindings survive persistence and valid snapshot restoration", async ({ page }) => {

@@ -59,6 +59,7 @@ export const WHITEBOARD_DEFAULT_PAYLOAD: WhiteboardPayload = {
 interface Props {
   value: WhiteboardPayload;
   onChange?: (next: WhiteboardPayload) => void;
+  onReadyChange?: (ready: boolean) => void;
   canvasTheme?: CanvasTheme;
 }
 
@@ -171,6 +172,7 @@ const VOLATILE_APP_STATE_KEYS = [
   "openSidebar",
   "resizingElement",
   "isResizing",
+  "isLoading",
   "isRotating",
   "selectedElementsAreBeingDragged",
   "selectedElementIds",
@@ -191,6 +193,7 @@ function appStateForPersistence(raw: object): Record<string, unknown> {
 export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function WhiteboardCanvas({
   value,
   onChange,
+  onReadyChange,
   canvasTheme = "dark",
 }, ref) {
   // Must run synchronously before the drawing engine reads location.hash.
@@ -200,6 +203,12 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
   const sceneEpoch = useRef(0);
   const pointerActive = useRef(false);
   const pointerSettleFrame = useRef<number | null>(null);
+  const readyRef = useRef(false);
+  const publishReady = useCallback((ready: boolean) => {
+    if (readyRef.current === ready) return;
+    readyRef.current = ready;
+    onReadyChange?.(ready);
+  }, [onReadyChange]);
   const initialAppearance = whiteboardAppearance(canvasTheme, value.appState);
   const foregroundRef = useRef(initialAppearance.foregroundColor);
   const knownElementsRef = useRef(new Set((value.elements as ForegroundElement[] ?? []).map((element) => element.id)));
@@ -236,8 +245,9 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
           openSidebar: null,
         },
       });
+      publishReady(registeredApi.getAppState().isLoading !== true);
     });
-  }, []);
+  }, [publishReady]);
 
   useEffect(() => {
     const api = apiRef.current;
@@ -267,6 +277,11 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
     const api = apiRef.current;
     const nextElements = [...(elements ?? api.getSceneElements())];
     const liveAppState = (appState ?? api.getAppState()) as Record<string, unknown>;
+    if (liveAppState.isLoading === true || api.getAppState().isLoading === true) {
+      publishReady(false);
+      return;
+    }
+    publishReady(true);
     const nextAppState = appStateForPersistence(liveAppState);
     const nextFiles = files ?? api.getFiles();
     const interacting = pointerActive.current || isWhiteboardInteractionActive(liveAppState);
@@ -323,7 +338,7 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
         files: nextFiles,
       });
     });
-  }, [onChange, initialAppearance.backgroundColor, canvasTheme]);
+  }, [onChange, initialAppearance.backgroundColor, canvasTheme, publishReady]);
 
   const startPointer = useCallback(() => {
     if (pointerSettleFrame.current) cancelAnimationFrame(pointerSettleFrame.current);
@@ -468,15 +483,18 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
     sceneEpoch.current += 1;
     if (pointerSettleFrame.current) cancelAnimationFrame(pointerSettleFrame.current);
     if (notifyRef.current) cancelAnimationFrame(notifyRef.current);
-  }, []);
+    onReadyChange?.(false);
+  }, [onReadyChange]);
 
   useImperativeHandle(ref, () => ({
     serialize: () => {
       if (pointerActive.current) throw new Error("Finish or cancel the current Whiteboard gesture before saving.");
       if (!apiRef.current) return parseWhiteboardDocument(value);
+      const state = apiRef.current.getAppState();
+      if (state.isLoading === true) throw new Error("Whiteboard is still restoring its document. Wait before saving.");
       return parseWhiteboardDocument({
         elements: [...apiRef.current.getSceneElements()],
-        appState: appStateForPersistence(apiRef.current.getAppState()),
+        appState: appStateForPersistence(state),
         files: apiRef.current.getFiles(),
       });
     },

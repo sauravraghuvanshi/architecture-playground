@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readCanvasPayload } from "./read-canvas-payload";
+import { waitForWorkspace } from "./wait-for-workspace";
 
 // All imagery in this file is a deterministic browser-drawn fixture, not model
 // output. Inspect real Excalidraw canvas pixels, not only stored JSON or CSS.
@@ -8,10 +9,11 @@ async function colorsOnCanvas(page: Page, colors: string[]) {
     const canvas = node as HTMLCanvasElement;
     const data = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data;
     const counts = Object.fromEntries(requested.map((color) => [color, 0]));
+    const palette = new Map(requested.map((color) => [parseInt(color.slice(1), 16), color]));
     for (let index = 0; index < data.length; index += 4) {
       if (data[index + 3] !== 255) continue;
-      const color = `#${[data[index], data[index + 1], data[index + 2]].map((value) => value.toString(16).padStart(2, "0")).join("")}`;
-      if (color in counts) counts[color]++;
+      const color = palette.get((data[index] << 16) | (data[index + 1] << 8) | data[index + 2]);
+      if (color) counts[color]++;
     }
     return { counts, filter: getComputedStyle(canvas).filter };
   }, colors);
@@ -62,6 +64,7 @@ for (const surface of [
       });
     });
     await page.goto("/diagrammatic?mode=whiteboard");
+    await waitForWorkspace(page);
     await expect(page.locator(".excalidraw").first()).toBeVisible({ timeout: 30_000 });
     // Draft recovery can choose the mode's default theme. Select the actual
     // surface through the app, rather than assuming a seeded preference won.

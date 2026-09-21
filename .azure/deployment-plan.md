@@ -113,6 +113,35 @@ Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
 - [ ] Clean Linux install, exact application rollout and hosted verification.
 - **Stop boundary:** Do not begin priority 16 after this release.
 
+### Priority 15 - Hosted follow-up, same task
+
+- Application `3a04dbc` deployed successfully through run `35623406942`.
+  Clean Linux install/build and pipeline smoke passed; hosted Chromium passed
+  **152/152**. The compatibility run identified cold-start precondition failures
+  and a genuine Whiteboard restoration race, so close-out remains open.
+- Direct live/API-versus-storage inspection proved the race: after the first
+  reload, the live canvas was dark and finished loading, while its stored
+  document had default white with `isLoading=true`. The next reload restored
+  that transient state. This was not caused by invalid-version application.
+- Same-task correction: ignore native loading callbacks before reconciliation/
+  persistence, never persist `isLoading`, reject captures while restoring and
+  expose Whiteboard readiness to the workspace. Tests wait for real application
+  readiness, not an arbitrary five-second assertion against an unmounted canvas.
+- Strengthened tests require dark background and absence of loading flags after
+  repeated reloads, in addition to exact element/binary preservation.
+- Finish this correction and hosted verification, then stop for the user's
+  separate issue. No next-priority work is authorized.
+- Follow-up validation is green: **356/356 contracts**, lint/types/build, and
+  **108/108** affected Chromium/Firefox/WebKit browser cases in 4.8 minutes.
+  The malformed-version fixture is injected while the editor is unmounted so
+  autosave cannot overwrite test evidence. Pixel checks retain exact RGB values
+  but use integer comparisons instead of allocating strings for every pixel.
+- Evidence: `p15-loading-contracts`, `p15-loading-build`,
+  `p15-loading-final-matrix`. No timeout increase or live-model invocation.
+- All validation checks pass for the same application-only target; no
+  infrastructure, permissions, dependencies or model configuration changed in
+  this correction. Exact follow-up rollout and hosted checks remain.
+
 ## Priority 14 - Responsive and keyboard-accessible editing
 
 - **Baseline:** Verified application `d490193`; documentation `79404b3`.

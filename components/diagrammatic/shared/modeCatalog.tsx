@@ -27,6 +27,7 @@ import { KANBAN_TEMPLATES } from "../modes/kanban/templates";
 export interface ModeCanvasProps<P = unknown> {
   value: P;
   onChange?: (next: P) => void;
+  onReadyChange?: (ready: boolean) => void;
   canvasTheme?: CanvasTheme;
 }
 

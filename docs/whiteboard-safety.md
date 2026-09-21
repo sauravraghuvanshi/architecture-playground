@@ -59,6 +59,12 @@ Restoring a valid scene invalidates pending notifications and image decodes.
 An image started on an earlier scene cannot appear after restoring another scene,
 even when the drawing-engine instance is reused.
 
+Native `isLoading` callbacks are not document changes. Their default background,
+elements and preferences are ignored until restoration finishes, and the loading
+flag is never persisted. Workspace controls remain unavailable until the native
+Whiteboard is ready; captures during restoration fail explicitly rather than
+overwriting a saved scene with initialization defaults.
+
 ## Verification boundaries
 
 Synthetic AI responses exercise the conversion contract and UI without model
