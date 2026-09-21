@@ -439,7 +439,7 @@ test("disabled configuration and aborted conversion do not invoke Azure", async 
   assert.equal(aborted.calls.length, 0);
 });
 
-test("modal warns before replacing nonempty architecture and does not export on open", () => {
+test("modal explains separate-document creation and does not export on open", () => {
   const source = readFileSync(new URL("../components/diagrammatic/shared/WhiteboardConvertModal.tsx", import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
@@ -469,9 +469,9 @@ test("modal warns before replacing nonempty architecture and does not export on 
     getImage: async () => { exported = true; return new Blob(); },
   };
   const render = (extra) => renderToStaticMarkup(React.createElement(exports.default, { ...props, ...extra }));
-  assert.match(render({}), /Existing architecture warning/);
-  assert.match(render({ hasExistingArchitecture: true }), /not merge them/);
-  assert.doesNotMatch(render({ hasExistingArchitecture: false }), /Existing architecture warning/);
+  assert.match(render({}), /Conversion document behavior/);
+  assert.match(render({}), /separate architecture document, not a replacement or merge/);
+  assert.match(render({}), /saving must finish before closing/);
   assert.equal(render({ open: false }), "");
   assert.equal(exported, false);
 });

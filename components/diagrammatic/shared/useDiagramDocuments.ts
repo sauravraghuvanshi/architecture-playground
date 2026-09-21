@@ -6,6 +6,7 @@ import {
   type DiagramDocument, type DiagramSaveInput, type DiagramComment, type DiagramVersion,
 } from "@/lib/diagram-library";
 import { parseArchitectureDocument, hasArchitectureContent } from "@/lib/architecture-document";
+import { parseDiagramPayload } from "@/lib/diagram-payload";
 import { MODE_META, type CanvasTheme, type DiagrammaticMode } from "./types";
 
 const ACTIVE_KEY = "diagrammatic.active-documents";
@@ -108,7 +109,8 @@ export function useDiagramDocuments(options: Options) {
             if (id !== undefined) {
               const found = typeof id === "string" ? existing.find((document) => document.id === id && document.mode === mode) : undefined;
               if (!found) throw new Error("The previously active diagram no longer exists. Choose another saved diagram or save a new copy.");
-              next[mode] = await getDiagram(found.id);
+              const loaded = await getDiagram(found.id);
+              next[mode] = { ...loaded, payload: parseDiagramPayload(mode, loaded.payload) };
               continue;
             }
             storageKey = draftKey(mode);
@@ -118,9 +120,9 @@ export function useDiagramDocuments(options: Options) {
             if (!draft?.payload || typeof draft.payload !== "object" || Array.isArray(draft.payload)) {
               throw new Error("The draft has no valid diagram data.");
             }
-            const payload = mode === "architecture" ? parseArchitectureDocument(draft.payload) : draft.payload;
+            const payload = parseDiagramPayload(mode, draft.payload);
             const annotations = readAnnotations(mode, (issue) => issues.push(issue));
-            if (mode === "architecture" && !hasArchitectureContent(payload) && annotations.comments.length === 0 && annotations.versions.length === 0) continue;
+            if (mode === "architecture" && !hasArchitectureContent(parseArchitectureDocument(payload)) && annotations.comments.length === 0 && annotations.versions.length === 0) continue;
             const markerKey = `diagrammatic.recovered.${mode}`;
             const legacyId = localStorage.getItem(markerKey);
             const priorRecovery = existing.find((document) => document.id === legacyId && document.mode === mode);
@@ -130,7 +132,7 @@ export function useDiagramDocuments(options: Options) {
               ...annotations,
             });
             localStorage.setItem(markerKey, recovered.id);
-            next[mode] = recovered;
+            next[mode] = { ...recovered, payload: parseDiagramPayload(mode, recovered.payload) };
           } catch (cause) {
             blocked[mode] = true;
             issues.push({
@@ -143,7 +145,7 @@ export function useDiagramDocuments(options: Options) {
         if (optionsRef.current.requestedId) {
           try {
             const selected = await getDiagram(optionsRef.current.requestedId);
-            next[selected.mode] = selected;
+            next[selected.mode] = { ...selected, payload: parseDiagramPayload(selected.mode, selected.payload) };
           } catch (cause) {
             issues.push({ mode: optionsRef.current.mode, message: `The requested diagram could not be opened: ${cause instanceof Error ? cause.message : "Browser storage unavailable."} Other recovered diagrams are still available.` });
           }
@@ -186,7 +188,7 @@ export function useDiagramDocuments(options: Options) {
     const current = documentsRef.current[mode];
     const captured = optionsRef.current.capture(mode);
     if (captured === undefined) throw new Error("The canvas is still loading. Wait before saving or switching diagrams.");
-    const payload = mode === "architecture" ? parseArchitectureDocument(captured) : captured;
+    const payload = parseDiagramPayload(mode, captured);
     return {
       ...(current ? { id: current.id, expectedRevision: current.revision } : {}),
       name: name?.trim() || current?.name || `Untitled ${MODE_META[mode].label}`,
@@ -208,7 +210,7 @@ export function useDiagramDocuments(options: Options) {
   const inputHasChanges = useCallback((input: DiagramSaveInput) => {
     const committed = input.id ? committedDocuments.current.get(input.id) : undefined;
     if (!committed) return true;
-    const previousPayload = committed.mode === "architecture" ? parseArchitectureDocument(committed.payload) : committed.payload;
+    const previousPayload = parseDiagramPayload(committed.mode, committed.payload);
     return input.name !== committed.name || input.canvasTheme !== committed.canvasTheme ||
       persistedJson(input.payload) !== persistedJson(previousPayload) ||
       persistedJson(input.comments) !== persistedJson(committed.comments) ||
@@ -276,8 +278,9 @@ export function useDiagramDocuments(options: Options) {
       updateDocuments({ ...documentsRef.current, [old.mode]: old });
       const fresh = await getDiagram(document.id);
       if (!fresh) throw new Error("This diagram no longer exists. Refresh My diagrams.");
-      optionsRef.current.apply(fresh, true);
-      updateDocuments({ ...documentsRef.current, [fresh.mode]: fresh });
+      const checked = { ...fresh, payload: parseDiagramPayload(fresh.mode, fresh.payload) };
+      optionsRef.current.apply(checked, true);
+      updateDocuments({ ...documentsRef.current, [fresh.mode]: checked });
       latestRevisions.current.set(fresh.id, fresh.revision);
       committedDocuments.current.set(fresh.id, fresh);
       setSavedRevision(optionsRef.current.revision);
@@ -289,7 +292,7 @@ export function useDiagramDocuments(options: Options) {
     operation.current = true;
     setBusy(true);
     try {
-      const checkedPayload = mode === "architecture" ? parseArchitectureDocument(payload) : payload;
+      const checkedPayload = parseDiagramPayload(mode, payload);
       const old = mergeWorkingAnnotations(await persist(captureDocument(optionsRef.current.mode)));
       updateDocuments({ ...documentsRef.current, [old.mode]: old });
       // Preserve the target mode's working document as well when creating from another mode.

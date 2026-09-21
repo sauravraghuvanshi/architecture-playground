@@ -1,9 +1,70 @@
 # Azure Deployment Plan
 
-> **Status:** Deployed and Verified
+> **Status:** Validated
 
 Generated: 2026-08-12
 Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
+
+## Priority 12 - Safe Whiteboard conversion and restoration
+
+- **Baseline:** Verified application `52b5efa`; documentation `36267f9`.
+- **Authorization:** Continue the remaining numbered backlog sequentially.
+- **Plan:** Trace import/restore and both conversion directions; reproduce
+  malformed scene and late-result risks; implement bounded shared validation
+  and explicit commit semantics; test local production build, validate,
+  deploy through the existing pipeline and verify hosted before priority 13.
+- **Recipe:** Modify existing Next.js application only; existing App Service
+  ZIP/GitHub deployment and configured providers unchanged. No infrastructure,
+  identity, role, model call or customer deployment is needed.
+- **State:** Implementing under resumed sequential authorization.
+
+### Priority 12 - Reproduced defects and decisions
+
+- A persisted `elements: [null]` scene bypassed recovery and reached Excalidraw
+  before document loading completed. Baseline browser reproduction failed the
+  expected recovery alert; original malformed content was not safely isolated.
+- Delayed IndexedDB persistence reproduced enabled Cancel/Close after applying a
+  conversion. Dismissal could appear to cancel an already committed save.
+- The dialog claimed replacement while the existing library operation actually
+  preserved both previous documents and created a new one. Keep the safer
+  new-document behavior and make consent/button/status match it.
+- Analysis remains cancellable. Explicit Create starts a non-dismissible commit;
+  duplicate submission is blocked synchronously, failures retain the preview,
+  and unmounted dialogs cannot close a later dialog.
+- Shared scene validation covers recovery, open/create/capture, initial mount
+  and snapshot restore before mutating engine files/elements. Preserve original
+  corrupt records and allow explicit recovery copies. Never mount raw local
+  Whiteboard JSON ahead of recovery validation.
+- Restore invalidates pending animation-frame notifications and asynchronous
+  image decoding, including when the same engine instance remains mounted.
+- Existing app target/permissions stay unchanged. No reverse conversion exists
+  in the current product; this release hardens Whiteboard-to-architecture,
+  native scene restoration and image insertion boundaries rather than adding one.
+- Native image compatibility includes PNG/JPEG/WebP/GIF/BMP/ICO/AVIF/JFIF,
+  known image octet-stream recovery and static SVG. Native canvas-encoder fallback
+  MIME labels migrate without rewriting bytes. Tests cover all 1,433 bundled SVGs.
+- Unfinished gestures are not new automatic checkpoints; committed document
+  capture/restoration explicitly rejects pending/empty content the engine would
+  discard. Horizontal/vertical paths remain valid.
+- Local gate: **318/318 contracts**, lint, strict types and production build pass.
+  Production-build affected browser gate: **55/55 passed** in 1.4 minutes.
+  Earlier dev-only browser-tab creation timeout did not recur in this final gate.
+  Binary validation is bounded transport/container/header validation, not a full
+  pixel-decoding guarantee. Live model inference remains outside this release gate.
+
+### Priority 12 - All validation checks pass
+
+- [x] Core application checks: `npm run test:playground` **318/318**;
+  `npm run lint`, `npx tsc --noEmit`, `npm run build` successful.
+- [x] Final local production browser gate: **55/55** using two Chromium workers,
+  including the previously timed-out dev browser-tab case.
+- [x] Docker/infrastructure compile/What-If: not applicable to existing ZIP-only
+  app deployment. No customer infrastructure is executed.
+- [x] Static role/policy verification: no identity, role, resource, region,
+  subscription, provider endpoint or data-plane operation change.
+- [x] Validation proof, September 21: `p12-contract-gate`, 318 passed;
+  `p12-build`, exit 0; `p12-local-browser`, 55 passed in 1.4 minutes.
+- [ ] Exact application release and hosted acceptance.
 
 ## Priority 10 - Explicit AI destinations and privacy controls
 

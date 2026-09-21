@@ -14,7 +14,6 @@ export interface WhiteboardConvertModalProps {
   getImage: () => Promise<Blob>;
   icons: readonly ConversionIcon[];
   getSourceNodes?: () => ConversionSourceNode[];
-  hasExistingArchitecture?: boolean;
 }
 
 function readPng(blob: Blob, signal: AbortSignal): Promise<string> {
@@ -39,8 +38,9 @@ export default function WhiteboardConvertModal(props: WhiteboardConvertModalProp
   return props.open ? <ConversionDialog {...props} /> : null;
 }
 
-function ConversionDialog({ onClose, onResult, getImage, icons, getSourceNodes, hasExistingArchitecture = true }: WhiteboardConvertModalProps) {
+function ConversionDialog({ onClose, onResult, getImage, icons, getSourceNodes }: WhiteboardConvertModalProps) {
   const [busy, setBusy] = useState(false);
+  const [applying, setApplying] = useState(false);
   const [error, setError] = useState("");
   const [preview, setPreview] = useState<WhiteboardConversion | null>(null);
   const [consent, setConsent] = useState(false);
@@ -48,20 +48,25 @@ function ConversionDialog({ onClose, onResult, getImage, icons, getSourceNodes, 
   const dialog = useRef<HTMLDivElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   const closeRef = useRef(onClose);
+  const committing = useRef(false);
+  const mounted = useRef(true);
   useEffect(() => { closeRef.current = onClose; }, [onClose]);
 
   function cancel() {
+    if (committing.current) return;
     controller.current?.abort();
     controller.current = null;
     onClose();
   }
 
   useEffect(() => {
+    mounted.current = true;
     const previousFocus = document.activeElement;
     closeButton.current?.focus();
     const keydown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
+        if (committing.current) return;
         controller.current?.abort();
         controller.current = null;
         closeRef.current();
@@ -77,6 +82,7 @@ function ConversionDialog({ onClose, onResult, getImage, icons, getSourceNodes, 
     };
     document.addEventListener("keydown", keydown);
     return () => {
+      mounted.current = false;
       controller.current?.abort();
       controller.current = null;
       document.removeEventListener("keydown", keydown);
@@ -85,6 +91,7 @@ function ConversionDialog({ onClose, onResult, getImage, icons, getSourceNodes, 
   }, []);
 
   async function analyze() {
+    if (committing.current) return;
     controller.current?.abort();
     const run = new AbortController();
     controller.current = run;
@@ -129,14 +136,19 @@ function ConversionDialog({ onClose, onResult, getImage, icons, getSourceNodes, 
   }
 
   async function apply() {
-    if (!preview || !consent || busy) return;
-    setBusy(true);
+    if (!preview || !consent || busy || committing.current) return;
+    committing.current = true;
+    setApplying(true);
+    setError("");
     try {
       await onResult(preview.payload);
-      onClose();
+      if (mounted.current) onClose();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "The architecture could not be applied. Your Whiteboard is unchanged.");
-    } finally { setBusy(false); }
+      if (mounted.current) setError(cause instanceof Error ? cause.message : "The architecture document could not be created. Your Whiteboard is unchanged.");
+    } finally {
+      committing.current = false;
+      if (mounted.current) setApplying(false);
+    }
   }
 
   const groups = preview?.payload.nodes.filter((node) => node.kind === "group").length ?? 0;
@@ -148,14 +160,15 @@ function ConversionDialog({ onClose, onResult, getImage, icons, getSourceNodes, 
       <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby="whiteboard-convert-title" className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl border border-cyan-400/25 bg-[#0b1424] text-slate-100 shadow-2xl">
         <header className="flex items-center justify-between border-b border-white/10 p-5">
           <h2 id="whiteboard-convert-title" className="flex items-center gap-2 font-semibold"><ScanLine size={20} className="text-cyan-300" />Convert Whiteboard to architecture</h2>
-          <button ref={closeButton} onClick={cancel} aria-label="Close conversion" className="rounded p-2 text-slate-400 hover:bg-white/10"><X size={18} /></button>
+          <button ref={closeButton} onClick={cancel} disabled={applying} aria-label="Close conversion" className="rounded p-2 text-slate-400 hover:bg-white/10 disabled:opacity-40"><X size={18} /></button>
         </header>
         <div className="space-y-4 overflow-y-auto p-5">
           <AiPrivacyNotice capability="chat" />
           <p className="text-sm text-slate-300">Analyze the current Whiteboard as a PNG using your configured Azure OpenAI vision deployment. Explicit service identities, when available, accompany the image so renamed services keep their official icons. Unknown services remain generic shapes. The conversion does not save the image to files, browser storage, or application logs. Your original Whiteboard is unchanged.</p>
-          <p className="text-xs text-slate-400">Only send content you are authorized to process. The configured Azure service&apos;s data handling policies apply. AI may miss or misread evidence; check every component and connection before replacing your architecture.</p>
-          {hasExistingArchitecture && <p role="note" aria-label="Existing architecture warning" className="rounded-lg border border-amber-300/25 bg-amber-300/10 p-3 text-sm text-amber-100">Your current architecture is not empty. Applying this conversion will replace its nodes and connections, not merge them. Save a snapshot first if you need to retain it.</p>}
+          <p className="text-xs text-slate-400">Only send content you are authorized to process. The configured Azure service&apos;s data handling policies apply. AI may miss or misread evidence; check every component and connection before creating a document.</p>
+          <p role="note" aria-label="Conversion document behavior" className="rounded-lg border border-cyan-300/25 bg-cyan-300/10 p-3 text-sm text-cyan-100">Creates a separate architecture document, not a replacement or merge. Your Whiteboard and any existing architecture are preserved in My diagrams. Analysis can be cancelled; once you choose Create, saving must finish before closing.</p>
           {busy && <p role="status" className="flex items-center gap-2 text-sm text-cyan-300"><Loader2 size={16} className="animate-spin" />Analyzing visible diagram evidence...</p>}
+          {applying && <p role="status" className="flex items-center gap-2 text-sm text-cyan-300"><Loader2 size={16} className="animate-spin" />Saving the new architecture document. Please wait; this committed action cannot be cancelled.</p>}
           {error && <p role="alert" className="rounded-lg border border-red-400/25 bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
           {preview && <section aria-label="Conversion preview" className="space-y-3">
             <h3 className="font-semibold text-cyan-200">Architecture preview</h3>
@@ -175,15 +188,15 @@ function ConversionDialog({ onClose, onResult, getImage, icons, getSourceNodes, 
               <ul className="max-h-32 list-inside list-disc overflow-auto">{preview.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>
             </div>}
             <label className="flex items-start gap-3 rounded-lg border border-cyan-300/20 p-3 text-sm">
-              <input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} className="mt-1 accent-cyan-400" />
-              I reviewed this preview and agree to replace the current architecture. My Whiteboard will remain unchanged.
+              <input type="checkbox" checked={consent} disabled={applying} onChange={(event) => setConsent(event.target.checked)} className="mt-1 accent-cyan-400" />
+              I reviewed this preview and agree to create a separate architecture document. My existing diagrams will be preserved.
             </label>
           </section>}
         </div>
         <footer className="flex justify-end gap-2 border-t border-white/10 p-4">
-          <button onClick={cancel} className="rounded-lg px-4 py-2 text-sm text-slate-300 hover:bg-white/10">Cancel</button>
-          <button onClick={analyze} disabled={busy} className="rounded-lg border border-cyan-300/30 px-4 py-2 text-sm text-cyan-200 disabled:opacity-40">{preview ? "Analyze again" : "Analyze Whiteboard"}</button>
-          {preview && <button onClick={apply} disabled={!consent || busy} className="rounded-lg bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-40">Replace architecture</button>}
+          <button onClick={cancel} disabled={applying} className="rounded-lg px-4 py-2 text-sm text-slate-300 hover:bg-white/10 disabled:opacity-40">Cancel</button>
+          <button onClick={analyze} disabled={busy || applying} className="rounded-lg border border-cyan-300/30 px-4 py-2 text-sm text-cyan-200 disabled:opacity-40">{preview ? "Analyze again" : "Analyze Whiteboard"}</button>
+          {preview && <button onClick={apply} disabled={!consent || busy || applying} className="rounded-lg bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-40">Create architecture document</button>}
         </footer>
       </div>
     </div>

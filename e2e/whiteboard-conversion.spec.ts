@@ -49,7 +49,7 @@ test.beforeEach(async ({ page }) => {
   }));
 });
 
-test("native PNG conversion previews evidence and requires replacement consent without persisting image", async ({ page }) => {
+test("native PNG conversion previews evidence and requires new-document consent without persisting image", async ({ page }) => {
   test.setTimeout(60_000);
   let submitted: { image: { name: string; mimeType: string; dataUrl: string } } | undefined;
   await page.route("**/api/ai/convert", async (route) => {
@@ -57,7 +57,7 @@ test("native PNG conversion previews evidence and requires replacement consent w
     await route.fulfill({ json: { payload: converted, warnings: ["Verify handwritten TLS label."] } });
   });
   await openConversion(page);
-  await expect(page.getByRole("note", { name: "Existing architecture warning" })).toContainText("not merge");
+  await expect(page.getByRole("note", { name: "Conversion document behavior" })).toContainText("not a replacement or merge");
   const readArchitecture = () => readCanvasPayload(page, "architecture");
   expect(await readArchitecture()).toEqual(parseArchitectureDocument(original));
   await page.getByRole("button", { name: "Analyze Whiteboard", exact: true }).click();
@@ -69,7 +69,7 @@ test("native PNG conversion previews evidence and requires replacement consent w
   await expect(preview).toContainText("TLS");
   await expect(preview).toContainText("step 2");
   await expect(preview).toContainText("Verify handwritten TLS label.");
-  const apply = page.getByRole("button", { name: "Replace architecture", exact: true });
+  const apply = page.getByRole("button", { name: "Create architecture document", exact: true });
   await expect(apply).toBeDisabled();
   expect(await readArchitecture()).toEqual(parseArchitectureDocument(original));
   await page.getByRole("checkbox", { name: /I reviewed this preview/ }).check();
@@ -116,7 +116,7 @@ test("official Azure conversion identities render and survive library reload wit
   await page.getByRole("button", { name: "Analyze Whiteboard", exact: true }).click();
   await expect(page.getByRole("region", { name: "Conversion preview" })).toContainText("2 service icons");
   await page.getByRole("checkbox", { name: /I reviewed this preview/ }).check();
-  await page.getByRole("button", { name: "Replace architecture", exact: true }).click();
+  await page.getByRole("button", { name: "Create architecture document", exact: true }).click();
   await expect(page.locator(".react-flow__node")).toHaveCount(3, { timeout: 30_000 });
   for (const path of [payload.nodes[0].iconPath, payload.nodes[1].iconPath]) {
     const image = page.locator(`.react-flow__node img[src="${path}"]`);
@@ -151,7 +151,7 @@ test("cancellation ignores late results and reopening resets confirmation", asyn
   await page.getByRole("button", { name: "Analyze Whiteboard", exact: true }).click();
   await expect(page.getByRole("region", { name: "Conversion preview" })).toBeVisible();
   await expect(page.getByRole("checkbox", { name: /I reviewed this preview/ })).not.toBeChecked();
-  await expect(page.getByRole("button", { name: "Replace architecture", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Create architecture document", exact: true })).toBeDisabled();
   await page.keyboard.press("Escape");
   expect(await readCanvasPayload(page, "architecture")).toEqual(parseArchitectureDocument(original));
 });
@@ -171,6 +171,80 @@ test("invalid model responses and rate limits leave the architecture untouched",
   await page.getByRole("button", { name: "Analyze Whiteboard", exact: true }).click();
   await expect(page.getByRole("dialog").getByRole("alert")).toContainText("Rate limit exceeded");
   expect(await readCanvasPayload(page, "architecture")).toEqual(parseArchitectureDocument(original));
+});
+
+test("committed creation cannot be dismissed mid-save and preserves both source documents", async ({ page }) => {
+  await page.route("**/api/ai/convert", (route) => route.fulfill({ json: { payload: converted, warnings: [] } }));
+  await openConversion(page);
+  await page.getByRole("button", { name: "Analyze Whiteboard", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Conversion preview" })).toBeVisible();
+  await page.getByRole("checkbox", { name: /I reviewed this preview/ }).check();
+  await page.evaluate(() => {
+    const originalOpen = indexedDB.open.bind(indexedDB);
+    indexedDB.open = (...args) => {
+      const request = originalOpen(...args);
+      const setter = Object.getOwnPropertyDescriptor(IDBRequest.prototype, "onsuccess")?.set;
+      if (!setter) throw new Error("Missing IndexedDB event setter");
+      Object.defineProperty(request, "onsuccess", {
+        set(handler: (event: Event) => void) {
+          setter.call(request, (event: Event) => {
+            Object.defineProperty(window, "finishConversionSave", { configurable: true, value: () => handler.call(request, event) });
+          });
+        },
+      });
+      indexedDB.open = originalOpen;
+      return request;
+    };
+  });
+  await page.getByRole("button", { name: "Create architecture document", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Cancel", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Close conversion", exact: true })).toBeDisabled();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Convert Whiteboard to architecture", exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => typeof Reflect.get(window, "finishConversionSave"))).toBe("function");
+  await page.evaluate(() => {
+    const finish: unknown = Reflect.get(window, "finishConversionSave");
+    if (typeof finish !== "function") throw new Error("No pending save");
+    finish();
+    Reflect.deleteProperty(window, "finishConversionSave");
+  });
+  await expect(page.locator(".react-flow__node")).toHaveCount(3);
+  expect((await readSavedDiagram(page, "Cloud Architecture (recovered draft)"))?.payload).toEqual(parseArchitectureDocument(original));
+  const whiteboard = await readSavedDiagram(page, "Untitled Whiteboard");
+  expect(whiteboard?.payload).toMatchObject({ elements: expect.arrayContaining([expect.objectContaining({ type: "rectangle" })]) });
+  expect((await readSavedDiagram(page, "Converted Whiteboard"))?.payload).toEqual(parseArchitectureDocument(converted));
+});
+
+test("failed document creation retains the preview and prior diagrams and permits explicit retry", async ({ page }) => {
+  await page.route("**/api/ai/convert", (route) => route.fulfill({ json: { payload: converted, warnings: [] } }));
+  await openConversion(page);
+  await page.getByRole("button", { name: "Analyze Whiteboard", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Conversion preview" })).toBeVisible();
+  await page.getByRole("checkbox", { name: /I reviewed this preview/ }).check();
+  await page.evaluate(() => {
+    const originalPut = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function(value, key) {
+      if (this.name === "documents" && value.name === "Converted Whiteboard") throw new DOMException("Injected failure", "QuotaExceededError");
+      return originalPut.call(this, value, key);
+    };
+    Object.defineProperty(window, "restoreConversionStorage", { configurable: true, value: () => { IDBObjectStore.prototype.put = originalPut; } });
+  });
+  await page.getByRole("button", { name: "Create architecture document", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Convert Whiteboard to architecture", exact: true });
+  await expect(dialog.getByRole("alert")).toContainText("storage is full");
+  await expect(dialog.getByRole("region", { name: "Conversion preview" })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Cancel", exact: true })).toBeEnabled();
+  expect(await readSavedDiagram(page, "Converted Whiteboard")).toBeUndefined();
+  expect(await readCanvasPayload(page, "architecture")).toEqual(parseArchitectureDocument(original));
+  await page.evaluate(() => {
+    const restore: unknown = Reflect.get(window, "restoreConversionStorage");
+    if (typeof restore !== "function") throw new Error("Missing storage restore");
+    restore();
+    Reflect.deleteProperty(window, "restoreConversionStorage");
+  });
+  await dialog.getByRole("button", { name: "Create architecture document", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator(".react-flow__node")).toHaveCount(3);
 });
 
 test("conversion API rejects spoofed and oversized images before contacting a model", async ({ request }) => {

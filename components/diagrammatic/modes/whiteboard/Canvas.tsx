@@ -24,7 +24,7 @@ import {
   newElementWith,
 } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
-import { z } from "zod";
+import { parseWhiteboardDocument } from "@/lib/diagram-payload";
 import type { BaseCanvasHandle } from "../../shared/modeRegistry";
 import type { CanvasTheme } from "../../shared/types";
 import { exportWhiteboardFlowGif } from "./export-gif";
@@ -54,29 +54,6 @@ export const WHITEBOARD_DEFAULT_PAYLOAD: WhiteboardPayload = {
   appState: { viewBackgroundColor: "#f8fafc", currentItemStrokeColor: "#0f172a" },
   files: {},
 };
-
-const binaryFileSchema = z.object({
-  id: z.string().min(1),
-  mimeType: z.enum([
-    "image/png", "image/jpeg", "image/svg+xml", "image/gif", "image/webp",
-    "image/bmp", "image/x-icon", "image/avif", "image/jfif", "application/octet-stream",
-  ]),
-  dataURL: z.string().min(1),
-  created: z.number().finite().nonnegative(),
-  lastRetrieved: z.number().finite().nonnegative().optional(),
-  version: z.number().finite().nonnegative().optional(),
-}).refine((file) => {
-  const prefix = `data:${file.mimeType};base64,`;
-  if (!file.dataURL.startsWith(prefix)) return false;
-  const encoded = file.dataURL.slice(prefix.length);
-  return encoded.length > 0 && encoded.length % 4 === 0 && /^[A-Za-z0-9+/]+={0,2}$/.test(encoded);
-});
-
-const snapshotSchema = z.object({
-  elements: z.array(z.unknown()).default([]),
-  appState: z.record(z.string(), z.unknown()).optional(),
-  files: z.record(z.string(), binaryFileSchema).optional(),
-}).refine((data) => Object.entries(data.files ?? {}).every(([id, file]) => id === file.id));
 
 interface Props {
   value: WhiteboardPayload;
@@ -205,6 +182,7 @@ function appStateForPersistence(raw: object): Record<string, unknown> {
   const out = { ...raw } as Record<string, unknown>;
   for (const key of VOLATILE_APP_STATE_KEYS) delete out[key];
   delete out.collaborators;
+  delete out.followedBy;
   return out;
 }
 
@@ -217,24 +195,28 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
   if (typeof window !== "undefined") scrubExternalWhiteboardHash();
   const apiRef = useRef<ExcalidrawAPI | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const sceneEpoch = useRef(0);
   const initialAppearance = whiteboardAppearance(canvasTheme, value.appState);
   const foregroundRef = useRef(initialAppearance.foregroundColor);
   const knownElementsRef = useRef(new Set((value.elements as ForegroundElement[] ?? []).map((element) => element.id)));
   const canvasThemeRef = useRef(canvasTheme);
-  const [initialData] = useState(() => ({
-    elements: (value.elements ?? []) as never[],
-    appState: {
-      ...sanitizeAppState(value.appState),
-      viewBackgroundColor: initialAppearance.backgroundColor,
-      currentItemStrokeColor: value.appState?.currentItemStrokeColor &&
-        !["#0f172a", "#f8fafc"].includes(String(value.appState.currentItemStrokeColor).toLowerCase())
-        ? value.appState.currentItemStrokeColor : initialAppearance.foregroundColor,
-      theme: "light",
-      exportWithDarkMode: false,
-    } as never,
-    files: (value.files ?? {}) as never,
-    scrollToContent: true,
-  }));
+  const [initialData] = useState(() => {
+    const checked = parseWhiteboardDocument(value);
+    return {
+      elements: checked.elements as never[],
+      appState: {
+        ...sanitizeAppState(checked.appState),
+        viewBackgroundColor: initialAppearance.backgroundColor,
+        currentItemStrokeColor: checked.appState?.currentItemStrokeColor &&
+          !["#0f172a", "#f8fafc"].includes(String(checked.appState.currentItemStrokeColor).toLowerCase())
+          ? checked.appState.currentItemStrokeColor : initialAppearance.foregroundColor,
+        theme: "light",
+        exportWithDarkMode: false,
+      } as never,
+      files: (checked.files ?? {}) as never,
+      scrollToContent: true,
+    };
+  });
   const notifyRef = useRef<number | null>(null);
   const lastPersistedSnapshot = useRef("");
   const registerExcalidrawApi = useCallback((api: unknown) => {
@@ -321,7 +303,7 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
       });
       return;
     }
-    if (!onChange) return;
+    if (!onChange || interacting) return;
     const signature = JSON.stringify({
       elements: nextElements,
       appState: nextAppState,
@@ -454,23 +436,29 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
     [insertImageData]
   );
 
-  useEffect(() => () => { if (notifyRef.current) cancelAnimationFrame(notifyRef.current); }, []);
+  useEffect(() => () => {
+    sceneEpoch.current += 1;
+    if (notifyRef.current) cancelAnimationFrame(notifyRef.current);
+  }, []);
 
   useImperativeHandle(ref, () => ({
     serialize: () => {
-      if (!apiRef.current) return value;
-      return {
+      if (!apiRef.current) return parseWhiteboardDocument(value);
+      return parseWhiteboardDocument({
         elements: [...apiRef.current.getSceneElements()],
         appState: appStateForPersistence(apiRef.current.getAppState()),
         files: apiRef.current.getFiles(),
-      };
+      });
     },
     hydrate: (p) => {
       const api = apiRef.current;
       if (!api) throw new Error("Whiteboard is not ready to restore a snapshot.");
-      const parsed = snapshotSchema.safeParse(p);
-      if (!parsed.success) throw new Error("Whiteboard snapshot contains invalid elements, state, or image files.");
-      const data = parsed.data;
+      const data = parseWhiteboardDocument(p);
+      sceneEpoch.current += 1;
+      if (notifyRef.current) {
+        cancelAnimationFrame(notifyRef.current);
+        notifyRef.current = null;
+      }
       const files = Object.values(data.files ?? {});
       if (files.length) api.addFiles(files);
       knownElementsRef.current = new Set((data.elements as ForegroundElement[]).map((element) => element.id));
@@ -530,8 +518,9 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
     ) => {
       const api = apiRef.current;
       if (!api) throw new Error("Whiteboard is not ready to insert an image.");
+      const epoch = sceneEpoch.current;
       const decoded = await decodeWhiteboardImage(`data:${mime};base64,${b64}`);
-      if (apiRef.current !== api) throw new Error("The Whiteboard changed while decoding the image. Please retry.");
+      if (apiRef.current !== api || sceneEpoch.current !== epoch) throw new Error("The Whiteboard changed while decoding the image. Please retry.");
       const dimensions = fitWhiteboardImage(decoded.width, decoded.height, opts?.width ?? 480, opts?.height ?? 480);
       insertImageData(b64, mime, { ...opts, ...dimensions, idPrefix: "ai-img" });
     },

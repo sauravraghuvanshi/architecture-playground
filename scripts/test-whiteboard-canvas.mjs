@@ -3,8 +3,8 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import ts from "typescript";
-import { z } from "zod";
 import * as appearance from "../lib/whiteboard-appearance.ts";
+import { parseWhiteboardDocument } from "../lib/diagram-payload.ts";
 
 const source = readFileSync(new URL("../components/diagrammatic/modes/whiteboard/Canvas.tsx", import.meta.url), "utf8");
 const compiled = ts.transpileModule(source, {
@@ -12,10 +12,11 @@ const compiled = ts.transpileModule(source, {
 }).outputText;
 const pngData = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgqLjyHwAEFAJMURtfXQAAAABJRU5ErkJggg==";
 const imageFile = { id: "image1", mimeType: "image/png", dataURL: pngData, created: 1, lastRetrieved: 2, version: 1 };
+const imageElement = { id: "drawing1", type: "image", fileId: "image1", x: 0, y: 0, width: 100, height: 100, scale: [1, 1], status: "saved" };
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
 // Stub the drawing engine and hook lifecycle, but execute the actual canvas handle implementation.
-function canvasHarness({ ready = true, pngFailure, gifFailure, imageWidth = 1200, imageHeight = 800, state = {} } = {}) {
+function canvasHarness({ ready = true, pngFailure, gifFailure, imageWidth = 1200, imageHeight = 800, state = {}, decode } = {}) {
   const calls = [];
   const files = {};
   let elements = [];
@@ -43,6 +44,7 @@ function canvasHarness({ ready = true, pngFailure, gifFailure, imageWidth = 1200
     getBoundingClientRect: () => ({ left: 0, top: 0 }),
   };
   let refIndex = 0;
+  let nextElementId = 0;
   const dependencies = {
     react: {
       forwardRef: (render) => render,
@@ -56,7 +58,7 @@ function canvasHarness({ ready = true, pngFailure, gifFailure, imageWidth = 1200
     "@excalidraw/excalidraw": {
       Excalidraw: "Excalidraw",
       MainMenu: { DefaultItems: { SaveAsImage: "SaveAsImage", ClearCanvas: "ClearCanvas" } },
-      convertToExcalidrawElements: (value) => value,
+      convertToExcalidrawElements: (value) => value.map((element) => ({ ...element, id: `native-${++nextElementId}` })),
       newElementWith: (element, updates) => ({ ...element, ...updates, version: (element.version ?? 0) + 1 }),
       CaptureUpdateAction: { IMMEDIATELY: "IMMEDIATELY", NEVER: "NEVER", EVENTUALLY: "EVENTUALLY" },
       exportToBlob: async (options) => {
@@ -68,7 +70,7 @@ function canvasHarness({ ready = true, pngFailure, gifFailure, imageWidth = 1200
     "@excalidraw/excalidraw/index.css": {},
     "@/lib/whiteboard-appearance": {
       ...appearance,
-      decodeWhiteboardImage: async () => ({ width: imageWidth, height: imageHeight }),
+      decodeWhiteboardImage: decode ?? (async () => ({ width: imageWidth, height: imageHeight })),
     },
     "./export-gif": {
       exportWhiteboardFlowGif: async (options) => {
@@ -77,7 +79,7 @@ function canvasHarness({ ready = true, pngFailure, gifFailure, imageWidth = 1200
         return gif;
       },
     },
-    zod: { z },
+    "@/lib/diagram-payload": { parseWhiteboardDocument },
   };
   const exports = {};
   vm.runInNewContext(compiled, {
@@ -100,7 +102,7 @@ function canvasHarness({ ready = true, pngFailure, gifFailure, imageWidth = 1200
 test("snapshot hydration restores validated image binaries before elements after a fresh mount", () => {
   const { handle, calls, files } = canvasHarness();
   handle.hydrate({
-    elements: [{ id: "drawing1", type: "image", fileId: "image1" }],
+    elements: [imageElement],
     files: { image1: imageFile },
     appState: { collaborators: {}, selectedElementIds: { stale: true }, newElement: { id: "stale" }, editingTextElement: { id: "stale" }, isResizing: true },
   });
@@ -124,16 +126,16 @@ test("invalid snapshot binaries fail atomically without changing the canvas", ()
     { ...imageFile, dataURL: "data:image/png;base64,invalid!" },
   ]) {
     const { handle, calls } = canvasHarness();
-    assert.throws(() => handle.hydrate({ elements: [], files: { image1: file } }), /invalid/);
+    assert.throws(() => handle.hydrate({ elements: [], files: { image1: file } }), /invalid/i);
     assert.equal(calls.length, 0);
   }
   const { handle } = canvasHarness();
-  assert.throws(() => handle.hydrate(null), /invalid/);
+  assert.throws(() => handle.hydrate(null), /invalid/i);
 });
 
 test("native PNG exports omit embedded scene metadata and use restored files", async () => {
   const { handle, calls, png } = canvasHarness();
-  handle.hydrate({ elements: [{ type: "image", fileId: "image1" }], files: { image1: imageFile } });
+  handle.hydrate({ elements: [imageElement], files: { image1: imageFile } });
   assert.equal(await handle.exportBlob("png"), png);
   const options = calls.find(([operation]) => operation === "exportPng")[1];
   assert.equal(options.appState.exportEmbedScene, false);
@@ -157,6 +159,33 @@ test("unready canvas rejects supported export and restore operations", async () 
   await assert.rejects(handle.exportBlob("gif"), /not ready/);
   assert.throws(() => handle.hydrate({ elements: [] }), /not ready/);
   assert.equal(await handle.exportBlob("svg"), null);
+});
+
+test("restoration invalidates an image still decoding on the same engine instance", async () => {
+  let finish;
+  const decoding = new Promise((resolve) => { finish = resolve; });
+  const { handle, calls } = canvasHarness({ decode: () => decoding });
+  const insertion = handle.insertImage(pngData.split(",")[1], "image/png");
+  handle.hydrate({ elements: [], files: {} });
+  const restoredCalls = calls.length;
+  finish({ width: 1, height: 1 });
+  await assert.rejects(insertion, /changed while decoding/);
+  assert.equal(calls.length, restoredCalls);
+  assert.deepEqual(plain(handle.serialize().elements), []);
+});
+
+test("invalid scene elements fail before adding files, changing elements or clearing history", () => {
+  for (const element of [null, { ...imageElement, x: Infinity }, { ...imageElement, fileId: "missing" }]) {
+    const { handle, calls } = canvasHarness();
+    assert.throws(() => handle.hydrate({ elements: [element], files: { image1: imageFile } }), /invalid/i);
+    assert.equal(calls.length, 0);
+  }
+});
+
+test("unfinished scenes cannot be restored as apparently successful empty geometry", () => {
+  const { handle, calls } = canvasHarness();
+  assert.throws(() => handle.hydrate({ elements: [{ ...imageElement, fileId: null, status: "pending" }] }), /unfinished/);
+  assert.equal(calls.length, 0);
 });
 
 test("undo, redo and delete use only this canvas's Excalidraw controls", () => {

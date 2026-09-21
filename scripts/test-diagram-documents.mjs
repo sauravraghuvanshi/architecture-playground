@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import ts from "typescript";
 import { parseArchitectureDocument, hasArchitectureContent } from "../lib/architecture-document.ts";
+import { parseDiagramPayload } from "../lib/diagram-payload.ts";
 import { DiagramLibraryError, validateDiagramRecord } from "../lib/diagram-library.ts";
 
 const source = readFileSync(new URL("../components/diagrammatic/shared/useDiagramDocuments.ts", import.meta.url), "utf8");
@@ -130,6 +131,7 @@ function harness({ records = [document()], active = { architecture: "original" }
     react,
     "@/lib/diagram-library": library,
     "@/lib/architecture-document": { parseArchitectureDocument, hasArchitectureContent },
+    "@/lib/diagram-payload": { parseDiagramPayload },
     "./types": { MODE_META: { architecture: { label: "Architecture" }, whiteboard: { label: "Whiteboard" } } },
   };
   const exports = {};
@@ -223,6 +225,30 @@ test("capture rejects oversized architecture in manual save, autosave and recove
   assert.ok(h.errors.some((message) => message.includes("autosave failed")));
 });
 
+test("corrupt Whiteboard recovery never activates or rewrites the retained scene", async () => {
+  const payload = { elements: [{ id: "bad", type: "rectangle", x: "invalid", y: 0, width: 30, height: 20 }] };
+  const saved = document("broken-board", { mode: "whiteboard", payload });
+  const h = harness({ records: [saved], active: { whiteboard: saved.id }, options: { mode: "whiteboard" } });
+  await h.flush();
+  assert.equal(h.current.ready, true);
+  assert.equal(h.current.documents.whiteboard, undefined);
+  assert.equal(h.current.blockedDrafts.whiteboard, true);
+  assert.equal(h.current.recoveryIssues.length, 1);
+  await h.autosave();
+  assert.equal(h.calls.length, 0);
+  assert.deepEqual(h.stored.get(saved.id).payload, payload);
+});
+
+test("invalid Whiteboard creation fails before saving or activating any document", async () => {
+  const h = harness();
+  await h.flush();
+  const initialApplications = h.applyEvents.length;
+  await assert.rejects(h.current.create("whiteboard", "Broken", { elements: [null] }), /invalid/i);
+  assert.equal(h.calls.length, 0);
+  assert.equal(h.applyEvents.length, initialApplications);
+  assert.equal(h.current.documents.architecture.id, "original");
+});
+
 for (const operation of ["manual save", "autosave"]) {
   test(`${operation} preserves comments and versions added during pending persistence`, async () => {
     const h = harness();
@@ -264,7 +290,7 @@ test("failed open leaves the target document unassigned and its payload untouche
   assert.equal(JSON.parse(h.local.get("diagrammatic.active-documents")).architecture, "original");
   assert.equal(h.stored.get("broken").revision, 1);
   assert.equal(h.stored.get("broken").payload.nodes.length, 501);
-  assert.ok(h.applyEvents.find((entry) => entry.id === "broken").active.architecture !== "broken");
+  assert.equal(h.applyEvents.some((entry) => entry.id === "broken"), false, "Invalid payload must be rejected before calling the canvas");
 });
 
 test("failed create hydration cannot activate the newly saved document", async () => {

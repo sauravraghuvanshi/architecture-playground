@@ -40,6 +40,7 @@ import { StatusBar } from "./shared/StatusBar";
 import { KeyboardHints } from "./shared/KeyboardHints";
 import { buildPromptArchitecture, type PromptDiagnostics } from "@/lib/prompt-to-arch";
 import { parseArchitectureDocument } from "@/lib/architecture-document";
+import { parseDiagramPayload } from "@/lib/diagram-payload";
 import { architectureMetadataSchema, architectureEdgeSemanticsSchema, legacyNodeSemantics, parseConnectionHandle } from "@/lib/architecture-model";
 import { parentFirst } from "@/lib/architecture-hierarchy";
 import { generatedArchitectureSchema } from "@/lib/ai-mode-prompts";
@@ -214,7 +215,10 @@ export function Workspace({
     apply: (document, activate) => {
       setPromptDiagnostics(null);
       if (document.mode === "architecture") setArchPayload(parseArchitectureDocument(document.payload));
-      else setOtherPayloads((previous) => ({ ...previous, [document.mode]: document.payload }));
+      else {
+        const checked = parseDiagramPayload(document.mode, document.payload);
+        setOtherPayloads((previous) => ({ ...previous, [document.mode]: checked }));
+      }
       setCanvasThemes((previous) => ({ ...previous, [document.mode]: document.canvasTheme }));
       setCanvasEpochs((previous) => ({ ...previous, [document.mode]: (previous[document.mode] ?? 0) + 1 }));
       setSelection(null);
@@ -467,7 +471,7 @@ export function Workspace({
     if (library.blockedDrafts[mode]) {
       throw new Error("The original draft needs recovery and has not been overwritten. Save a recovery copy or export your current canvas before leaving.");
     }
-    const checked = mode === "architecture" ? parseArchitectureDocument(payload) : payload;
+    const checked = parseDiagramPayload(mode, payload);
     localStorage.setItem(
       mode === "architecture" ? "diagrammatic.draft" : `diagrammatic.draft.${mode}`,
       JSON.stringify({ mode, payload: checked, savedAt: Date.now() }),
@@ -1001,7 +1005,7 @@ export function Workspace({
                 </div>
               )}
             </>
-          ) : (
+          ) : !library.ready ? <CanvasLoading /> : (
             <ModeCanvasFor
               key={`${mode}:${canvasEpochs[mode] ?? 0}`}
               mode={mode}
@@ -1081,8 +1085,9 @@ export function Workspace({
                 setArchPayload(checked);
               } else {
                 if (!otherCanvasRef.current) throw new Error("The canvas is still loading.");
-                otherCanvasRef.current.hydrate(payload);
-                setOtherPayloads((prev) => ({ ...prev, [mode]: payload }));
+                const checked = parseDiagramPayload(mode, payload);
+                otherCanvasRef.current.hydrate(checked);
+                setOtherPayloads((prev) => ({ ...prev, [mode]: checked }));
               }
               setSaved(false);
               setDocumentRevision((value) => value + 1);
@@ -1212,7 +1217,6 @@ export function Workspace({
         icons={icons}
         getSourceNodes={() => collectWhiteboardConversionSource(otherCanvasRef.current?.serialize())}
         onClose={() => setConvertOpen(false)}
-        hasExistingArchitecture={archPayload.nodes.length > 0}
         getImage={async () => {
           const blob = await otherCanvasRef.current?.exportBlob?.("png");
           if (!blob) throw new Error("Whiteboard is not ready to export.");
@@ -1271,6 +1275,7 @@ function ModeCanvasFor({
   const entry = MODE_REGISTRY[mode];
   const initial = useMemo(() => {
     if (value !== undefined) return value;
+    if (mode === "whiteboard") return entry?.defaultPayload;
     try {
       const raw = typeof window !== "undefined" ? localStorage.getItem(`diagrammatic.draft.${mode}`) : null;
       if (raw) {
