@@ -15,8 +15,8 @@
  * Event protocol:
  *   ': hb 15\n\n'                                     ← every 15s while waiting
  *   'data: {"type":"started","elapsed":0}\n\n'        ← once at start
- *   'data: {"type":"result","b64":"...","size":...}\n\n' ← on success, then close
- *   'data: {"type":"error","message":"...","status":502}\n\n' ← on failure, then close
+ *   'data: {"type":"result","b64":"...","mimeType":"image/png","size":...}\n\n'
+ *   'data: {"type":"error","code":"upstream","message":"...","status":502}\n\n'
  *
  * Image generation is hosted on a dedicated Azure AI Services account
  * separate from the chat/completions resource (different region, different
@@ -41,6 +41,9 @@ import { NextResponse } from "next/server";
 import { aiRateLimit } from "@/lib/ai-rate-limit";
 import { buildImagePrompt, imageRequestSchema } from "@/lib/image-styles";
 import { readBoundedJson, RequestBodyError } from "@/lib/request-json";
+import { IMAGE_RESPONSE_MAX_BYTES, imageFailureCode, imageFailureMessage, type ImageErrorCode } from "@/lib/ai-image-events";
+import { validateEvidenceImage } from "@/lib/review-image-server";
+import { EvidenceImageValidationError } from "@/lib/review-image";
 import {
   getImageAiConfig,
   getImageAiProxyBaseUrl,
@@ -55,13 +58,14 @@ const REQUEST_TIMEOUT_MS = 270_000; // 4m30s — generous upper bound for gpt-im
 
 function sseStream(producer: (
   send: (data: object) => void,
-  fail: (message: string, status?: number) => void,
+  fail: (code: ImageErrorCode, status?: number) => void,
   signal: AbortSignal,
 ) => Promise<void>): Response {
   const encoder = new TextEncoder();
   const cancelled = new AbortController();
+  let cancel = () => cancelled.abort();
   const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
+    start(controller) {
       let closed = false;
       const safeEnqueue = (chunk: string) => {
         if (closed) return;
@@ -74,27 +78,26 @@ function sseStream(producer: (
       };
       const heartbeat = setInterval(() => safeEnqueue(`: hb ${Date.now()}\n\n`), HEARTBEAT_MS);
       const send = (data: object) => safeEnqueue(`data: ${JSON.stringify(data)}\n\n`);
-      const fail = (message: string, status = 502) => send({ type: "error", message, status });
+      const fail = (code: ImageErrorCode, status = 502) => send({ type: "error", code, message: imageFailureMessage(code), status });
+      cancel = () => { closed = true; clearInterval(heartbeat); cancelled.abort(); };
 
       send({ type: "started", elapsed: 0 });
-      try {
-        await producer(send, fail, cancelled.signal);
-      } catch (err) {
-        fail(err instanceof Error ? err.message : "Unknown error");
-      } finally {
+      void producer(send, fail, cancelled.signal).catch(() => {
+        if (!cancelled.signal.aborted) fail("upstream");
+      }).finally(() => {
         clearInterval(heartbeat);
         closed = true;
         try { controller.close(); } catch { /* already closed */ }
-      }
+      });
     },
     cancel() {
-      cancelled.abort();
+      cancel();
     },
   });
   return new Response(stream, {
     headers: {
       "Content-Type": "text/event-stream; charset=utf-8",
-      "Cache-Control": "no-cache, no-transform",
+      "Cache-Control": "no-store, no-transform",
       "Connection": "keep-alive",
       // Disable buffering on Azure App Service / nginx-style proxies.
       "X-Accel-Buffering": "no",
@@ -103,6 +106,7 @@ function sseStream(producer: (
 }
 
 export async function POST(req: Request) {
+  if (req.signal.aborted) return NextResponse.json({ error: "Image request cancelled." }, { status: 499 });
   const rate = aiRateLimit(req);
   if (!rate.ok) {
     return NextResponse.json({ error: "Rate limit exceeded", retryAfter: rate.retryAfterSec }, {
@@ -166,13 +170,14 @@ export async function POST(req: Request) {
         status: upstream.status,
         headers,
       });
-    } catch {
+    } catch (cause) {
+      if (req.signal.aborted) return NextResponse.json({ error: "Image request cancelled." }, { status: 499 });
+      const code = cause instanceof Error && cause.name === "TimeoutError" ? "timeout" : "upstream";
       return NextResponse.json(
         {
-          error:
-            "The explicitly configured image proxy failed. No alternate destination was tried.",
+          error: imageFailureMessage(code), code,
         },
-        { status: 502 }
+        { status: code === "timeout" ? 504 : 502 }
       );
     }
   }
@@ -196,28 +201,45 @@ export async function POST(req: Request) {
         signal: AbortSignal.any([controller.signal, req.signal, signal]),
       });
       if (!res.ok) {
-        fail(`Image generation was not completed (HTTP ${res.status}). Check capacity, deployment configuration, or content policy.`, res.status);
+        let code = imageFailureCode(res.status);
+        if (res.status === 400 || res.status === 403) {
+          try {
+            const error: unknown = await readBoundedJson(res, 16_000);
+            if (error && typeof error === "object" && "error" in error && error.error &&
+              typeof error.error === "object" && "code" in error.error &&
+              typeof error.error.code === "string" &&
+              ["contentfilter", "content_policy_violation", "responsibleaipolicyviolation"].includes(error.error.code.toLowerCase())) {
+              code = "refused";
+            } else await res.body?.cancel();
+          } catch (cause) {
+            if (!(cause instanceof RequestBodyError)) throw cause;
+            // Preserve the explicit upstream failure even when its error body is malformed.
+          }
+        }
+        fail(code, res.status);
         return;
       }
-      const j = (await res.json()) as { data?: Array<{ url?: string; b64_json?: string }> };
-      const first = j.data?.[0];
-      if (!first) {
-        fail("Model returned no image", 502);
+      const json = await readBoundedJson(res, IMAGE_RESPONSE_MAX_BYTES);
+      const data: unknown = json && typeof json === "object" && "data" in json ? json.data : undefined;
+      const first: unknown = Array.isArray(data) && data.length === 1 ? data[0] : undefined;
+      if (!first || typeof first !== "object" || !("b64_json" in first) || typeof first.b64_json !== "string") {
+        fail("invalid_output");
         return;
       }
+      const b64 = first.b64_json;
+      const prefix = Buffer.from(b64.slice(0, 24), "base64");
+      const mimeType = prefix[0] === 0x89 && prefix[1] === 0x50 ? "image/png"
+        : prefix[0] === 0xff && prefix[1] === 0xd8 ? "image/jpeg" : "image/webp";
+      await validateEvidenceImage({ name: "generated-image", mimeType, dataUrl: `data:${mimeType};base64,${b64}` });
+      if (req.signal.aborted || signal.aborted) return;
+      if (controller.signal.aborted) { fail("timeout", 504); return; }
       const elapsed = Math.round((Date.now() - t0) / 1000);
-      if (first.b64_json) {
-        send({ type: "result", b64: first.b64_json, size, elapsed, canvas });
-      } else if (first.url) {
-        send({ type: "result", url: first.url, size, elapsed, canvas });
-      } else {
-        fail("Model returned no image data", 502);
-      }
+      send({ type: "result", b64, mimeType, size, elapsed, canvas });
     } catch (err) {
-      const message = err instanceof Error
-        ? (err.name === "AbortError" ? `Image request timed out after ${REQUEST_TIMEOUT_MS / 1000}s` : err.message)
-        : "Image request failed";
-      fail(message, 504);
+      if (req.signal.aborted || signal.aborted) return;
+      const code = controller.signal.aborted ? "timeout"
+        : err instanceof RequestBodyError || err instanceof EvidenceImageValidationError ? "invalid_output" : "upstream";
+      fail(code, code === "timeout" ? 504 : 502);
     } finally {
       clearTimeout(abortTimer);
     }

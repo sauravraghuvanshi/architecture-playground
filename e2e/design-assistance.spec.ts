@@ -51,7 +51,35 @@ test("guided AI generation captures constraints, previews advice and preserves o
   await expect(dialog.getByRole("region", { name: "Guided design preview" })).toBeVisible();
   expect(submitted?.businessConstraints).toEqual({ budget: "$500 per month", recovery: "RTO 1 hour, RPO 15 minutes" });
   await expect(page.locator(".react-flow__node")).toHaveCount(0);
+  await page.evaluate(() => {
+    const originalOpen = indexedDB.open.bind(indexedDB);
+    indexedDB.open = (...args) => {
+      const request = originalOpen(...args);
+      const setter = Object.getOwnPropertyDescriptor(IDBRequest.prototype, "onsuccess")?.set;
+      if (!setter) throw new Error("Missing IndexedDB event setter");
+      Object.defineProperty(request, "onsuccess", {
+        set(handler: (event: Event) => void) {
+          setter.call(request, (event: Event) => {
+            Object.defineProperty(window, "finishDesignSave", { configurable: true, value: () => handler.call(request, event) });
+          });
+        },
+      });
+      indexedDB.open = originalOpen;
+      return request;
+    };
+  });
   await dialog.getByRole("button", { name: "Apply generated design" }).click();
+  await expect(dialog.getByRole("button", { name: "Close", exact: true })).toBeDisabled();
+  await expect(dialog.getByRole("button", { name: "Cancel", exact: true })).toBeDisabled();
+  await expect(dialog.getByRole("button", { name: "Clear AI session", exact: true })).toBeDisabled();
+  await expect(dialog.getByRole("status")).toContainText("committed action");
+  await expect.poll(() => page.evaluate(() => typeof Reflect.get(window, "finishDesignSave"))).toBe("function");
+  await page.evaluate(() => {
+    const finish: unknown = Reflect.get(window, "finishDesignSave");
+    if (typeof finish !== "function") throw new Error("No pending design save");
+    finish();
+    Reflect.deleteProperty(window, "finishDesignSave");
+  });
   await expect(dialog).toHaveCount(0);
   await expect(page.locator(".react-flow__node")).toHaveCount(2);
   await expect.poll(async () => {

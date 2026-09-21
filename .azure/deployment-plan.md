@@ -1,9 +1,56 @@
 # Azure Deployment Plan
 
-> **Status:** Deployed and Verified
+> **Status:** Validated
 
 Generated: 2026-08-12
 Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
+
+## Priority 13 - Reliable AI readiness, streaming and cancellation
+
+- **Baseline:** Verified application `a95261e`; documentation `913d05c`.
+- **Authorization:** Continue the remaining ordered priorities sequentially.
+- **Plan:** Trace readiness and the end-to-end image SSE contract; reproduce
+  framing/cancellation/duplicate-result gaps; implement shared bounded event
+  handling and explicit terminal outcomes; verify unit/browser regressions,
+  validate, deploy the existing app and verify hosted before priority 14.
+- **Recipe/model:** Existing Next.js/TypeScript application-only App Service
+  pipeline; retain operator-selected Azure deployments and existing SDK/API.
+  No model selection, endpoint, infrastructure, role or live inference change.
+- **State:** Implemented and locally verified; application release follows.
+
+### Priority 13 - Reproduction and implementation
+
+- Seven transport probes failed against the baseline: CR/CRLF framing and data
+  spacing, truncated-tail dispatch, invalid UTF-8, unbounded buffering and abort
+  while awaiting a pending read. The new production reader passes all seven.
+- Shared image-event validation accepts exactly one complete base64 image outcome,
+  fails on malformed/duplicate/contradictory output, and delays insertion until EOF.
+- Server producers are no longer blocked inside an asynchronous stream start;
+  cancellation reaches the provider before producer completion. Direct output
+  is bounded and fully pixel-decoded; URL-only responses are explicit failures.
+- Timeout/throttle/refusal/invalid-output/unavailable/upstream outcomes are
+  distinct and redacted. Configured models, endpoints and request options remain.
+- Readiness times out explicitly; final image decoding receives the cancellation
+  signal. Graph document commits disable duplicate application/dismissal.
+- Guidance: official Azure OpenAI image-generation documentation confirms
+  GPT-image base64 output and explicit content-filter/rate-limit outcomes.
+  No live inference is used for this release.
+
+### Priority 13 - All validation checks pass
+
+- [x] `npm run test:playground`: **340/340 passed**, including byte-boundary
+  SSE framing, pending-read/producer abort, binary formats, terminal cardinality,
+  redacted outcome classification and decode-time cancellation.
+- [x] `npm run lint`, `npx tsc --noEmit`, `npm run build`: successful.
+- [x] Final production-build affected-surface browser gate: **83/83 passed**
+  in 4.1 minutes. Includes stalled/malformed/ambiguous readiness, duplicate and
+  truncated streams, silent-read and pixel-decode cancellation, document commit
+  controls and prior review/deployment/Whiteboard fidelity behavior.
+- [x] Existing ZIP-only app pipeline; Docker/IaC/What-If not applicable. No
+  infrastructure, resource, role, provider identity or endpoint changes.
+- [x] Validation proof September 21: `p13-final-contracts`, 340 passed;
+  `p13-final-build`, exit 0; `p13-final-local-browser`, 83 passed.
+- [ ] Exact rollout and hosted acceptance.
 
 ## Priority 12 - Safe Whiteboard conversion and restoration
 

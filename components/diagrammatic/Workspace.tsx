@@ -590,7 +590,9 @@ export function Workspace({
   // round-trip per click.
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/ai/status")
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(new DOMException("AI readiness timed out.", "TimeoutError")), 10_000);
+    fetch("/api/ai/status", { signal: controller.signal, cache: "no-store" })
       .then((r) => {
         if (!r.ok) throw new Error(`AI availability check failed (HTTP ${r.status}).`);
         return r.json();
@@ -605,14 +607,13 @@ export function Workspace({
         }) => {
           if (!result || typeof result !== "object" ||
             [result.configured, result.diagramConfigured, result.imageConfigured].some((flag) => flag !== undefined && typeof flag !== "boolean") ||
-            (typeof result.configured !== "boolean" &&
-              (typeof result.diagramConfigured !== "boolean" || typeof result.imageConfigured !== "boolean"))) {
+            typeof result.diagramConfigured !== "boolean" || typeof result.imageConfigured !== "boolean") {
             throw new Error("The AI availability response is invalid.");
           }
           if (!cancelled) {
             setAiStatus({
-              diagramConfigured: typeof result.diagramConfigured === "boolean" ? result.diagramConfigured : result.configured === true,
-              imageConfigured: typeof result.imageConfigured === "boolean" ? result.imageConfigured : result.configured === true,
+              diagramConfigured: result.diagramConfigured,
+              imageConfigured: result.imageConfigured,
               imageSource: result.imageSource,
               reviewAgentConfigured: result.reviewAgentConfigured === true,
             });
@@ -625,8 +626,8 @@ export function Workspace({
           setAiStatusError("AI availability could not be checked. Reload to try again.");
           setAiStatus({ diagramConfigured: false, imageConfigured: false, reviewAgentConfigured: false });
         }
-      });
-    return () => { cancelled = true; };
+      }).finally(() => clearTimeout(timeout));
+    return () => { cancelled = true; clearTimeout(timeout); controller.abort(); };
   }, []);
 
   const meta = MODE_META[mode];
@@ -1193,10 +1194,10 @@ export function Workspace({
           if (!handle?.getImageCanvasContext) throw new Error("Whiteboard is not ready.");
           return handle.getImageCanvasContext();
         }}
-        onImageResult={async (b64, mime, canvas) => {
+        onImageResult={async (b64, mime, canvas, signal) => {
           const handle = otherCanvasRef.current as WhiteboardCanvasHandle | null;
           if (!handle?.insertImage) throw new Error("Whiteboard is not ready.");
-          await handle.insertImage(b64, mime, { canvas });
+          await handle.insertImage(b64, mime, { canvas, signal });
           setSaved(false);
         }}
       />

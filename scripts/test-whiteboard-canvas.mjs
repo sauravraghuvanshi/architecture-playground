@@ -174,6 +174,18 @@ test("restoration invalidates an image still decoding on the same engine instanc
   assert.deepEqual(plain(handle.serialize().elements), []);
 });
 
+test("cancelling generation during pixel decoding prevents any image or binary insertion", async () => {
+  let finish;
+  const decoding = new Promise((resolve) => { finish = resolve; });
+  const { handle, calls } = canvasHarness({ decode: () => decoding });
+  const controller = new AbortController();
+  const pending = handle.insertImage(pngData.split(",")[1], "image/png", { signal: controller.signal });
+  controller.abort();
+  finish({ width: 1, height: 1 });
+  await assert.rejects(pending, { name: "AbortError" });
+  assert.equal(calls.length, 0);
+});
+
 test("invalid scene elements fail before adding files, changing elements or clearing history", () => {
   for (const element of [null, { ...imageElement, x: Infinity }, { ...imageElement, fileId: "missing" }]) {
     const { handle, calls } = canvasHarness();

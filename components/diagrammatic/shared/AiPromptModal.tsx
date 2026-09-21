@@ -19,7 +19,7 @@ import { Loader2, Sparkles, X } from "lucide-react";
 import type { DiagrammaticMode } from "./types";
 import { AiPrivacyNotice } from "./AiPrivacyNotice";
 import { AI_LOCAL_CLEAR_NOTICE } from "@/lib/ai-privacy-contract";
-import { consumeSseResponse } from "@/lib/sse-client";
+import { consumeImageResponse, imageFailureMessage } from "@/lib/ai-image-events";
 import { IMAGE_STYLES, imageCanvasContextSchema, type ImageCanvasContext } from "@/lib/image-styles";
 import {
   DESIGN_DISCLAIMER,
@@ -78,7 +78,7 @@ interface Props {
   onClose: () => void;
   onResult: (graph: unknown) => void | Promise<void>;
   /** Whiteboard-only. Receives a base64 image (no data: prefix) + mime type. */
-  onImageResult?: (b64: string, mime: string, canvas: ImageCanvasContext) => void | Promise<void>;
+  onImageResult?: (b64: string, mime: string, canvas: ImageCanvasContext, signal: AbortSignal) => void | Promise<void>;
   /** Read the live canvas at submission, not a render-time or draft snapshot. */
   getImageCanvasContext?: () => ImageCanvasContext;
 }
@@ -89,12 +89,14 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult, ge
   const [size, setSize] = useState<ImageSize>("1024x1024");
   const [imageStyle, setImageStyle] = useState<(typeof IMAGE_STYLES)[number]["id"]>("original");
   const [busy, setBusy] = useState(false);
+  const [committing, setCommitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0); // seconds, image-mode only
   const [constraints, setConstraints] = useState<BusinessConstraints>({});
   const [generated, setGenerated] = useState<{ graph: unknown; guidance: DesignAssistance } | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const commitRef = useRef(false);
 
   useEffect(() => {
     if (open) {
@@ -125,6 +127,25 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult, ge
 
   if (!open) return null;
 
+  async function commitGraph(graph: unknown) {
+    if (commitRef.current) return;
+    commitRef.current = true;
+    setCommitting(true);
+    setBusy(true);
+    setError(null);
+    try {
+      await onResult(graph);
+      setPrompt("");
+      onClose();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The generated design could not be saved.");
+    } finally {
+      commitRef.current = false;
+      setCommitting(false);
+      setBusy(false);
+    }
+  }
+
   const submitGraph = async (trimmed: string) => {
     const ac = new AbortController();
     abortRef.current = ac;
@@ -148,9 +169,7 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult, ge
         setGenerated({ graph, guidance: { ...advice, kind: "guided-design", references: DESIGN_REFERENCES, disclaimer: DESIGN_DISCLAIMER } });
         return;
       }
-      await onResult(json.graph);
-      setPrompt("");
-      onClose();
+      await commitGraph(json.graph);
     } catch (err) {
       if (!ac.signal.aborted) setError(err instanceof Error ? err.message : "Network error");
     } finally {
@@ -169,7 +188,7 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult, ge
     }
     const ac = new AbortController();
     abortRef.current = ac;
-    let resultB64: string | undefined;
+    const timeout = setTimeout(() => ac.abort(new DOMException("Image generation timed out.", "TimeoutError")), 285_000);
     try {
       if (!getImageCanvasContext) throw new Error("Whiteboard canvas context is not available. Wait for the canvas and retry.");
       const canvas = imageCanvasContextSchema.parse(getImageCanvasContext());
@@ -193,51 +212,23 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult, ge
         setBusy(false);
         return;
       }
-      await consumeSseResponse(res, {
-        signal: ac.signal,
-        onEvent: ({ data }) => {
-          if (ac.signal.aborted || abortRef.current !== ac) return;
-          let parsed: { type?: string; b64?: string; url?: string; size?: string; message?: string; elapsed?: number };
-          try {
-            parsed = JSON.parse(data);
-          } catch {
-            return;
-          }
-          if (parsed.type === "started") return;
-          if (parsed.type === "error") {
-            setError(parsed.message ?? "Image generation failed");
-            return;
-          }
-          if (parsed.type === "result") {
-            if (parsed.b64) {
-              resultB64 = parsed.b64;
-            } else if (parsed.url) {
-              setError("Server returned a URL response; only base64 is supported by the whiteboard inserter.");
-            } else {
-              setError("Server returned no image data");
-            }
-          }
-        },
-      });
-      if (resultB64 && !ac.signal.aborted) {
-        // Use exactly the bytes returned, and retain the captured request
-        // surface even if the user changes themes while generation runs.
-        await onImageResult(resultB64, "image/png", canvas);
-        if (!ac.signal.aborted) {
-          setPrompt("");
-          onClose();
-        }
-      } else if (!ac.signal.aborted) {
-        // Stream closed without a terminal event.
-        setError((prev) => prev ?? "Image generation ended without a result");
+      const result = await consumeImageResponse(res, ac.signal);
+      if (ac.signal.aborted || abortRef.current !== ac) return;
+      await onImageResult(result.b64, result.mimeType, canvas, ac.signal);
+      if (!ac.signal.aborted && abortRef.current === ac) {
+        setPrompt("");
+        onClose();
       }
     } catch (err) {
-      if (ac.signal.aborted || abortRef.current !== ac || (err instanceof DOMException && err.name === "AbortError")) {
+      if (abortRef.current === ac && ac.signal.reason instanceof DOMException && ac.signal.reason.name === "TimeoutError") {
+        setError(imageFailureMessage("timeout"));
+      } else if (ac.signal.aborted || abortRef.current !== ac || (err instanceof DOMException && err.name === "AbortError")) {
         // User cancelled — modal already closed; no toast needed.
       } else {
         setError(err instanceof Error ? err.message : "Network error");
       }
     } finally {
+      clearTimeout(timeout);
       if (abortRef.current === ac) {
         setBusy(false);
         abortRef.current = null;
@@ -247,7 +238,7 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult, ge
 
   const submit = async () => {
     const trimmed = prompt.trim();
-    if (!trimmed || busy) return;
+    if (!trimmed || busy || abortRef.current || commitRef.current) return;
     setBusy(true);
     setError(null);
     setElapsed(0);
@@ -259,15 +250,21 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult, ge
   };
 
   const cancel = () => {
+    if (commitRef.current) return;
     abortRef.current?.abort();
     abortRef.current = null;
     setBusy(false);
+  };
+  const close = () => {
+    if (commitRef.current) return;
+    cancel();
+    onClose();
   };
 
   const suggestions = SUGGESTED[mode] ?? [];
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-start justify-center bg-slate-950/75 px-4 pt-24 backdrop-blur-sm" onClick={busy ? undefined : onClose}>
+    <div className="fixed inset-0 z-[100] flex items-start justify-center bg-slate-950/75 px-4 pt-24 backdrop-blur-sm" onClick={busy ? undefined : close}>
       <div
         className="flex max-h-[80vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-[#0b1220] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
@@ -282,14 +279,14 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult, ge
               AI {isImageMode ? "Image" : "Assist"} · {mode}
             </span>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="cursor-pointer rounded p-1 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100">
+          <button type="button" disabled={committing} onClick={close} aria-label="Close" className="cursor-pointer rounded p-1 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 disabled:opacity-40">
             <X className="h-4 w-4" />
           </button>
         </div>
         <div className="overflow-y-auto px-4 py-4">
           <AiPrivacyNotice capability={isImageMode ? "image" : "chat"} active={open} />
           <div className="mb-3 text-[11px] text-slate-400">
-            <button type="button" onClick={() => {
+            <button type="button" disabled={committing} onClick={() => {
               cancel(); setPrompt(""); setConstraints({}); setGenerated(null); setError(null); setElapsed(0);
             }} className="mb-1 rounded border border-slate-600 px-2 py-1 text-slate-200">Clear AI session</button>
             <p>{AI_LOCAL_CLEAR_NOTICE}</p>
@@ -394,6 +391,7 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult, ge
               </span>
             </div>
           )}
+          {committing && <p role="status" className="mt-3 text-xs text-cyan-200">Saving the generated document. This committed action must finish before closing.</p>}
           {error && (
             <div role="alert" className="mt-3 rounded border border-rose-700/50 bg-rose-950/40 px-3 py-2 text-xs text-rose-200">
               {error}
@@ -413,16 +411,7 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult, ge
               ))}</div>
               <p className="text-slate-400">{generated.guidance.disclaimer}</p>
               <button type="button" disabled={busy} className="rounded-lg bg-cyan-400 px-3 py-2 font-semibold text-slate-950 disabled:opacity-50"
-                onClick={async () => {
-                  setBusy(true);
-                  try {
-                    await onResult(generated.graph);
-                    setPrompt("");
-                    onClose();
-                  } catch (cause) {
-                    setError(cause instanceof Error ? cause.message : "The generated design could not be applied.");
-                  } finally { setBusy(false); }
-                }}>Apply generated design</button>
+                onClick={() => commitGraph(generated.graph)}>Apply generated design</button>
             </section>
           )}
         </div>
@@ -430,11 +419,11 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult, ge
           <span className="text-[10px] text-zinc-500">⌘↵ to send · {prompt.length}/{isImageMode ? 1000 : 2000}</span>
           <div className="flex items-center gap-2">
             {busy ? (
-              <button type="button" onClick={cancel} className="cursor-pointer rounded-md border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100">
+              <button type="button" disabled={committing} onClick={cancel} className="cursor-pointer rounded-md border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 disabled:opacity-40">
                 Cancel
               </button>
             ) : (
-              <button type="button" onClick={onClose} className="cursor-pointer rounded-md px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100">
+              <button type="button" onClick={close} className="cursor-pointer rounded-md px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100">
                 Cancel
               </button>
             )}
@@ -445,7 +434,7 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult, ge
               className="inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-cyan-400 px-3 py-1.5 text-xs font-bold text-slate-950 transition hover:bg-cyan-300 disabled:opacity-50"
             >
               {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-              {busy ? (isImageMode ? "Generating…" : "Generating…") : (isImageMode ? "Generate image" : "Generate")}
+              {committing ? "Saving…" : busy ? "Generating…" : (isImageMode ? "Generate image" : "Generate")}
             </button>
           </div>
         </div>

@@ -13,7 +13,7 @@ const valid = {
 };
 
 async function openReview(page: Page) {
-  await page.route("**/api/ai/status", (route) => route.fulfill({ json: { configured: true, reviewAgentConfigured: true, deploymentAgentConfigured: false } }));
+  await page.route("**/api/ai/status", (route) => route.fulfill({ json: { configured: true, diagramConfigured: true, imageConfigured: false, reviewAgentConfigured: true, deploymentAgentConfigured: false } }));
   await page.goto("/diagrammatic?mode=architecture");
   await page.getByRole("button", { name: "Review my architecture", exact: true }).click();
   const modal = page.getByRole("dialog", { name: "Review my architecture", exact: true });

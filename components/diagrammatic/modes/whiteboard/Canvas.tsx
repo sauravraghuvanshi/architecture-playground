@@ -80,7 +80,7 @@ interface ExcalidrawAPI {
  *  images into the scene. Implemented by WhiteboardCanvas; consumers should
  *  feature-detect via `"insertImage" in handle`. */
 export interface WhiteboardCanvasHandle extends BaseCanvasHandle {
-  insertImage: (b64: string, mime: string, opts?: { width?: number; height?: number; canvas?: ImageCanvasContext }) => Promise<void>;
+  insertImage: (b64: string, mime: string, opts?: { width?: number; height?: number; canvas?: ImageCanvasContext; signal?: AbortSignal }) => Promise<void>;
   getImageCanvasContext: () => ImageCanvasContext;
   insertSvgAsset: (svg: string, label: string) => void;
   activateFlowArrow: () => void;
@@ -514,12 +514,14 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
     insertImage: async (
       b64: string,
       mime: string,
-      opts?: { width?: number; height?: number; canvas?: ImageCanvasContext }
+      opts?: { width?: number; height?: number; canvas?: ImageCanvasContext; signal?: AbortSignal }
     ) => {
       const api = apiRef.current;
       if (!api) throw new Error("Whiteboard is not ready to insert an image.");
+      opts?.signal?.throwIfAborted();
       const epoch = sceneEpoch.current;
       const decoded = await decodeWhiteboardImage(`data:${mime};base64,${b64}`);
+      opts?.signal?.throwIfAborted();
       if (apiRef.current !== api || sceneEpoch.current !== epoch) throw new Error("The Whiteboard changed while decoding the image. Please retry.");
       const dimensions = fitWhiteboardImage(decoded.width, decoded.height, opts?.width ?? 480, opts?.height ?? 480);
       insertImageData(b64, mime, { ...opts, ...dimensions, idPrefix: "ai-img" });
