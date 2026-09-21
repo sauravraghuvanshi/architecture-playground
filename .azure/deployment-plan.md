@@ -1,6 +1,6 @@
 # Azure Deployment Plan
 
-> **Status:** Validated
+> **Status:** Deployed and Verified
 
 Generated: 2026-08-12
 Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
@@ -16,7 +16,7 @@ Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
 - **Recipe/model:** Existing Next.js/TypeScript application-only App Service
   pipeline; retain operator-selected Azure deployments and existing SDK/API.
   No model selection, endpoint, infrastructure, role or live inference change.
-- **State:** Implemented and locally verified; application release follows.
+- **State:** Deployed and verified as `d490193a62add5f018331ffd0c4009a46bf3405c`.
 
 ### Priority 13 - Reproduction and implementation
 
@@ -50,7 +50,13 @@ Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
   infrastructure, resource, role, provider identity or endpoint changes.
 - [x] Validation proof September 21: `p13-final-contracts`, 340 passed;
   `p13-final-build`, exit 0; `p13-final-local-browser`, 83 passed.
-- [ ] Exact rollout and hosted acceptance.
+- [x] Exact rollout **35578931985**, successful in **4m24s**, completed
+  September 21 at 08:42:35 UTC. Clean Linux build, completed ZIP operation,
+  authenticated API, parser and browser smoke passed.
+- [x] Hosted affected-surface gate: **83/83 passed** in 4.3 minutes.
+  Synthetic providers only; no live-model quality/latency claim.
+- [x] Temporary hosted authentication removed and owned server stopped.
+  Priority 14 is next.
 
 ## Priority 12 - Safe Whiteboard conversion and restoration
 

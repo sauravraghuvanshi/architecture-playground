@@ -1,9 +1,9 @@
 # Implementation roadmap
 
-Last updated: 2026-09-21, Asia/Kolkata (resumed backlog, priority 12 close-out).
+Last updated: 2026-09-21, Asia/Kolkata (resumed backlog, priority 13 close-out).
 
-**Priorities 1-12 are deployed and verified within their stated scopes.
-Work resumed on September 21 at the user's request. Priority 13 is next.
+**Priorities 1-13 are deployed and verified within their stated scopes.
+Work resumed on September 21 at the user's request. Priority 14 is next.
 Competitor-inspired additions remain after the numbered backlog.**
 
 ## User-selected interruption - 20 September 2026
@@ -28,7 +28,7 @@ They are not the 47 finding IDs in the original local HTML audit.
 - [Session summary and test evidence](development-log-2026-09-20.md)
 - [Deployment history and current release](../.azure/deployment-plan.md)
 - Live app: https://architecture-playground.azurewebsites.net
-- Current deployed application: `a95261e30cdb581a6276e967ce2e934d99588e15`
+- Current deployed application: `d490193a62add5f018331ffd0c4009a46bf3405c`
 - [Today's summary, lessons and next-session handoff](session-summary-2026-09-21.md)
 - Original audit: local `Audit Report/index.html`, intentionally Git-excluded.
   Do not add the HTML report or test authentication files to a commit.
@@ -69,8 +69,9 @@ They are not the 47 finding IDs in the original local HTML audit.
 | 10 | Explicit AI destinations and privacy controls | **Deployed - `52b5efa`.** No implicit demo proxy, validated configured origins, redirect/self/chained-proxy rejection, authenticated origin/data/retention disclosures, opt-in bounded local prompt history, memory-only candidates and cancellation-safe scoped clearing. Saved diagrams and provider retention are explicitly separate. |
 | 11 | Correct Whiteboard colors and image proportions | **Deployed - `94e1abc`.** Literal-color rendering/export, canvas-aware image context, decoded aspect ratios, adaptive owned neutral foregrounds and legacy bundled-icon readability, verified with displayed/exported pixels. Custom and ambiguous legacy white text remains user-controlled. |
 | 12 | Safe Whiteboard conversion and restoration | **Deployed - `a95261e`.** Bounded native scene/geometry/reference/binary validation before recovery or mutation, preserved corrupt originals, compatible raster/static-SVG migration, unfinished-scene guards, stale decode/notification invalidation and separate cancellable analysis versus committed new-document creation. Existing diagrams are preserved; failures retain a retryable preview. Binary checks are structural/header-based, not universal pixel decoding. |
+| 13 | Reliable AI readiness, streaming and cancellation | **Deployed - `d490193`.** Independent readiness flags/deadline; bounded UTF-8/CR/LF SSE parser; prompt pending-read and producer cancellation; exactly one validated base64/MIME outcome; direct-provider pixel validation; redacted timeout/throttle/refusal/error states; decode-time cancellation and guarded graph document commits. No live-model or durable-job guarantee. |
 
-These releases are cumulative. Current production includes all twelve numbered
+These releases are cumulative. Current production includes all thirteen numbered
 items plus the explicitly requested nested-boundary and conversion improvements.
 
 ## Remaining implementation priorities
@@ -81,8 +82,7 @@ Descriptions are acceptance guidance, not claims of deployed functionality.
 
 | Priority Number | Feature / Fix to Implement | Description |
 | ---: | --- | --- |
-| **13 - next** | **Reliable AI loading, streaming and cancellation** | Show disabled/checking state until readiness is known. Fix SSE framing and pending-read cancellation, support one insertable image-result contract, and distinguish timeout, throttle, refusal and truncated output. |
-| 14 | Responsive and keyboard-accessible editing | Provide smaller-screen Inspector and Whiteboard asset drawers. Make menus keyboard-operable and all dialogs manage initial focus, focus trapping, Escape and focus restoration. |
+| **14 - next** | **Responsive and keyboard-accessible editing** | Provide smaller-screen Inspector and Whiteboard asset drawers. Make menus keyboard-operable and all dialogs manage initial focus, focus trapping, Escape and focus restoration. |
 | 15 | Cross-browser reliability for core workflows | Diagnose the repeated Firefox export/reload and WebKit drag/arrow failures. Publish a support policy and validate real Safari devices when promised; do not hide failures with timeouts. |
 | 16 | Regression and release gates | Replace copied-test algorithms with production imports, add semantic/compiler-backed assertions, gate promotion on relevant suites, and verify completed deployment of the expected revision. Retain the production-bound tests already added. |
 | 17 | Grounded, reproducible architecture reviews | Tie recommendations to supporting evidence, not just framework landing pages. Record prompt/model/schema versions and distinguish depicted, proposed, validated and runtime-verified facts. |

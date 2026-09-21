@@ -1,9 +1,31 @@
 # Development log - 2026-09-19/20/21
 
-**Resumed September 21:** the user requested the remaining tasks; priority 12 is
+**Resumed September 21:** the user requested the remaining tasks; priority 13 is
 now deployed and hosted-verified. The [early September 21 session summary](session-summary-2026-09-21.md)
 records the earlier stop after task 8, not the current execution boundary. Older
 close-out tables below are historical checkpoints, not the current release.
+
+## September 21 - Priority 13 continuation
+
+- Deployed `d490193a62add5f018331ffd0c4009a46bf3405c`; workflow
+  `35578931985` succeeded in 4m24s.
+- Reproduced seven stream transport gaps. Implemented bounded UTF-8 and
+  LF/CRLF/CR framing, no truncated-tail dispatch, timeout and prompt pending-read
+  cancellation. Server cancellation now reaches a pending producer immediately.
+- Validated one complete insertable result; duplicated/contradictory events and
+  URL-only responses never become images. Direct output uses actual MIME and
+  full bounded pixel decoding. Errors distinguish timeout/throttle/refusal/
+  invalid output/configuration/upstream without provider diagnostic leakage.
+- Readiness requires independent flags and has a deadline. Cancellation reaches
+  final pixel decoding; committed graph saves cannot be dismissed or duplicated.
+- Validation: **340 contracts**, lint/types/build, **83 local and 83 hosted**
+  production browser cases passed. No real model or customer deployment calls.
+- Learning: an async `ReadableStream.start` can defer cancellation until its
+  producer finishes. Treat an image result as provisional until the complete
+  stream is verified; a second terminal event must invalidate it.
+- Temporary auth removed and owned server stopped. Priorities 1-13 complete;
+  priority 14 follows. Priorities 14-33 and competitor additions remain.
+- Behavioral details: [AI streaming](ai-streaming.md).
 
 ## September 21 - Priority 12 continuation
 
