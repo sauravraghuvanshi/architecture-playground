@@ -136,6 +136,17 @@ Foundry requests specify `store:false` and do not create conversations. This is
 not a guarantee of zero provider retention: service policies, configured agent
 features, and Azure diagnostics still apply. Do not include secrets.
 
+## AI evidence validation
+
+Review and Whiteboard-conversion input images are checked against their real
+container bytes and fully decoded before provider invocation. Limits are 5 MiB,
+8192 pixels per side and 16 megapixels; corrupt, mismatched or animated/multipage
+inputs are rejected rather than repaired. Diagram evidence IDs/references and
+UTF-8/byte bounds are validated before inference. New reviews require explicit
+evidence references and complete remediation, with no silent input cropping.
+See [AI evidence contracts](ai-evidence-contracts.md). These checks do not certify
+model truthfulness or deployed configuration.
+
 ## Azure Portal handoff
 
 AI artifact handoff now includes independent bounded static validation. Bicep

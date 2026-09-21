@@ -1,9 +1,87 @@
 # Azure Deployment Plan
 
-> **Status:** Deployed and Verified
+> **Status:** Validated
 
 Generated: 2026-08-12
-Updated: 2026-09-21 (Asia/Kolkata; continuation of the September 20 session)
+Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
+
+## Priority 9 - Strict AI evidence and response contracts
+
+- **Baseline:** Application `86cde20`, verified; documentation `970aba5`.
+- **Authorization:** User resumed the remaining ordered priorities on September
+  21 at 10:08 IST. The previous session cutoff is historical; proceed one
+  priority at a time and preserve deployment/hosted verification gates.
+- **Scope:** Review completeness, unique finding IDs, traceable evidence,
+  remediation and consistent image/request bounds before provider invocation.
+  Preserve earlier versioned architecture and artifact-validation guarantees.
+- **Plan:** Trace/reproduce current gaps; implement shared bounded contracts,
+  fail explicitly instead of dropping/truncating content; test server and UI
+  boundaries with deterministic fixtures; validate/build/deploy and verify hosted.
+- **Recipe:** Existing application-only GitHub Actions/App Service pipeline.
+  No new Azure resources, roles, model changes or generated customer IaC execution.
+- **State:** Implemented and locally verified; release validation and hosted
+  acceptance are next. No priority 10 implementation yet.
+
+### Priority 9 reproduced gaps and implementation
+
+- Reproduced acceptance of duplicate finding IDs, mismatched guidance URLs,
+  missing structured remediation and empty/fake PNGs. Generic unversioned review
+  evidence accepted missing/duplicate IDs. The legacy route silently sliced
+  evidence at 30,000 characters and dropped remediation from its Markdown.
+- Separate historical-read compatibility from strict new review acceptance.
+  New results must include unique IDs, evidence status, exact reference arrays,
+  matching framework sources and complete steps/validation/tradeoff remediation.
+  Server corrections and client rendering use the same new-result contract.
+- Validate bounded review graph IDs/references without stripping legacy metadata;
+  retain the entire graph up to an explicit 120,000-byte budget and reject larger
+  evidence before inference. Bounded correction output is retained in full,
+  not silently cut. A 128,000-byte response ceiling rejects oversized results.
+- Explanation requests now use the same bounded evidence intake, not unbounded
+  JSON parsing. UTF-8 decoding rejects invalid input rather than replacing bytes.
+  Azure chat completions require explicit normal termination; valid-looking JSON
+  from length/content-filter/refusal results is never accepted as complete.
+- Shared PNG/JPEG/WebP validation and full server-side decode are implemented;
+  both review and Whiteboard conversion use them before
+  provider invocation. Tests use deterministic image fixtures, not live models.
+- Existing application-only target, no subscription/resource/role/model changes.
+  Initial gaps are reproduced and covered; local integration passes. Hosted
+  release verification remains pending.
+
+### Priority 9 - All validation checks pass
+
+- [x] Existing application-only CI/CD target and unchanged permissions/resources.
+- [x] `npm run test:playground`: **279/279 passed**, including 17 real image
+  container/pixel/size/animation tests and exact review/evidence regressions.
+- [x] `npm run lint`, strict TypeScript and standalone `npm run build`.
+- [x] Final production-build affected-surface browser suite: **37/37 passed**
+  in 56.9 seconds; model access was disabled and provider successes were fixtures.
+- [x] Image provider boundaries reject corruption even when image headers look
+  plausible. Real maximum byte/pixel tests use Sharp-generated fixtures.
+- [x] Static role/policy review: no infrastructure, new role or AI configuration
+  change. Docker and live customer What-If do not apply to this ZIP app release.
+- [x] Azure validation workflow completion and owner-scoped release baseline.
+
+### Priority 9 - Section 7: Validation Proof
+
+Complete legacy evidence beyond 30,000 characters is preserved; oversized graphs,
+duplicate/dangling IDs and invalid UTF-8 are rejected before provider calls.
+New reviews require complete remediation and validated references; historical
+reads retain legacy optional fields without inventing them. Partial/refused
+Azure chat completions are rejected even when the text is parseable JSON.
+
+Shared client-safe PNG/JPEG/WebP checks and server full-pixel decoding are wired
+to both review and conversion. Sharp 0.34.5 was already installed transitively;
+it is now an explicit required runtime dependency. npm lock-only operations hit
+an unrelated pre-existing optional Tailwind WASM mirror 404/cache miss. The lock
+change was limited to its existing Sharp root requirement and required dependency
+flags; package versions/resolved URLs/integrities were not changed. `npm ls sharp`,
+decoder tests, strict types and production build passed. CI `npm ci` must also
+pass before the release is accepted.
+
+Hosted verification is not implied by local results. No live inference,
+customer infrastructure execution, Azure resource creation or permissions change.
+Remote master/HEAD verified as `970aba575e933f5cd72c4751d71dd0e9617eb7cd`;
+the rollout recipe and deferred competitor checkpoint are unchanged.
 
 ## Priority 8 - Validated AI-generated engineering handoff
 

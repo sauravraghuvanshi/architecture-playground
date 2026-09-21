@@ -9,6 +9,8 @@
 import { NextResponse } from "next/server";
 import { chatComplete, aiConfigured } from "@/lib/ai";
 import { aiRateLimit } from "@/lib/ai-rate-limit";
+import { readBoundedJson, RequestBodyError } from "@/lib/request-json";
+import { legacyReviewRequestSchema, REVIEW_EVIDENCE_MAX_BYTES } from "@/lib/review-evidence";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -37,18 +39,18 @@ export async function POST(req: Request) {
       status: 429, headers: { "Retry-After": String(rate.retryAfterSec) },
     });
   }
-  if (!aiConfigured()) {
-    return NextResponse.json({ error: "AI not configured" }, { status: 503 });
-  }
-  let body: { graph?: unknown };
+  let body: unknown;
   try {
-    body = (await req.json()) as { graph?: unknown };
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    body = await readBoundedJson(req, REVIEW_EVIDENCE_MAX_BYTES + 1024);
+  } catch (cause) {
+    if (cause instanceof RequestBodyError) return NextResponse.json({ error: cause.message }, { status: cause.status });
+    if (req.signal.aborted) return NextResponse.json({ error: "Explanation cancelled." }, { status: 499 });
+    throw cause;
   }
-  if (!body || !body.graph) return NextResponse.json({ error: "Missing 'graph'" }, { status: 400 });
-  const graph = JSON.stringify(body.graph);
-  if (graph.length > 30000) return NextResponse.json({ error: "Diagram exceeds the 30,000-character explanation limit." }, { status: 400 });
+  const input = legacyReviewRequestSchema.safeParse(body);
+  if (!input.success) return NextResponse.json({ error: input.error.issues[0]?.message ?? "Invalid diagram evidence." }, { status: 400 });
+  const graph = JSON.stringify(input.data.graph);
+  if (!aiConfigured()) return NextResponse.json({ error: "AI not configured" }, { status: 503 });
 
   try {
     const markdown = await chatComplete(
@@ -59,10 +61,10 @@ export async function POST(req: Request) {
       { temperature: 0.2, maxTokens: 1500, signal: req.signal }
     );
     return NextResponse.json({ markdown });
-  } catch (err) {
+  } catch {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "AI request failed" },
-      { status: 502 }
+      { error: req.signal.aborted ? "Explanation cancelled." : "AI explanation failed or was incomplete. No partial result was accepted." },
+      { status: req.signal.aborted ? 499 : 502 }
     );
   }
 }

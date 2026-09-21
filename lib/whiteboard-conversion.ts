@@ -5,6 +5,7 @@ import { resolveServiceIcon as resolveConversionIcon, serviceLabelProvider as la
 export { resolveServiceIcon as resolveConversionIcon } from "./service-identity.ts";
 export type { ServiceIcon as ConversionIcon } from "./service-identity.ts";
 import type { ServiceIcon as ConversionIcon } from "./service-identity.ts";
+import { aiEvidenceImageSchema } from "./review-image.ts";
 
 const id = z.string().trim().min(1).max(200);
 const evidence = z.string().trim().min(1).max(1000);
@@ -171,39 +172,7 @@ export function parseWhiteboardConversionResponse(value: unknown, icons: readonl
 
 /** Check PNG structure and pixel bounds without decoding customer image data. */
 export function validateWhiteboardPng(dataUrl: string): void {
-  const prefix = "data:image/png;base64,";
-  if (!dataUrl.startsWith(prefix)) throw new Error("Export a PNG image from Whiteboard.");
-  const encoded = dataUrl.slice(prefix.length);
-  if (!encoded.length || encoded.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)) {
-    throw new Error("Whiteboard PNG encoding is invalid.");
-  }
-  const bytes = Buffer.from(encoded, "base64");
-  if (bytes.toString("base64") !== encoded || bytes.length < 45 ||
-      !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) {
-    throw new Error("Whiteboard export is not a valid PNG.");
-  }
-  if (bytes.readUInt32BE(8) !== 13 || bytes.toString("ascii", 12, 16) !== "IHDR") {
-    throw new Error("Whiteboard PNG header is invalid.");
-  }
-  const width = bytes.readUInt32BE(16);
-  const height = bytes.readUInt32BE(20);
-  if (!width || !height || width > 8192 || height > 8192 || width * height > 16_000_000) {
-    throw new Error("Whiteboard PNG must be at most 8192 pixels per side and 16 megapixels. Reduce the drawing area.");
-  }
-  let offset = 8;
-  let hasImageData = false;
-  while (offset + 12 <= bytes.length) {
-    const size = bytes.readUInt32BE(offset);
-    const type = bytes.toString("ascii", offset + 4, offset + 8);
-    if (size > bytes.length - offset - 12) throw new Error("Whiteboard PNG is truncated.");
-    if (type === "IDAT") hasImageData = true;
-    offset += size + 12;
-    if (type === "IEND") {
-      if (size !== 0 || offset !== bytes.length || !hasImageData) break;
-      return;
-    }
-  }
-  throw new Error("Whiteboard PNG is incomplete.");
+  aiEvidenceImageSchema.parse({ name: "whiteboard.png", mimeType: "image/png", dataUrl });
 }
 
 export function buildWhiteboardConversionPrompt(icons: readonly ConversionIcon[]): string {

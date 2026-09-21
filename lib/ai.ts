@@ -14,6 +14,7 @@
  * We deliberately avoid pulling in @azure/openai SDK to keep bundle small —
  * a single fetch call to the chat completions REST endpoint is enough.
  */
+import { readBoundedJson } from "./request-json.ts";
 
 export interface AiConfig {
   endpoint: string;
@@ -97,10 +98,15 @@ export async function chatComplete(messages: ChatMessage[], opts: ChatOptions = 
         : `Azure OpenAI could not complete the request (HTTP ${res.status}). Check deployment configuration or content policy.`
     );
   }
-  const json = (await res.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
+  const json = (await readBoundedJson(res, 2_000_000)) as {
+    choices?: Array<{ finish_reason?: string; message?: { content?: unknown; refusal?: unknown } }>;
   };
-  const content = json.choices?.[0]?.message?.content;
-  if (!content) throw new Error("Azure OpenAI returned no content. Try a different prompt.");
+  const choice = json?.choices?.[0];
+  if (choice?.finish_reason !== "stop" || choice.message?.refusal) {
+    throw new Error("Azure OpenAI response was incomplete, refused or filtered. No partial result was accepted.");
+  }
+  const content = choice.message?.content;
+  if (typeof content !== "string" || !content.trim()) throw new Error("Azure OpenAI returned no content. Try a different prompt.");
+  if (new TextEncoder().encode(content).byteLength > 300_000) throw new Error("Azure OpenAI response exceeds the supported size. No partial result was accepted.");
   return content;
 }

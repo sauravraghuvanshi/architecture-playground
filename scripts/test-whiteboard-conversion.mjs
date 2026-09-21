@@ -4,6 +4,8 @@ import { registerHooks } from "node:module";
 import { readFileSync, readdirSync } from "node:fs";
 import vm from "node:vm";
 import ts from "typescript";
+import { z } from "zod";
+import * as imageValidation from "../lib/review-image-server.ts";
 import * as React from "react";
 import * as jsxRuntime from "react/jsx-runtime";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -315,6 +317,18 @@ test("PNG validation rejects empty, spoofed, truncated and oversized pixel image
   assert.throws(() => conversion.validateWhiteboardPng(`data:image/png;base64,${huge.toString("base64")}`), /megapixels/);
 });
 
+test("conversion fully decodes submitted PNG before invoking vision and rejects ignored request fields", async () => {
+  limiter._resetAiRateLimit();
+  const route = routeHarness();
+  const bytes = Buffer.from(png.split(",")[1], "base64");
+  const index = bytes.indexOf(Buffer.from("IDAT"));
+  assert.ok(index > 0);
+  bytes[index + 4] ^= 0xff;
+  assert.equal((await route.post(request({ image: { name: "corrupt.png", mimeType: "image/png", dataUrl: `data:image/png;base64,${bytes.toString("base64")}` } }))).status, 400);
+  assert.equal((await route.post(request({ image: { name: "valid.png", mimeType: "image/png", dataUrl: png }, ignoredContext: "do not drop me" }))).status, 400);
+  assert.equal(route.calls.length, 0);
+});
+
 // Execute the real route with a mocked Azure transport, not a reimplementation.
 function routeHarness({ configured = true, model = JSON.stringify(diagram), failure = false } = {}) {
   const calls = [];
@@ -329,6 +343,8 @@ function routeHarness({ configured = true, model = JSON.stringify(diagram), fail
     "@/lib/architecture-review": review,
     "@/lib/request-json": bounded,
     "@/lib/whiteboard-conversion": conversion,
+    "@/lib/review-image-server": imageValidation,
+    zod: { z },
   };
   const source = readFileSync(new URL("../app/api/ai/convert/route.ts", import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;

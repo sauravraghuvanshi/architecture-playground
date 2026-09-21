@@ -21,6 +21,12 @@ const review = {
       evidence: "No subscription or policy ownership model was supplied.",
       recommendation: "Confirm landing-zone design areas and policy ownership before production.",
       sourceUrl: "https://learn.microsoft.com/azure/cloud-adoption-framework/ready/landing-zone/",
+      nodeIds: [], edgeIds: [],
+      remediation: {
+        steps: ["Confirm the platform owner.", "Record policy ownership."],
+        validation: "Have the workload owner approve the ownership record.",
+        tradeoff: "Ownership reviews require coordination.",
+      },
     },
     {
       id: "rel-recovery", title: "Test recovery for Orders API", severity: "high",
@@ -28,6 +34,7 @@ const review = {
       evidence: "The supplied architecture has no tested recovery objectives.",
       recommendation: "Agree and exercise recovery objectives for the orders flow.",
       sourceUrl: "https://learn.microsoft.com/azure/well-architected/",
+      nodeIds: [], edgeIds: [],
       remediation: {
         steps: ["Agree RTO and RPO for the orders flow.", "Rehearse failover and restore."],
         validation: "Measure recovery time against the agreed target.",

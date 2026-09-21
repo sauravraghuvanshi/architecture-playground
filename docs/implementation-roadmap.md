@@ -3,8 +3,8 @@
 Last updated: 2026-09-21, Asia/Kolkata (September 20 session close-out).
 
 **Priorities 1-8 and 11 are deployed and verified within their stated scopes.
-Stopped after task 8 as requested. Next session starts with priority 9 only when
-requested. Competitor-inspired additions remain after the numbered backlog.**
+Work resumed on September 21 at the user's request, starting with priority 9.
+Competitor-inspired additions remain after the numbered backlog.**
 
 ## User-selected interruption - 20 September 2026
 
@@ -39,10 +39,9 @@ They are not the 47 finding IDs in the original local HTML audit.
 - Handle **one numbered priority at a time**.
 - Plan, implement, test, complete readiness checks, deploy through the existing
   application workflow, then verify the deployed behavior.
-- **Latest user cutoff:** complete through priority 8 today, including deployment
-  and hosted verification, then stop. Do not begin priority 9 or any other new
-  priority today. Update the Markdown session summary, lessons and remaining
-  backlog so work can resume tomorrow when requested.
+- **Latest authorization:** the user resumed remaining tasks on September 21.
+  Continue sequentially from priority 9; validate, deploy and verify each before
+  moving on. The prior stop after task 8 remains recorded as a historical close-out.
 - Competitor-audit product additions are stage 3, after the numbered backlog.
   Preserve their local WIP without mixing it into earlier priority releases.
 - Do not sacrifice verification to a time estimate; accurately record blockers
@@ -146,10 +145,10 @@ hosted cases across the main run and unchanged retests. Broader local timing
 failures are disclosed in the deployment plan. No real What-If or customer
 resource creation was performed.
 
-## Next session: priority 9 handoff
+## Current task: priority 9
 
-Task 8 is complete. The user explicitly requested stopping here. Do not start
-priority 9 or any competitor work until the next requested session.
+Task 8 is complete. The user resumed the backlog on September 21. Priority 9 is
+in progress; competitor work remains deferred.
 
 - Starting points: [review contracts](../lib/architecture-review.ts),
   review/image/generation/conversion request boundaries and their production-imported
@@ -162,8 +161,8 @@ priority 9 or any competitor work until the next requested session.
   coverage and the no-resource-write PowerShell preview contract.
 - Generated drafts remain distinct from permission to deploy customer resources.
   No generated customer IaC is to be executed against Azure during testing.
-- In the next authorized session: plan -> implement -> test -> validate ->
-  deploy the application -> hosted verification. Today's execution is stopped.
+- Continue plan -> implement -> test -> validate -> deploy the application ->
+  hosted verification for each ordered priority, then move to the next.
 - Deferred competitor work remains pinned at
   `refs/checkpoints/deferred-competitor-a7e748c4` (stash `c4b91a44`); do not apply
   it during the numbered backlog.

@@ -12,6 +12,8 @@ import { parseArchitectureDocument } from "../lib/architecture-document.ts";
 import { chatComplete } from "../lib/ai.ts";
 import { readBoundedJson, RequestBodyError } from "../lib/request-json.ts";
 import * as reviewLibrary from "../lib/architecture-review.ts";
+import * as imageValidation from "../lib/review-image-server.ts";
+import { evidenceImage } from "./fixtures/evidence-images.mjs";
 import * as wafLibrary from "../components/diagrammatic/csa/well-architected.ts";
 import {
   assessDiagramWellArchitected,
@@ -147,7 +149,7 @@ test("architecture image review rejects files larger than 5 MiB", () => {
     },
   });
   assert.equal(parsed.success, false);
-  assert.match(parsed.error.issues[0].message, /larger than 5 MiB/);
+  assert.match(parsed.error.issues[0].message, /5 MiB/);
 });
 
 test("Azure deployment template is credential-free and Entra-only", () => {
@@ -320,6 +322,8 @@ const correctedReview = {
     evidence: "The supplied description states recovery targets are not defined.",
     recommendation: "Agree RTO and RPO with the owner and validate them in recovery exercises; weigh resilience costs.",
     sourceUrl: REVIEW_SOURCES["Well-Architected Framework"],
+    evidenceStatus: "unknown", nodeIds: [], edgeIds: [],
+    remediation: { steps: ["Agree recovery objectives.", "Run a recovery exercise."], validation: "Compare recovery results with the agreed objectives.", tradeoff: "Additional recovery capacity increases cost." },
   }],
 };
 
@@ -346,7 +350,7 @@ test("mock Azure OpenAI REST reproduces and corrects the live framework enum fai
     requests.push({ url: request.url, body: JSON.parse(Buffer.concat(chunks).toString()) });
     response.writeHead(200, { "Content-Type": "application/json" });
     response.end(JSON.stringify({
-      choices: [{ message: { content: JSON.stringify(requests.length === 1 ? invalid : correctedReview) } }],
+      choices: [{ finish_reason: "stop", message: { content: JSON.stringify(requests.length === 1 ? invalid : correctedReview) } }],
     }));
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -484,7 +488,8 @@ test("review request cap permits the maximum image with context", async () => {
   });
   assert.ok(Buffer.byteLength(body) < ARCHITECTURE_REVIEW_MAX_REQUEST_BYTES);
   const parsed = await readBoundedJson(new Request("http://localhost/api/ai/review", { method: "POST", body }), ARCHITECTURE_REVIEW_MAX_REQUEST_BYTES);
-  assert.equal(architectureReviewRequestSchema.safeParse(parsed).success, true);
+  assert.equal(parsed.image.dataUrl.length, JSON.parse(body).image.dataUrl.length);
+  assert.equal(architectureReviewRequestSchema.safeParse(parsed).success, false, "byte capacity does not make zero-filled bytes a valid PNG");
 });
 
 test("review streaming cap rejects oversized uploads without Content-Length and preserves stream errors", async () => {
@@ -529,6 +534,7 @@ function reviewRouteHarness({ configured = true, outputs = [JSON.stringify(corre
     "@/lib/request-json": { readBoundedJson, RequestBodyError },
     "@/components/diagrammatic/csa/well-architected": wafLibrary,
     "@/lib/architecture-review": reviewLibrary,
+    "@/lib/review-image-server": imageValidation,
   };
   const source = readFileSync(new URL("../app/api/ai/review/route.ts", import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, {
@@ -567,7 +573,7 @@ test("actual review route requires Foundry configuration and keeps deterministic
 test("actual review route corrects JSON through the same Foundry agent and preserves native image input", async () => {
   const invalid = { ...correctedReview, findings: [{ ...correctedReview.findings[0], framework: "Azure Well-Architected Framework" }] };
   const route = reviewRouteHarness({ outputs: [JSON.stringify(invalid), JSON.stringify(correctedReview)] });
-  const image = { name: "synthetic.png", mimeType: "image/png", dataUrl: "data:image/png;base64,c3ludGhldGlj" };
+  const image = await evidenceImage();
   const response = await route.POST(reviewRequest({ source: "image", image, context: "Customer target RTO is four hours." }));
   assert.equal(response.status, 200);
   assert.equal((await response.json()).transport, "foundry-agent");
@@ -582,6 +588,21 @@ test("actual review route corrects JSON through the same Foundry agent and prese
   assert.deepEqual(route.calls[1].input.map((message) => message.role), ["user", "assistant", "user"]);
   assert.equal(route.calls[1].input[1].content, JSON.stringify(invalid));
   assert.match(route.calls[1].input[2].content[0].text, /findings\.0\.framework/);
+});
+
+test("invalid image bytes are rejected before Foundry even when metadata looks plausible", async () => {
+  const route = reviewRouteHarness();
+  const real = await evidenceImage();
+  const bytes = Buffer.from(real.dataUrl.split(",")[1], "base64");
+  const corrupted = Buffer.from(bytes);
+  const idat = corrupted.indexOf(Buffer.from("IDAT"));
+  assert.ok(idat > 0);
+  corrupted[idat + 4] ^= 0xff;
+  for (const dataUrl of ["data:image/png;base64,", "data:image/png;base64,c3ludGhldGlj", `data:image/png;base64,${corrupted.toString("base64")}`]) {
+    const response = await route.POST(reviewRequest({ source: "image", image: { ...real, dataUrl } }));
+    assert.equal(response.status, 400);
+  }
+  assert.equal(route.calls.length, 0);
 });
 
 test("review instructions and reference validation share exact structured IDs, never service labels", () => {
@@ -634,7 +655,7 @@ test("JPEG and WebP reviews correct schema metadata and image-label IDs without 
   assert.equal(schemaEcho.$schema, "https://json-schema.org/draft/2020-12/schema");
 
   for (const mimeType of ["image/jpeg", "image/webp"]) {
-    const image = { name: "synthetic-diagram", mimeType, dataUrl: `data:${mimeType};base64,c3ludGhldGlj` };
+    const image = await evidenceImage(mimeType);
     const body = { source: "image", image, context };
     for (const invalid of [schemaEcho, imageLabels]) {
       const route = reviewRouteHarness({ outputs: [JSON.stringify(invalid), JSON.stringify(corrected)] });
@@ -711,6 +732,43 @@ test("review route preserves legacy markdown envelope using Foundry and enforces
   assert.equal(route.calls.length, 1);
 });
 
+test("legacy review sends complete bounded evidence, retains remediation, and rejects oversized graphs before invocation", async () => {
+  const route = reviewRouteHarness();
+  const graph = { nodes: [appNode], edges: [], metadata: { description: "x".repeat(40_000) + "END-OF-CUSTOMER-EVIDENCE" } };
+  const response = await route.POST(reviewRequest({ graph }));
+  assert.equal(response.status, 200);
+  const result = await response.json();
+  const sent = route.calls[0].input[0].content[0].text;
+  assert.ok(sent.endsWith(JSON.stringify(graph)));
+  assert.match(result.markdown, /Validation:.*Compare recovery/);
+  assert.match(result.markdown, /Tradeoff:.*capacity/);
+  assert.deepEqual(result.review, correctedReview);
+  const over = { ...graph, metadata: { description: "x".repeat(120_000) } };
+  assert.equal((await route.POST(reviewRequest({ graph: over }))).status, 400);
+  assert.equal(route.calls.length, 1);
+});
+
+test("Azure OpenAI cannot return valid-looking partial or refused results as complete", async () => {
+  const before = { ...process.env };
+  const originalFetch = globalThis.fetch;
+  process.env.AZURE_OPENAI_ENDPOINT = "https://synthetic.openai.azure.com";
+  process.env.AZURE_OPENAI_API_KEY = "synthetic-test-only";
+  process.env.AZURE_OPENAI_DEPLOYMENT = "synthetic";
+  try {
+    for (const finish_reason of ["length", "content_filter", "tool_calls", undefined]) {
+      globalThis.fetch = async () => Response.json({ choices: [{ finish_reason, message: { content: JSON.stringify(correctedReview) } }] });
+      await assert.rejects(chatComplete([{ role: "user", content: "Fixture only" }]), /incomplete/);
+    }
+    globalThis.fetch = async () => Response.json({ choices: [{ finish_reason: "stop", message: { content: "{}", refusal: "Refused" } }] });
+    await assert.rejects(chatComplete([{ role: "user", content: "Fixture only" }]), /refused/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const key of ["AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_API_KEY", "AZURE_OPENAI_DEPLOYMENT"]) {
+      if (before[key] === undefined) delete process.env[key]; else process.env[key] = before[key];
+    }
+  }
+});
+
 test("finding rank is personalized severity order without inventing missing references or evidence", () => {
   const findings = [
     { ...correctedReview.findings[0], id: "low", severity: "low" },
@@ -720,8 +778,8 @@ test("finding rank is personalized severity order without inventing missing refe
   const ranked = reviewLibrary.rankArchitectureReviewFindings({ ...correctedReview, findings });
   assert.deepEqual(ranked.map((finding) => finding.id), ["critical", "high", "low"]);
   assert.deepEqual(findings.map((finding) => finding.id), ["low", "critical", "high"]);
-  assert.equal(ranked[0].nodeIds, undefined);
-  assert.equal(ranked[0].evidenceStatus, undefined);
+  assert.deepEqual(ranked[0].nodeIds, []);
+  assert.equal(ranked[0].evidenceStatus, "unknown");
 });
 
 test("description and image reviews cannot claim references from an unreviewed payload", async () => {
@@ -730,11 +788,11 @@ test("description and image reviews cannot claim references from an unreviewed p
   const response = await route.POST(reviewRequest({
     source: "description", description: "Synthetic architecture description", payload: { nodes: [appNode], edges: [] },
   }));
-  assert.equal(response.status, 502);
-  assert.equal(route.calls.length, 2);
+  assert.equal(response.status, 400);
+  assert.equal(route.calls.length, 0);
   const invalid = await route.POST(reviewRequest({ source: "description", payload: { nodes: [appNode], edges: [] } }));
   assert.equal(invalid.status, 400);
-  assert.equal(route.calls.length, 2);
+  assert.equal(route.calls.length, 0);
 });
 
 function loadReviewModal(react = React, scorecard = () => React.createElement("p", null, "Offline scorecard")) {

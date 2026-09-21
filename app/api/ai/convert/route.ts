@@ -4,11 +4,12 @@ import { aiConfigured, chatComplete } from "@/lib/ai";
 import { aiRateLimit } from "@/lib/ai-rate-limit";
 import { architectureReviewRequestSchema } from "@/lib/architecture-review";
 import { readBoundedJson, RequestBodyError } from "@/lib/request-json";
+import { validateEvidenceImage } from "@/lib/review-image-server";
+import { z } from "zod";
 import {
   buildWhiteboardConversionPrompt,
   conversionSourceSchema,
   parseWhiteboardConversion,
-  validateWhiteboardPng,
 } from "@/lib/whiteboard-conversion";
 
 export const dynamic = "force-dynamic";
@@ -33,18 +34,20 @@ export async function POST(request: Request) {
     if (request.signal.aborted) return json({ error: "Conversion cancelled." }, 499);
     throw error;
   }
-  const image = body && typeof body === "object" && "image" in body ? body.image : undefined;
+  const envelope = z.object({ image: z.unknown(), sourceNodes: z.unknown().optional() }).strict().safeParse(body);
+  if (!envelope.success) return json({ error: "Provide only the Whiteboard image and optional source identities." }, 400);
+  const image = envelope.data.image;
   const input = architectureReviewRequestSchema.safeParse({ source: "image", image });
   if (!input.success || !input.data.image || input.data.image.mimeType !== "image/png") {
     return json({ error: "Provide a valid Whiteboard PNG export no larger than 5 MiB." }, 400);
   }
-  const sourceInput = body && typeof body === "object" && "sourceNodes" in body ? body.sourceNodes : [];
+  const sourceInput = envelope.data.sourceNodes ?? [];
   const source = conversionSourceSchema.safeParse(sourceInput);
   if (!source.success) return json({ error: "Provide valid, bounded Whiteboard source identities." }, 400);
   try {
-    validateWhiteboardPng(input.data.image.dataUrl);
-  } catch (error) {
-    return json({ error: error instanceof Error ? error.message : "Invalid Whiteboard PNG." }, 400);
+    await validateEvidenceImage(input.data.image);
+  } catch {
+    return json({ error: "Whiteboard PNG must be complete, decodable, single-frame and within 5 MiB, 8192 pixels per side and 16 megapixels." }, 400);
   }
   if (!aiConfigured()) return json({ error: "AI not configured. Configure an Azure OpenAI vision-capable chat deployment." }, 503);
   if (request.signal.aborted) return json({ error: "Conversion cancelled." }, 499);

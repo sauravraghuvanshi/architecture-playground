@@ -19,7 +19,8 @@ import {
   ARCHITECTURE_REVIEW_DISCLAIMER,
   ARCHITECTURE_REVIEW_MAX_REQUEST_BYTES,
   rankArchitectureReviewFindings,
-  parseArchitectureReview,
+  parseGeneratedArchitectureReview,
+  aiEvidenceImageSchema,
   type ArchitectureReview,
 } from "@/lib/architecture-review";
 import { WafDiagramScorecard } from "./CsaGuidancePanel";
@@ -148,11 +149,11 @@ export function ArchitectureReviewModal({
         reader.onerror = () => reject(reader.error ?? new Error("Unable to read image."));
         reader.readAsDataURL(file);
       });
-      setReviewImage({
+      setReviewImage(aiEvidenceImageSchema.parse({
         name: file.name,
         mimeType: file.type as ReviewImage["mimeType"],
         dataUrl,
-      });
+      }));
     } catch (imageError) {
       setReviewImage(null);
       setError(imageError instanceof Error ? imageError.message : "Unable to read image.");
@@ -215,7 +216,7 @@ export function ArchitectureReviewModal({
         throw new Error(result.error ?? `Review failed (${response.status}).`);
       }
       if (requestId.current !== currentRequestId || controller.signal.aborted) return;
-      setReview(parseArchitectureReview(JSON.stringify(result.review)));
+      setReview(parseGeneratedArchitectureReview(JSON.stringify(result.review), reviewPayload ?? undefined));
       setReviewPayloadSnapshot(reviewPayload ?? null);
       setReviewFingerprint(evidenceFingerprint);
     } catch (reviewError) {

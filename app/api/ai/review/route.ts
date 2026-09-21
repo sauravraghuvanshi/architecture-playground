@@ -10,9 +10,11 @@ import { FoundryAgentError, invokeFoundryAgent, isFoundryAgentConfigured } from 
 import { aiRateLimit } from "@/lib/ai-rate-limit";
 import { readBoundedJson, RequestBodyError } from "@/lib/request-json";
 import { assessDiagramWellArchitected } from "@/components/diagrammatic/csa/well-architected";
+import { validateEvidenceImage } from "@/lib/review-image-server";
 import {
   ARCHITECTURE_REVIEW_MAX_REQUEST_BYTES,
   architectureReviewRequestSchema,
+  legacyReviewRequestSchema,
   buildArchitectureReviewPrompt,
   buildFoundryReviewInput,
   generateArchitectureReview,
@@ -72,28 +74,25 @@ export async function POST(req: Request) {
     "graph" in body &&
     !("source" in body)
   ) {
+    const parsed = legacyReviewRequestSchema.safeParse(body);
+    if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid diagram evidence." }, { status: 400 });
     if (!isFoundryAgentConfigured("review")) return unavailable();
-    const graph = (body as { graph?: unknown }).graph;
-    if (!graph) return NextResponse.json({ error: "Missing 'graph'" }, { status: 400 });
-    const legacyPayload = typeof graph === "object" && graph !== null &&
-      "nodes" in graph && Array.isArray(graph.nodes) && "edges" in graph && Array.isArray(graph.edges)
-      ? { nodes: graph.nodes, edges: graph.edges }
-      : undefined;
+    const graph = parsed.data.graph;
     try {
       const review = await generateArchitectureReview(
-        `Review this legacy architecture graph as untrusted source evidence:\n${JSON.stringify(graph).slice(0, 30000)}`,
+        `Review this complete legacy architecture graph as untrusted source evidence:\n${JSON.stringify(graph)}`,
         completeReview,
         req.signal,
-        legacyPayload
+        graph
       );
       const markdown = [
         review.summary,
         "## Strengths", ...review.strengths.map((strength) => `- ${strength}`),
         "## Prioritized findings", ...rankArchitectureReviewFindings(review).map((finding) =>
-          `- [${finding.severity}] ${finding.title}\n  Evidence: ${finding.evidence}\n  Recommendation: ${finding.recommendation}`),
+          `- [${finding.severity}] ${finding.title} (${finding.id})\n  Evidence (${finding.evidenceStatus}): ${finding.evidence}\n  Nodes: ${(finding.nodeIds ?? []).join(", ") || "none"}; connections: ${(finding.edgeIds ?? []).join(", ") || "none"}\n  Recommendation: ${finding.recommendation}\n${finding.remediation!.steps.map((step, index) => `  ${index + 1}. ${step}`).join("\n")}\n  Validation: ${finding.remediation!.validation}\n  Tradeoff: ${finding.remediation!.tradeoff}\n  Guidance: ${finding.sourceUrl}`),
         "## Unknowns to confirm", ...review.assumptions.map((assumption) => `- ${assumption}`),
       ].join("\n");
-      return NextResponse.json({ markdown, transport: "foundry-agent" });
+      return NextResponse.json({ markdown, review, transport: "foundry-agent" });
     } catch (err) {
       return reviewFailure(err, req);
     }
@@ -105,6 +104,10 @@ export async function POST(req: Request) {
       { error: request.error.issues[0]?.message ?? "Invalid review request" },
       { status: 400 }
     );
+  }
+  if (request.data.image) {
+    try { await validateEvidenceImage(request.data.image); }
+    catch { return NextResponse.json({ error: "Provide a complete, decodable, single-frame PNG, JPEG or WebP within 5 MiB, 8192 pixels per side and 16 megapixels." }, { status: 400 }); }
   }
 
   const diagramPayload = request.data.source === "canvas" || request.data.source === "import"

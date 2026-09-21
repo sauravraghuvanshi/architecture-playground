@@ -597,6 +597,13 @@ offline emitter tests.
 
 ## Test
 
+[AI evidence contracts](docs/ai-evidence-contracts.md) distinguish historical
+review compatibility from strict new results: unique findings, exact references
+and complete remediation are required. Oversized evidence/results are rejected,
+not silently cropped. Image review and conversion validate actual bounded image
+bytes before provider invocation; partial/refused chat completions are not
+accepted as complete answers.
+
 ```powershell
 npm run lint
 npx tsc --noEmit
