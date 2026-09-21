@@ -25,7 +25,9 @@ jobs:
           node-version: "24"
 
       - name: Block deployment on application contract regressions
-        run: npm run test:playground
+        run: |
+          npm run prebuild
+          npm run test:playground
 
       - name: Restore the existing application build runtime
         uses: actions/setup-node@v4

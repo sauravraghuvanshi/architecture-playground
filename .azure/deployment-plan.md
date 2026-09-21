@@ -63,6 +63,10 @@ Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
   before rollout on unit or screenshot-journey regressions.
 - [ ] Clean Linux gated build, exact rollout and authenticated hosted verification.
 - **Backlog remains paused:** this is the user's urgent fix, not priority 16.
+- First gated CI run `35641487637` correctly stopped before publication: a
+  clean checkout lacks the generated icon manifest required by contract tests.
+  The gate now invokes the existing `prebuild` generators before tests, matching
+  the normal build's asset prerequisites. No tests or protections were disabled.
 
 ## Priority 15 - Cross-browser reliability
 
