@@ -1,14 +1,15 @@
 # Implementation roadmap
 
-Last updated: 2026-09-21, Asia/Kolkata (resumed backlog, priority 14 close-out).
+Last updated: 2026-09-21, Asia/Kolkata (priority 15 complete; backlog paused).
 
-**Priorities 1-14 are deployed and verified within their stated scopes.
-Work resumed on September 21 at the user's request. Priority 15 is next.
-Competitor-inspired additions remain after the numbered backlog.**
+**Priorities 1-15 are deployed and verified within their stated scopes.
+Execution is stopped at the user's request. Priorities 16-33 remain pending;
+the user's newly reported issue takes precedence. Competitor-inspired additions
+remain deferred.**
 
-**Latest stop instruction:** finish the current priority 15 implementation and
-its hosted verification, then pause. The user has a new higher-priority issue;
-do not start priority 16 or another backlog item before addressing it.
+**Latest stop instruction honored:** priority 15 and hosted verification are
+complete. Do not start priority 16 or another backlog item before addressing
+the user's new higher-priority issue.
 
 ## User-selected interruption - 20 September 2026
 
@@ -32,8 +33,8 @@ They are not the 47 finding IDs in the original local HTML audit.
 - [Session summary and test evidence](development-log-2026-09-20.md)
 - [Deployment history and current release](../.azure/deployment-plan.md)
 - Live app: https://architecture-playground.azurewebsites.net
-- Current deployed application: `d81a0fd46ed3d46aeeaa2301171ae9f649521c15`
-- [Today's summary, lessons and next-session handoff](session-summary-2026-09-21.md)
+- Current deployed application: `3b5d8fd12eb81fb8b67d839729855ee7fb1d68f8`
+- [Earlier stop-after-8 checkpoint](session-summary-2026-09-21.md)
 - Original audit: local `Audit Report/index.html`, intentionally Git-excluded.
   Do not add the HTML report or test authentication files to a commit.
 
@@ -76,8 +77,9 @@ They are not the 47 finding IDs in the original local HTML audit.
 | 12 | Safe Whiteboard conversion and restoration | **Deployed - `a95261e`.** Bounded native scene/geometry/reference/binary validation before recovery or mutation, preserved corrupt originals, compatible raster/static-SVG migration, unfinished-scene guards, stale decode/notification invalidation and separate cancellable analysis versus committed new-document creation. Existing diagrams are preserved; failures retain a retryable preview. Binary checks are structural/header-based, not universal pixel decoding. |
 | 13 | Reliable AI readiness, streaming and cancellation | **Deployed - `d490193`.** Independent readiness flags/deadline; bounded UTF-8/CR/LF SSE parser; prompt pending-read and producer cancellation; exactly one validated base64/MIME outcome; direct-provider pixel validation; redacted timeout/throttle/refusal/error states; decode-time cancellation and guarded graph document commits. No live-model or durable-job guarantee. |
 | 14 | Responsive and keyboard-accessible editing | **Deployed - `d81a0fd`.** Compact palette/assets/Inspector and utility drawers, full-width canvas, shared native/compatibility dialog focus management, commit-safe dismissal, asynchronous opener/tab focus restoration, viewport-bounded keyboard disclosures and context actions. Verified actual portrait/landscape geometry and 149 local/149 hosted Chromium cases; not a cross-browser or formal WCAG certification. |
+| 15 | Cross-browser reliability | **Deployed - `3a04dbc`, restoration correction `3b5d8fd`.** Portable native drag envelopes, standard font embedding, deterministic document handoffs, pointer-safe Whiteboard reconciliation, raster cleanup and WebKit focus handling. Playwright 1.63.0 and explicit support policy. Loading defaults cannot overwrite saved boards. Final correction: 356 contracts, 108 local and 108 hosted three-engine cases pass. Real Safari/iOS remains unqualified. |
 
-These releases are cumulative. Current production includes all fourteen numbered
+These releases are cumulative. Current production includes all fifteen numbered
 items plus the explicitly requested nested-boundary and conversion improvements.
 
 ## Remaining implementation priorities
@@ -88,8 +90,7 @@ Descriptions are acceptance guidance, not claims of deployed functionality.
 
 | Priority Number | Feature / Fix to Implement | Description |
 | ---: | --- | --- |
-| **15 - next** | **Cross-browser reliability for core workflows** | Diagnose the repeated Firefox export/reload and WebKit drag/arrow failures. Publish a support policy and validate real Safari devices when promised; do not hide failures with timeouts. |
-| 16 | Regression and release gates | Replace copied-test algorithms with production imports, add semantic/compiler-backed assertions, gate promotion on relevant suites, and verify completed deployment of the expected revision. Retain the production-bound tests already added. |
+| **16 - paused** | **Regression and release gates** | Replace copied-test algorithms with production imports, add semantic/compiler-backed assertions, gate promotion on relevant suites, and verify completed deployment of the expected revision. Retain the production-bound tests already added. Resume only after the user's new issue is addressed. |
 | 17 | Grounded, reproducible architecture reviews | Tie recommendations to supporting evidence, not just framework landing pages. Record prompt/model/schema versions and distinguish depicted, proposed, validated and runtime-verified facts. |
 | 18 | Domain-specific AI quality evaluations | Build versioned golden tasks for generation, review, conversion and IaC. Measure requirements, identity/topology fidelity, grounding and artifact validity; gate prompt/model changes on meaningful results. |
 | 19 | Correct request-flow ordering and selectable scenarios | Make automatic ordering follow topology; separate infrastructure/telemetry relationships from narrated flows. Add named happy-path, failure, retry and streaming scenarios. The stage-bound fixes in priority 3 do not complete scenario semantics. |

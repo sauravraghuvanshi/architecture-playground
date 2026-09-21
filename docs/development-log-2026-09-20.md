@@ -1,9 +1,40 @@
 # Development log - 2026-09-19/20/21
 
-**Resumed September 21:** the user requested the remaining tasks; priority 14 is
-now deployed and hosted-verified. The [early September 21 session summary](session-summary-2026-09-21.md)
+**Stopped after priority 15 at the user's request:** current application
+`3b5d8fd` is deployed and hosted-verified. Priorities 16-33 are paused for a new
+user-reported issue. The [early September 21 session summary](session-summary-2026-09-21.md)
 records the earlier stop after task 8, not the current execution boundary. Older
 close-out tables below are historical checkpoints, not the current release.
+
+## September 21 - Priority 15 completed; execution stopped
+
+- Main cross-browser release: `3a04dbc`, workflow `35623406942`, successful.
+  Final restoration correction: `3b5d8fd12eb81fb8b67d839729855ee7fb1d68f8`,
+  workflow `35632938257`, successful in 4m22s.
+- Fixed Firefox font-descriptor export failure without disabling fonts;
+  preserved native drag payloads when custom MIME is dropped; excluded editor
+  chrome and released raster buffers; protected document handoffs from stale
+  callbacks and Whiteboard gestures from premature reconciliation.
+- Updated Playwright to 1.63.0 after proving the old Firefox runner could lose
+  a page context while the app itself had restored correctly. No diagnostic
+  monkeypatch, cache-disabled browser or increased deadline qualified the release.
+- Cross-browser checks exposed WebKit pointer-focus differences; dialog invokers
+  and Escape handling now preserve focus without stealing it from active modals.
+- Hosted verification then found a real data race: native `isLoading` callbacks
+  could save a default white background over a restored dark board. The final
+  correction ignores those callbacks, omits loading flags and gates native readiness.
+- Evidence: **356/356 final contracts**, lint/types/build, **108/108 local and
+  108/108 final hosted** affected three-engine cases. The main release also passed
+  152 hosted Chromium cases; all 456 distinct selected local cases were covered
+  across the broad run and investigated rechecks, not one clean 456-case run.
+- Learning: separate automation-context failures from actual app state; never
+  persist initialization defaults; seed corrupt fixtures without an active editor
+  racing their writes; inspect real downloaded bytes and actual pixel values.
+- Browser/device limits are explicit in [browser support](browser-support.md).
+  WebKit automation is not real Safari/iOS-device certification.
+- **Stop boundary honored:** no priority 16 or other backlog task started.
+  Await details of the user's new issue. Local servers are stopped, temporary
+  auth removed, and diagnostic profiler/package backups cleaned up.
 
 ## September 21 - Priority 14 continuation
 

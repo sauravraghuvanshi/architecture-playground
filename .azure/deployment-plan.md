@@ -1,6 +1,6 @@
 # Azure Deployment Plan
 
-> **Status:** Validated
+> **Status:** Deployed and Verified - Backlog Paused
 
 Generated: 2026-08-12
 Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
@@ -16,8 +16,9 @@ Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
   support policy, validate/deploy and verify hosted, then pause for the new issue.
 - **Recipe:** Existing application-only App Service pipeline. No infrastructure,
   model calls, credentials or provider configuration changes.
-- **State:** Implementation and local verification complete; publish and verify
-  this current task only, then stop for the user's new issue.
+- **State:** Completed and hosted-verified as
+  `3b5d8fd12eb81fb8b67d839729855ee7fb1d68f8`. Stopped after priority 15.
+  Do not start priority 16; await the user's new issue.
 - **Boundary:** Playwright WebKit on Windows is not real Safari/iOS device
   certification. Do not make device-support promises without direct evidence.
 
@@ -110,7 +111,8 @@ Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
 - [x] Proof: `p15-gesture-contracts` 355 pass; `p15-modal-safe-build` exit 0;
   `p15-final-local-matrix` 447/456; `p15-webkit-final-verified` 43/43;
   `p15-firefox-popup-recheck` 3/3; `p15-webkit-rapid-gestures` 5/5.
-- [ ] Clean Linux install, exact application rollout and hosted verification.
+- [x] Clean Linux install and exact rollout passed for both `3a04dbc` and
+  `3b5d8fd`; final affected hosted verification passed 108/108 as recorded below.
 - **Stop boundary:** Do not begin priority 16 after this release.
 
 ### Priority 15 - Hosted follow-up, same task
@@ -141,6 +143,15 @@ Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
 - All validation checks pass for the same application-only target; no
   infrastructure, permissions, dependencies or model configuration changed in
   this correction. Exact follow-up rollout and hosted checks remain.
+- Final rollout **35632938257** succeeded in **4m22s**, completed September 21
+  at 17:39:24 UTC. Clean Linux build and authenticated pipeline smoke passed.
+- Final affected hosted gate: **108/108 passed** across Chromium, Firefox and
+  WebKit in 6.2 minutes, including repeated-reload background and binary checks.
+- The earlier main release's hosted Chromium gate was **152/152**; the final
+  correction closes the compatibility failures discovered during that release.
+- Local servers are stopped, temporary authentication is removed, and the
+  temporary profiler/package-staging backups were removed after successful CI.
+- **Execution paused as requested.** No priority 16 or other backlog task started.
 
 ## Priority 14 - Responsive and keyboard-accessible editing
 
