@@ -1,9 +1,31 @@
 # Development log - 2026-09-19/20/21
 
-**Resumed September 21:** the user requested the remaining tasks; priority 10 is
+**Resumed September 21:** the user requested the remaining tasks; priority 12 is
 now deployed and hosted-verified. The [early September 21 session summary](session-summary-2026-09-21.md)
 records the earlier stop after task 8, not the current execution boundary. Older
 close-out tables below are historical checkpoints, not the current release.
+
+## September 21 - Priority 12 continuation
+
+- Deployed `a95261e30cdb581a6276e967ce2e934d99588e15`; workflow
+  `35574277425` succeeded in 4m39s.
+- Reproduced malformed scenes reaching the engine and cancellable UI during
+  committed conversion saves. Added bounded shared scene intake before
+  recovery/open/capture/mount/restore, retained corrupt originals, compatible
+  native raster/SVG migration and late-image/notification invalidation.
+- Converted Whiteboards create a **separate document**, preserving previous
+  diagrams. Consent and status now describe this accurately. Analysis cancels;
+  committed saving cannot be dismissed or duplicated and failures remain retryable.
+- Validation: **318 contracts**, lint/types/build, **55 local and 55 hosted**
+  production browser cases passed. The earlier dev-only tab-creation timeout
+  passed in both final gates. Models were mocked, not invoked.
+- Learning: native image ingress can preserve a source MIME label over PNG
+  encoder bytes; compatibility needs explicit signature-based migration.
+  Unfinished native gestures must not be advertised as restorable checkpoints.
+  Header/container checks are not the same as full pixel decoding.
+- Temporary auth removed and owned servers stopped. Priorities 1-12 complete;
+  priority 13 follows. Priorities 13-33 and competitor additions remain.
+- Behavioral details: [Whiteboard safety](whiteboard-safety.md).
 
 ## September 21 - Priority 10 continuation
 

@@ -1,6 +1,6 @@
 # Azure Deployment Plan
 
-> **Status:** Validated
+> **Status:** Deployed and Verified
 
 Generated: 2026-08-12
 Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
@@ -16,7 +16,7 @@ Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
 - **Recipe:** Modify existing Next.js application only; existing App Service
   ZIP/GitHub deployment and configured providers unchanged. No infrastructure,
   identity, role, model call or customer deployment is needed.
-- **State:** Implementing under resumed sequential authorization.
+- **State:** Deployed and verified as `a95261e30cdb581a6276e967ce2e934d99588e15`.
 
 ### Priority 12 - Reproduced defects and decisions
 
@@ -64,7 +64,13 @@ Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
   subscription, provider endpoint or data-plane operation change.
 - [x] Validation proof, September 21: `p12-contract-gate`, 318 passed;
   `p12-build`, exit 0; `p12-local-browser`, 55 passed in 1.4 minutes.
-- [ ] Exact application release and hosted acceptance.
+- [x] Exact release: **35574277425**, successful in **4m39s**, completed
+  September 21 at 07:47:43 UTC. Clean Linux install/build, completed ZIP rollout,
+  authenticated API, parser and browser smoke all passed.
+- [x] Authenticated hosted gate: **55/55 passed** in 3.0 minutes.
+  All model successes remained synthetic fixtures.
+- [x] Temporary hosted auth removed; owned dev/production servers stopped.
+  Priority 13 is next.
 
 ## Priority 10 - Explicit AI destinations and privacy controls
 

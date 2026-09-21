@@ -1,9 +1,9 @@
 # Implementation roadmap
 
-Last updated: 2026-09-21, Asia/Kolkata (resumed backlog, priority 10 close-out).
+Last updated: 2026-09-21, Asia/Kolkata (resumed backlog, priority 12 close-out).
 
-**Priorities 1-11 are deployed and verified within their stated scopes.
-Work resumed on September 21 at the user's request. Priority 12 is next.
+**Priorities 1-12 are deployed and verified within their stated scopes.
+Work resumed on September 21 at the user's request. Priority 13 is next.
 Competitor-inspired additions remain after the numbered backlog.**
 
 ## User-selected interruption - 20 September 2026
@@ -17,7 +17,7 @@ local browser cases and all 74 distinct hosted cases across the main run and
 targeted readiness rechecks. Detailed broader local limitations remain recorded.
 
 That release completed priority 11 and portions of 5, 7, 12, 13 and 14.
-Priorities 5-8 were completed subsequently; broader Whiteboard and accessibility
+Priorities 5-10 and 12 were completed subsequently; later AI/accessibility
 scope remains pending. Local Outline/collapse/mapping-editor/engineering-packet work
 started after the research is deferred, not deployed, under the latest order.
 
@@ -28,7 +28,7 @@ They are not the 47 finding IDs in the original local HTML audit.
 - [Session summary and test evidence](development-log-2026-09-20.md)
 - [Deployment history and current release](../.azure/deployment-plan.md)
 - Live app: https://architecture-playground.azurewebsites.net
-- Current deployed application: `52b5efa758c791957d23baf16277ed32484fe8bc`
+- Current deployed application: `a95261e30cdb581a6276e967ce2e934d99588e15`
 - [Today's summary, lessons and next-session handoff](session-summary-2026-09-21.md)
 - Original audit: local `Audit Report/index.html`, intentionally Git-excluded.
   Do not add the HTML report or test authentication files to a commit.
@@ -68,8 +68,9 @@ They are not the 47 finding IDs in the original local HTML audit.
 | 9 | Strict AI evidence and response contracts | **Deployed - `b50a40f`.** Complete new-review remediation, unique findings/references, matching guidance sources, exact evidence references, no legacy evidence truncation, bounded UTF-8 intake, actual PNG/JPEG/WebP full decoding before providers and rejection of incomplete/refused chat completions. Historical reads remain explicit. |
 | 10 | Explicit AI destinations and privacy controls | **Deployed - `52b5efa`.** No implicit demo proxy, validated configured origins, redirect/self/chained-proxy rejection, authenticated origin/data/retention disclosures, opt-in bounded local prompt history, memory-only candidates and cancellation-safe scoped clearing. Saved diagrams and provider retention are explicitly separate. |
 | 11 | Correct Whiteboard colors and image proportions | **Deployed - `94e1abc`.** Literal-color rendering/export, canvas-aware image context, decoded aspect ratios, adaptive owned neutral foregrounds and legacy bundled-icon readability, verified with displayed/exported pixels. Custom and ambiguous legacy white text remains user-controlled. |
+| 12 | Safe Whiteboard conversion and restoration | **Deployed - `a95261e`.** Bounded native scene/geometry/reference/binary validation before recovery or mutation, preserved corrupt originals, compatible raster/static-SVG migration, unfinished-scene guards, stale decode/notification invalidation and separate cancellable analysis versus committed new-document creation. Existing diagrams are preserved; failures retain a retryable preview. Binary checks are structural/header-based, not universal pixel decoding. |
 
-These releases are cumulative. Current production includes all eleven numbered
+These releases are cumulative. Current production includes all twelve numbered
 items plus the explicitly requested nested-boundary and conversion improvements.
 
 ## Remaining implementation priorities
@@ -80,8 +81,7 @@ Descriptions are acceptance guidance, not claims of deployed functionality.
 
 | Priority Number | Feature / Fix to Implement | Description |
 | ---: | --- | --- |
-| **12 - next** | **Safe Whiteboard conversion and restoration** | Define cancellable analysis versus committed application; prevent late application after dismissal. Validate scene elements, geometry, bindings and binaries, and clarify new-document versus replacement behavior. Priority 3 protects the shared restore boundary but does not complete these Whiteboard-specific contracts. |
-| 13 | Reliable AI loading, streaming and cancellation | Show disabled/checking state until readiness is known. Fix SSE framing and pending-read cancellation, support one insertable image-result contract, and distinguish timeout, throttle, refusal and truncated output. |
+| **13 - next** | **Reliable AI loading, streaming and cancellation** | Show disabled/checking state until readiness is known. Fix SSE framing and pending-read cancellation, support one insertable image-result contract, and distinguish timeout, throttle, refusal and truncated output. |
 | 14 | Responsive and keyboard-accessible editing | Provide smaller-screen Inspector and Whiteboard asset drawers. Make menus keyboard-operable and all dialogs manage initial focus, focus trapping, Escape and focus restoration. |
 | 15 | Cross-browser reliability for core workflows | Diagnose the repeated Firefox export/reload and WebKit drag/arrow failures. Publish a support policy and validate real Safari devices when promised; do not hide failures with timeouts. |
 | 16 | Regression and release gates | Replace copied-test algorithms with production imports, add semantic/compiler-backed assertions, gate promotion on relevant suites, and verify completed deployment of the expected revision. Retain the production-bound tests already added. |
