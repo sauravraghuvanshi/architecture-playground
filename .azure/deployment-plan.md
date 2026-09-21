@@ -1,6 +1,6 @@
 # Azure Deployment Plan
 
-> **Status:** Validated
+> **Status:** Deployed and Verified
 
 Generated: 2026-08-12
 Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
@@ -17,7 +17,7 @@ Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
   validate/build/deploy and verify hosted before priority 12.
 - **Recipe:** Existing application-only App Service/GitHub pipeline. No resource,
   role, model identity or live inference changes.
-- **State:** Implementation and local verification complete under resumed sequential authorization.
+- **State:** Deployed and verified as `52b5efa758c791957d23baf16277ed32484fe8bc`.
 
 ### Priority 10 trace and implementation decisions
 
@@ -60,7 +60,14 @@ Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
 - [x] Proof: local run `p10-local-gate`, 64/64; contracts `p10-full-contracts`,
   293/293; build `p10-build`, exit 0. Configuration-absent status returns
   unconfigured and privacy metadata returns HTTP 200 with no implicit origin.
-- [ ] Exact application release and authenticated hosted acceptance.
+- [x] Exact application release and authenticated hosted acceptance:
+  GitHub Actions **35567578846**, success in **4m42s**, completed September 21
+  at 06:18:55 UTC. Clean Linux build, completed ZIP rollout and authenticated
+  API/parser/browser smoke passed.
+- [x] Hosted integrated browser gate: **64/64 passed** in 1.5 minutes.
+  Provider successes remained mocked; no live-model quality/cost claim is made.
+- [x] Temporary hosted authentication removed and owned local server stopped.
+  Priority 12 is next; priority 11 was already delivered.
 
 ## Priority 9 - Strict AI evidence and response contracts
 

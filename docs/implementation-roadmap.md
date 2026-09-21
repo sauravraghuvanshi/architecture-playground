@@ -1,9 +1,9 @@
 # Implementation roadmap
 
-Last updated: 2026-09-21, Asia/Kolkata (September 20 session close-out).
+Last updated: 2026-09-21, Asia/Kolkata (resumed backlog, priority 10 close-out).
 
-**Priorities 1-9 and 11 are deployed and verified within their stated scopes.
-Work resumed on September 21 at the user's request. Priority 10 is next.
+**Priorities 1-11 are deployed and verified within their stated scopes.
+Work resumed on September 21 at the user's request. Priority 12 is next.
 Competitor-inspired additions remain after the numbered backlog.**
 
 ## User-selected interruption - 20 September 2026
@@ -28,7 +28,7 @@ They are not the 47 finding IDs in the original local HTML audit.
 - [Session summary and test evidence](development-log-2026-09-20.md)
 - [Deployment history and current release](../.azure/deployment-plan.md)
 - Live app: https://architecture-playground.azurewebsites.net
-- Current deployed application: `b50a40fb3e3b75dc272b25b340e4b4580c9828f8`
+- Current deployed application: `52b5efa758c791957d23baf16277ed32484fe8bc`
 - [Today's summary, lessons and next-session handoff](session-summary-2026-09-21.md)
 - Original audit: local `Audit Report/index.html`, intentionally Git-excluded.
   Do not add the HTML report or test authentication files to a commit.
@@ -66,9 +66,10 @@ They are not the 47 finding IDs in the original local HTML audit.
 | 7 | Shared typed and versioned architecture model | **Deployed - `bd09594`.** Shared schemas/types, explicit safe migration, declared configuration/environments/relationships, requirement/evidence provenance and original intent across editing/history/persistence/conversion/AI. Inspector context, future-version overwrite protection and explicit offline-code limitations. Full context definition authoring remains JSON-based. |
 | 8 | Independently validated AI engineering handoff | **Deployed - `9c9e498`, rollout gate `86cde20`.** Official Bicep/HCL parser-only checks, controlled Bash syntax checks, canonical coverage, selected prerequisites/correspondence, visible unverified states and validation-report download. Complete artifact/evidence sets are revalidated before publication. PowerShell and unsupported/dynamic cases remain review-only; no generated infrastructure is executed. |
 | 9 | Strict AI evidence and response contracts | **Deployed - `b50a40f`.** Complete new-review remediation, unique findings/references, matching guidance sources, exact evidence references, no legacy evidence truncation, bounded UTF-8 intake, actual PNG/JPEG/WebP full decoding before providers and rejection of incomplete/refused chat completions. Historical reads remain explicit. |
+| 10 | Explicit AI destinations and privacy controls | **Deployed - `52b5efa`.** No implicit demo proxy, validated configured origins, redirect/self/chained-proxy rejection, authenticated origin/data/retention disclosures, opt-in bounded local prompt history, memory-only candidates and cancellation-safe scoped clearing. Saved diagrams and provider retention are explicitly separate. |
 | 11 | Correct Whiteboard colors and image proportions | **Deployed - `94e1abc`.** Literal-color rendering/export, canvas-aware image context, decoded aspect ratios, adaptive owned neutral foregrounds and legacy bundled-icon readability, verified with displayed/exported pixels. Custom and ambiguous legacy white text remains user-controlled. |
 
-These releases are cumulative. Current production includes all ten numbered
+These releases are cumulative. Current production includes all eleven numbered
 items plus the explicitly requested nested-boundary and conversion improvements.
 
 ## Remaining implementation priorities
@@ -79,8 +80,7 @@ Descriptions are acceptance guidance, not claims of deployed functionality.
 
 | Priority Number | Feature / Fix to Implement | Description |
 | ---: | --- | --- |
-| **10 - next** | **Explicit AI destination and privacy controls** | Remove implicit public-demo proxying in development. Require deliberate destinations, disclose prompt/image egress, and provide clear history deletion and retention controls. |
-| 12 | Safe Whiteboard conversion and restoration | Define cancellable analysis versus committed application; prevent late application after dismissal. Validate scene elements, geometry, bindings and binaries, and clarify new-document versus replacement behavior. Priority 3 protects the shared restore boundary but does not complete these Whiteboard-specific contracts. |
+| **12 - next** | **Safe Whiteboard conversion and restoration** | Define cancellable analysis versus committed application; prevent late application after dismissal. Validate scene elements, geometry, bindings and binaries, and clarify new-document versus replacement behavior. Priority 3 protects the shared restore boundary but does not complete these Whiteboard-specific contracts. |
 | 13 | Reliable AI loading, streaming and cancellation | Show disabled/checking state until readiness is known. Fix SSE framing and pending-read cancellation, support one insertable image-result contract, and distinguish timeout, throttle, refusal and truncated output. |
 | 14 | Responsive and keyboard-accessible editing | Provide smaller-screen Inspector and Whiteboard asset drawers. Make menus keyboard-operable and all dialogs manage initial focus, focus trapping, Escape and focus restoration. |
 | 15 | Cross-browser reliability for core workflows | Diagnose the repeated Firefox export/reload and WebKit drag/arrow failures. Publish a support policy and validate real Safari devices when promised; do not hide failures with timeouts. |

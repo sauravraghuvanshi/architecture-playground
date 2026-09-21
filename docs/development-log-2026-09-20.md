@@ -1,9 +1,26 @@
 # Development log - 2026-09-19/20/21
 
-**Resumed September 21:** the user requested the remaining tasks; priority 9 is
+**Resumed September 21:** the user requested the remaining tasks; priority 10 is
 now deployed and hosted-verified. The [early September 21 session summary](session-summary-2026-09-21.md)
 records the earlier stop after task 8, not the current execution boundary. Older
 close-out tables below are historical checkpoints, not the current release.
+
+## September 21 - Priority 10 continuation
+
+- Deployed `52b5efa758c791957d23baf16277ed32484fe8bc`; workflow
+  `35567578846` succeeded in 4m42s.
+- Removed development's implicit demo proxy; validated explicit destinations,
+  blocked redirects/proxy loops, and disclosed capability origins/data/retention.
+- Added clear-session controls, opt-in legacy local history and memory-only
+  candidates. Clearing preserves accepted diagram copies and does not claim
+  provider erasure; late responses cannot restore cleared state.
+- Validation: 293 application contracts, lint/types/production build, **64/64
+  local and 64/64 hosted** browser cases. Synthetic provider responses only.
+- Learning: metadata reads must be included in broad AI route mocks; readiness
+  fixtures must honor the complete current contract. Provider retention cannot
+  be inferred from local deletion or `store:false`.
+- Temporary hosted auth removed; owned server stopped. Priorities 1-11 are
+  complete. Priority 12 follows; 12-33 and deferred competitor work remain.
 
 Reporting timezone: Asia/Kolkata. This session started on September 19 and
 continued until approximately 02:33 IST on September 20, 2026.
