@@ -4,6 +4,7 @@ import { parseArchitectureDocument } from "../lib/architecture-document";
 import type { ArchPayload } from "../lib/architecture-model";
 import { readCanvasPayload } from "./read-canvas-payload";
 import { waitForWorkspace } from "./wait-for-workspace";
+import { privacyFixture } from "./ai-privacy-fixture";
 
 test.use({ viewport: { width: 1600, height: 1100 } });
 test.describe.configure({ timeout: 90_000 });
@@ -93,7 +94,9 @@ test("review and deployment requests carry the complete context; offline exports
   const requests: Record<string, { payload: ArchPayload }> = {};
   await page.route("**/api/ai/**", async (route) => {
     const name = new URL(route.request().url()).pathname.split("/").at(-1)!;
-    if (name === "status") {
+    if (name === "privacy") {
+      await route.fulfill({ json: privacyFixture });
+    } else if (name === "status") {
       await route.fulfill({ json: { configured: true, diagramConfigured: false, imageConfigured: false, reviewAgentConfigured: true, deploymentAgentConfigured: true } });
     } else {
       requests[name] = route.request().postDataJSON();

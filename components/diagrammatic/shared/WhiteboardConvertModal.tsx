@@ -5,6 +5,7 @@ import { Loader2, ScanLine, X } from "lucide-react";
 import type { ArchPayload } from "../modes/architecture/ArchitectureCanvas";
 import { ARCHITECTURE_IMAGE_MAX_BYTES } from "@/lib/architecture-review";
 import { conversionSourceSchema, parseWhiteboardConversionResponse, type ConversionIcon, type ConversionSourceNode, type WhiteboardConversion } from "@/lib/whiteboard-conversion";
+import { AiPrivacyNotice } from "./AiPrivacyNotice";
 
 export interface WhiteboardConvertModalProps {
   open: boolean;
@@ -150,6 +151,7 @@ function ConversionDialog({ onClose, onResult, getImage, icons, getSourceNodes, 
           <button ref={closeButton} onClick={cancel} aria-label="Close conversion" className="rounded p-2 text-slate-400 hover:bg-white/10"><X size={18} /></button>
         </header>
         <div className="space-y-4 overflow-y-auto p-5">
+          <AiPrivacyNotice capability="chat" />
           <p className="text-sm text-slate-300">Analyze the current Whiteboard as a PNG using your configured Azure OpenAI vision deployment. Explicit service identities, when available, accompany the image so renamed services keep their official icons. Unknown services remain generic shapes. The conversion does not save the image to files, browser storage, or application logs. Your original Whiteboard is unchanged.</p>
           <p className="text-xs text-slate-400">Only send content you are authorized to process. The configured Azure service&apos;s data handling policies apply. AI may miss or misread evidence; check every component and connection before replacing your architecture.</p>
           {hasExistingArchitecture && <p role="note" aria-label="Existing architecture warning" className="rounded-lg border border-amber-300/25 bg-amber-300/10 p-3 text-sm text-amber-100">Your current architecture is not empty. Applying this conversion will replace its nodes and connections, not merge them. Save a snapshot first if you need to retain it.</p>}

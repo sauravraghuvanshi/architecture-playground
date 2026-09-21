@@ -137,10 +137,17 @@ export async function POST(req: Request) {
         { status: 503 }
       );
     }
+    if (new URL(req.url).origin === proxyBaseUrl) return NextResponse.json({
+      error: "Image proxy points to this application. Configure a distinct approved destination; no request was forwarded.",
+    }, { status: 503 });
+    if (req.headers.get("x-diagrammatic-image-proxy") === "1") return NextResponse.json({
+      error: "Chained image proxying is not supported. Configure the approved provider on the proxy host.",
+    }, { status: 503 });
     try {
       const upstream = await fetch(`${proxyBaseUrl}/api/ai/image`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        redirect: "error",
+        headers: { "Content-Type": "application/json", "X-Diagrammatic-Image-Proxy": "1" },
         body: JSON.stringify(parsed.data),
         signal: AbortSignal.any([req.signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)]),
       });
@@ -159,13 +166,11 @@ export async function POST(req: Request) {
         status: upstream.status,
         headers,
       });
-    } catch (error) {
+    } catch {
       return NextResponse.json(
         {
           error:
-            error instanceof Error
-              ? `Development AI proxy failed: ${error.message}`
-              : "Development AI proxy failed",
+            "The explicitly configured image proxy failed. No alternate destination was tried.",
         },
         { status: 502 }
       );
@@ -181,6 +186,7 @@ export async function POST(req: Request) {
     try {
       const res = await fetch(url, {
         method: "POST",
+        redirect: "error",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${config.apiKey}`,

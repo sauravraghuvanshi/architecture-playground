@@ -26,6 +26,8 @@ import {
 import { WafDiagramScorecard } from "./CsaGuidancePanel";
 import { assessDiagramWellArchitected, type WafDiagramAssessment } from "./well-architected";
 import { parseArchitectureDocument } from "@/lib/architecture-document";
+import { AiPrivacyNotice } from "../shared/AiPrivacyNotice";
+import { AI_LOCAL_CLEAR_NOTICE } from "@/lib/ai-privacy-contract";
 
 interface Props {
   open: boolean;
@@ -100,7 +102,7 @@ export function ArchitectureReviewModal({
 
   const importJson = async (file: File) => {
     activeRequest.current?.abort();
-    requestId.current += 1;
+    const uploadId = ++requestId.current;
     setBusy(false);
     setReview(null);
     setError("");
@@ -110,9 +112,10 @@ export function ArchitectureReviewModal({
       const candidate = parseArchitectureDocument(
         typeof parsed === "object" && parsed !== null && "payload" in parsed ? parsed.payload : parsed
       );
-      setImportedPayload(candidate);
-      setImportName(file.name);
+      if (requestId.current !== uploadId) return;
+      setImportedPayload(candidate); setImportName(file.name);
     } catch (importError) {
+      if (requestId.current !== uploadId) return;
       setImportedPayload(null);
       setImportName("");
       setError(importError instanceof Error ? importError.message : "Unable to import JSON.");
@@ -121,7 +124,7 @@ export function ArchitectureReviewModal({
 
   const importImage = async (file: File) => {
     activeRequest.current?.abort();
-    requestId.current += 1;
+    const uploadId = ++requestId.current;
     setBusy(false);
     setReview(null);
     setError("");
@@ -149,12 +152,14 @@ export function ArchitectureReviewModal({
         reader.onerror = () => reject(reader.error ?? new Error("Unable to read image."));
         reader.readAsDataURL(file);
       });
+      if (requestId.current !== uploadId) return;
       setReviewImage(aiEvidenceImageSchema.parse({
         name: file.name,
         mimeType: file.type as ReviewImage["mimeType"],
         dataUrl,
       }));
     } catch (imageError) {
+      if (requestId.current !== uploadId) return;
       setReviewImage(null);
       setError(imageError instanceof Error ? imageError.message : "Unable to read image.");
     }
@@ -212,6 +217,7 @@ export function ArchitectureReviewModal({
         review?: ArchitectureReview;
         error?: string;
       };
+
       if (!response.ok || !result.review) {
         throw new Error(result.error ?? `Review failed (${response.status}).`);
       }
@@ -229,6 +235,15 @@ export function ArchitectureReviewModal({
         activeRequest.current = null;
       }
     }
+  };
+
+  const clearAiSession = () => {
+    requestId.current++;
+    activeRequest.current?.abort();
+    activeRequest.current = null;
+    setBusy(false); setError(""); setDescription(""); setBusinessContext("");
+    setImportedPayload(null); setImportName(""); setReviewImage(null);
+    setReview(null); setReviewPayloadSnapshot(null); setReviewFingerprint("");
   };
 
   return (
@@ -302,6 +317,11 @@ export function ArchitectureReviewModal({
                   </p>
                 </div>
               )}
+              <AiPrivacyNotice capability="review" active={open} />
+              <div className="text-[10px] text-slate-400">
+                <button type="button" onClick={clearAiSession} className="mb-1 rounded border border-slate-600 px-2 py-1 text-slate-200">Clear AI session</button>
+                <p>{AI_LOCAL_CLEAR_NOTICE}</p>
+              </div>
               {source === "description" && (
                 <label className="block">
                   <span className="text-[10px] font-semibold text-slate-300">

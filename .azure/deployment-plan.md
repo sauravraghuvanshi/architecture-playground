@@ -1,9 +1,66 @@
 # Azure Deployment Plan
 
-> **Status:** Deployed and Verified
+> **Status:** Validated
 
 Generated: 2026-08-12
 Updated: 2026-09-21 (Asia/Kolkata; resumed ordered backlog)
+
+## Priority 10 - Explicit AI destinations and privacy controls
+
+- **Baseline:** Application `b50a40f`, verified; release close-out `9564331`.
+- **Scope:** Remove implicit public-demo proxy egress, disclose configured AI
+  destinations/data/retention, and add explicit local AI history controls.
+  Preserve diagrams and configured production endpoints.
+- **Plan:** Trace routing/configuration/status and every AI/history surface;
+  implement deliberate opt-in destinations and consistent notices; separate
+  local clearing from provider retention; test with synthetic providers,
+  validate/build/deploy and verify hosted before priority 12.
+- **Recipe:** Existing application-only App Service/GitHub pipeline. No resource,
+  role, model identity or live inference changes.
+- **State:** Implementation and local verification complete under resumed sequential authorization.
+
+### Priority 10 trace and implementation decisions
+
+- The only implicit public-demo egress was the image proxy helper's development
+  default. It now requires an explicit approved origin; no configured direct
+  destination or proxy means unavailable in every environment.
+- Direct chat/image origins are validated without embedded credentials, path,
+  query or fragment. Production requires HTTPS; explicit nonproduction HTTP
+  loopback remains available for local fixtures. Redirects and self/chained
+  proxy hops are rejected; no browser authorization/cookie is forwarded.
+- A separate authenticated, no-store privacy endpoint describes selected
+  capability origins, submitted data and retention limits without exposing keys,
+  deployment/agent names or project paths. The original readiness endpoint keeps
+  configuration booleans, with explicit configured-proxy provenance.
+- Shared notices are wired into native generation/image, review, deployment and
+  Whiteboard conversion. Native dialogs expose clear-session actions with request/
+  upload invalidation; accepted diagram/image copies are deliberately preserved.
+- Legacy history now uses opt-in persistence and
+  scoped clear controls, with in-memory generated candidates and late-response
+  cancellation. Do not interpret local clearing as provider-side erasure.
+- Local validation: **293/293** application contracts, lint, strict TypeScript
+  and standalone production build passed. The final integrated production-browser
+  gate passed **64/64** in 1.6 minutes. An older guided-generation readiness mock
+  was corrected to include the required image readiness boolean; assertions remain.
+- Production-build destination/status endpoints confirm no implicit egress when
+  configuration is absent. The disclosure and clear controls were visually
+  inspected at 1440px. No live model calls or customer deployments were performed.
+- Azure validation, application release and hosted verification follow.
+
+### Priority 10 - All validation checks pass
+
+- [x] Core application validation: 293 contracts, lint, strict types, standalone
+  build and 64 production-build browser cases pass. Existing GitHub deployment
+  identity/target unchanged; Linux CI repeats clean install/build and parser smoke.
+- [x] Infrastructure validation/What-If: not applicable to this application-only
+  update. No generated customer template is executed against Azure.
+- [x] Docker build: not applicable; existing standalone ZIP deployment retained.
+- [x] Static policy/role verification: no infrastructure, identity, role,
+  subscription, region or provider configuration change. No new data-plane access.
+- [x] Proof: local run `p10-local-gate`, 64/64; contracts `p10-full-contracts`,
+  293/293; build `p10-build`, exit 0. Configuration-absent status returns
+  unconfigured and privacy metadata returns HTTP 200 with no implicit origin.
+- [ ] Exact application release and authenticated hosted acceptance.
 
 ## Priority 9 - Strict AI evidence and response contracts
 

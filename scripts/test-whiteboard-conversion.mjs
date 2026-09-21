@@ -448,6 +448,7 @@ test("modal warns before replacing nonempty architecture and does not export on 
     react: React,
     "react/jsx-runtime": jsxRuntime,
     "lucide-react": { Loader2: () => null, ScanLine: () => null, X: () => null },
+    "./AiPrivacyNotice": { AiPrivacyNotice: () => null },
     "@/lib/architecture-review": review,
     "@/lib/whiteboard-conversion": conversion,
   };

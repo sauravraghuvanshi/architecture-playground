@@ -19,7 +19,7 @@ export async function GET() {
     configured: diagramConfigured || imageConfigured || reviewAgentConfigured || deploymentAgentConfigured,
     diagramConfigured,
     imageConfigured,
-    imageSource: imageLocal ? "local" : imageProxy ? "development-proxy" : null,
+    imageSource: imageLocal ? "local" : imageProxy ? "configured-proxy" : null,
     architectureImageReview: true,
     reviewAgentConfigured,
     deploymentAgentConfigured,

@@ -116,15 +116,19 @@ deployment workflow base64url-encodes them before creating the standalone
 runtime environment, which avoids dotenv `$` expansion and keeps raw values out
 of source and logs.
 
-During local development only, Whiteboard image generation can proxy through a
-trusted Diagrammatic deployment when local image credentials are missing.
-Developers can opt out with `DIAGRAMMATIC_AI_PROXY_URL=disabled`.
+Whiteboard image generation can use an explicitly approved Diagrammatic proxy
+when direct image credentials are missing.
+Image proxying requires explicit `DIAGRAMMATIC_AI_PROXY_URL` configuration;
+there is no implicit public-demo destination. `disabled` remains an explicit
+off switch. Destination origins must be valid and credential/query-free;
+redirects, self-proxying and proxy chains are not followed.
 
 ## Customer architecture image review
 
 The architecture review UI accepts PNG, JPEG, and WebP diagrams up to 5 MiB.
 The browser validates the file before preview, and the API independently
-validates MIME type, data URL consistency, base64 shape, and decoded size.
+validates MIME type, data URL consistency, canonical base64, container structure,
+dimensions and full pixel decoding, rejecting animation and corrupt evidence.
 
 The validated image and optional customer context are sent directly in the
 authenticated Microsoft Foundry review-agent request. Diagrammatic does not write the

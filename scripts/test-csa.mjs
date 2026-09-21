@@ -13,6 +13,7 @@ import { chatComplete } from "../lib/ai.ts";
 import { readBoundedJson, RequestBodyError } from "../lib/request-json.ts";
 import * as reviewLibrary from "../lib/architecture-review.ts";
 import * as imageValidation from "../lib/review-image-server.ts";
+import * as aiPrivacyContract from "../lib/ai-privacy-contract.ts";
 import { evidenceImage } from "./fixtures/evidence-images.mjs";
 import * as wafLibrary from "../components/diagrammatic/csa/well-architected.ts";
 import {
@@ -802,6 +803,8 @@ function loadReviewModal(react = React, scorecard = () => React.createElement("p
   }).outputText;
   const icon = () => null;
   const dependencies = {
+    "../shared/AiPrivacyNotice": { AiPrivacyNotice: () => null },
+    "@/lib/ai-privacy-contract": aiPrivacyContract,
     react,
     "react/jsx-runtime": jsxRuntime,
     "lucide-react": Object.fromEntries(["ArrowUpRight", "FileJson", "FileText", "ImageUp", "Loader2", "Network", "ShieldCheck", "TriangleAlert", "X"].map((name) => [name, icon])),

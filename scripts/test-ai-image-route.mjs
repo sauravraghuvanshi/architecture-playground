@@ -11,7 +11,7 @@ const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.Modu
 
 // Executes the production route. All outbound fetches are deterministic stubs;
 // the synthetic bytes are not AI-generated and are not used as pixel evidence.
-function routeHarness({ proxy = false } = {}) {
+function routeHarness({ proxy = false, proxyUrl = "https://fixture-proxy.invalid", failure = false } = {}) {
   const calls = [];
   const exports = {};
   const dependencies = {
@@ -21,24 +21,25 @@ function routeHarness({ proxy = false } = {}) {
     "@/lib/request-json": requestJson,
     "@/lib/ai-image-config": {
       getImageAiConfig: () => proxy ? null : { endpoint: "https://fixture.invalid", apiKey: "fixture-only", deployment: "fixture-model" },
-      getImageAiProxyBaseUrl: () => proxy ? "https://fixture-proxy.invalid" : null,
+      getImageAiProxyBaseUrl: () => proxy ? proxyUrl : null,
     },
   };
   vm.runInNewContext(compiled, {
-    exports, Response, Headers, TextEncoder, ReadableStream, AbortController, AbortSignal,
+    exports, URL, Response, Headers, TextEncoder, ReadableStream, AbortController, AbortSignal,
     setInterval, clearInterval, setTimeout, clearTimeout,
     require: (name) => {
       if (!(name in dependencies)) throw new Error(`Unexpected dependency ${name}`);
       return dependencies[name];
     },
     fetch: async (url, options) => {
-      calls.push({ url, body: JSON.parse(options.body) });
+      calls.push({ url, body: JSON.parse(options.body), headers: options.headers, redirect: options.redirect });
+      if (failure) throw new Error("private provider or proxy diagnostic");
       return proxy
         ? new Response('data: {"type":"result","b64":"fixture"}\n\n', { headers: { "Content-Type": "text/event-stream" } })
         : Response.json({ data: [{ b64_json: "fixture-not-model-output" }] });
     },
   });
-  return { post: (body) => exports.POST(new Request("https://app.invalid/api/ai/image", { method: "POST", body: JSON.stringify(body) })), calls };
+  return { post: (body, headers) => exports.POST(new Request("https://app.invalid/api/ai/image", { method: "POST", headers, body: JSON.stringify(body) })), calls };
 }
 
 test("production route forwards canvas-aware prompt and echoes captured context without unsupported background flags", async () => {
@@ -67,6 +68,25 @@ test("development proxy preserves validated request surface and style", async ()
   await response.text();
   assert.deepEqual(calls[0].body.canvas, canvas);
   assert.equal(calls[0].body.style, "executive");
+  assert.equal(calls[0].redirect, "error");
+  assert.equal(calls[0].headers["X-Diagrammatic-Image-Proxy"], "1");
+});
+
+test("self and chained proxies cannot forward prompts or create forwarding loops", async () => {
+  const self = routeHarness({ proxy: true, proxyUrl: "https://app.invalid" });
+  assert.equal((await self.post({ prompt: "Synthetic" })).status, 503);
+  assert.equal(self.calls.length, 0);
+  const chained = routeHarness({ proxy: true });
+  assert.equal((await chained.post({ prompt: "Synthetic" }, { "x-diagrammatic-image-proxy": "1" })).status, 503);
+  assert.equal(chained.calls.length, 0);
+});
+
+test("configured proxy failure is explicit, redacted and never tries another destination", async () => {
+  const route = routeHarness({ proxy: true, failure: true });
+  const response = await route.post({ prompt: "Synthetic" });
+  assert.equal(response.status, 502);
+  assert.doesNotMatch(JSON.stringify(await response.json()), /private provider/);
+  assert.equal(route.calls.length, 1);
 });
 
 test("invalid request surfaces are rejected before any outbound request", async () => {

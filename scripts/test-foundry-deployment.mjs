@@ -12,6 +12,7 @@ import * as document from "../lib/architecture-document.ts";
 import * as bounded from "../lib/request-json.ts";
 import * as codegen from "../components/diagrammatic/csa/architecture-codegen.ts";
 import * as privacy from "../lib/foundry-contract.ts";
+import * as aiPrivacyContract from "../lib/ai-privacy-contract.ts";
 import * as engineeringContract from "../lib/engineering-validation-contract.ts";
 import * as engineeringCoverage from "../lib/engineering-coverage.ts";
 import { ArtifactParserError } from "../lib/artifact-parser.ts";
@@ -623,7 +624,7 @@ test("APP_AUTH_ENABLED permits only anonymous broker GET/OPTIONS and protects PO
     const response = await middleware(new NextRequest("https://diagram.example/api/deploy/template?token=abcdef", { method }));
     assert.equal(response.headers.get("x-middleware-next"), "1");
   }
-  for (const [method, path] of [["POST", "/api/deploy/template"], ["POST", "/api/deploy/validate"], ["GET", "/api/deploy/template/other"], ["OPTIONS", "/api/ai/deploy"], ["POST", "/api/ai/deploy"]]) {
+  for (const [method, path] of [["POST", "/api/deploy/template"], ["POST", "/api/deploy/validate"], ["GET", "/api/ai/privacy"], ["GET", "/api/deploy/template/other"], ["OPTIONS", "/api/ai/deploy"], ["POST", "/api/ai/deploy"]]) {
     assert.equal((await middleware(new NextRequest(`https://diagram.example${path}`, { method }))).status, 401);
   }
   const token = await auth.createSessionToken("tester");
@@ -676,6 +677,8 @@ function modalHarness({ generationStatus = 200 } = {}) {
   };
   const jsx = (type, props) => ({ type, props });
   const loaded = load("components/diagrammatic/csa/AzureDeployModal.tsx", {
+    "../shared/AiPrivacyNotice": { AiPrivacyNotice: () => null },
+    "@/lib/ai-privacy-contract": aiPrivacyContract,
     react, "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: "fragment" },
     "lucide-react": Object.fromEntries(["CloudUpload", "Copy", "Download", "ExternalLink", "Loader2", "X"].map((name) => [name, name])),
     "./architecture-codegen": codegen, "@/lib/deployment-assistance": deployment,

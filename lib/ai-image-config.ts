@@ -1,3 +1,5 @@
+import { configuredAiOrigin } from "./ai-destination.ts";
+
 export interface ImageAiConfig {
   endpoint: string;
   apiKey: string;
@@ -5,16 +7,16 @@ export interface ImageAiConfig {
 }
 
 export function getImageAiConfig(): ImageAiConfig | null {
-  const endpoint = (
+  const endpoint = configuredAiOrigin(
     process.env.AZURE_OPENAI_IMAGE_ENDPOINT || process.env.AZURE_OPENAI_ENDPOINT
-  )?.trim();
+  );
   const apiKey = (
     process.env.AZURE_OPENAI_IMAGE_API_KEY || process.env.AZURE_OPENAI_API_KEY
   )?.trim();
   const deployment = process.env.AZURE_OPENAI_IMAGE_DEPLOYMENT?.trim();
   if (!endpoint || !apiKey || !deployment) return null;
   return {
-    endpoint: endpoint.replace(/\/+$/, ""),
+    endpoint,
     apiKey,
     deployment,
   };
@@ -24,12 +26,7 @@ export function imageAiConfigured(): boolean {
   return getImageAiConfig() !== null;
 }
 
-/**
- * Local development can reuse the configured production image route without
- * copying Azure credentials onto every developer machine. Production never
- * falls back implicitly, which prevents proxy loops and keeps deployment
- * configuration explicit.
- */
+/** Remote image proxying always requires an explicitly configured origin. */
 export function getImageAiProxyBaseUrl(): string | null {
   const configured = process.env.DIAGRAMMATIC_AI_PROXY_URL?.trim();
   if (
@@ -38,8 +35,5 @@ export function getImageAiProxyBaseUrl(): string | null {
   ) {
     return null;
   }
-  if (configured) return configured.replace(/\/+$/, "");
-  return process.env.NODE_ENV === "development"
-    ? "https://architecture-playground.azurewebsites.net"
-    : null;
+  return configuredAiOrigin(configured);
 }

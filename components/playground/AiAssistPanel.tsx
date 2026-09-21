@@ -3,16 +3,15 @@
  * (Generate, Describe, Review). Hits /api/ai/* endpoints. Hides itself if
  * /api/ai/status reports `configured: false` (env vars not set).
  *
- * Prompt history is persisted in localStorage under AI_HISTORY_KEY.
+ * Prompt history is device-local only after explicit opt-in. Candidates stay in memory.
  */
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Sparkles, X, Wand2, FileText, ShieldCheck, Loader2 } from "lucide-react";
+import { AiPrivacyNotice } from "@/components/diagrammatic/shared/AiPrivacyNotice";
+import { clearAiLocalHistory, readAiLocalHistory, rememberAiPrompt } from "@/lib/ai-local-history";
 import type { PlaygroundGraph } from "./lib/types";
-
-const AI_HISTORY_KEY = "architecture-playground:ai-history";
-const MAX_HISTORY = 10;
 
 interface Props {
   graph: PlaygroundGraph;
@@ -22,97 +21,125 @@ interface Props {
 }
 
 type Status = "idle" | "loading" | "error";
+type Intent = "describe" | "review" | "generate";
 
 export function AiAssistPanel({ graph, open, onClose, onApplyGenerated }: Props) {
   const [prompt, setPrompt] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string>("");
   const [output, setOutput] = useState<string>("");
-  const [outputKind, setOutputKind] = useState<"none" | "describe" | "review" | "generate">("none");
-  const [history, setHistory] = useState<string[]>(() => {
-    if (typeof localStorage === "undefined") return [];
+  const [outputKind, setOutputKind] = useState<"none" | Intent>("none");
+  const [generatedGraph, setGeneratedGraph] = useState<PlaygroundGraph | null>(null);
+  const [remember, setRemember] = useState(false);
+  const [historyState, setHistoryState] = useState<{ history: string[]; error: string; ready: boolean }>(() => {
+    if (typeof window === "undefined") return { history: [], error: "", ready: true };
     try {
-      const raw = localStorage.getItem(AI_HISTORY_KEY);
-      return raw ? (JSON.parse(raw) as string[]) : [];
-    } catch {
-      return [];
+      return { history: readAiLocalHistory(), error: "", ready: true };
+    } catch (cause) {
+      return { history: [], error: cause instanceof Error ? cause.message : "Could not read saved AI prompt history.", ready: false };
     }
   });
+  const { history, error: storageError, ready: historyReady } = historyState;
+  const request = useRef<AbortController | null>(null);
 
-  function pushHistory(p: string) {
-    const next = [p, ...history.filter((h) => h !== p)].slice(0, MAX_HISTORY);
-    setHistory(next);
-    try {
-      localStorage.setItem(AI_HISTORY_KEY, JSON.stringify(next));
-    } catch {
-      /* ignore */
-    }
+  useEffect(() => {
+    let active = true;
+    queueMicrotask(() => {
+      if (active && !request.current) setStatus("idle");
+    });
+    return () => {
+      active = false;
+      request.current?.abort();
+      request.current = null;
+    };
+  }, [open]);
+
+  function cancelRequest() {
+    request.current?.abort();
+    request.current = null;
+    setStatus("idle");
   }
 
-  async function callApi(path: string, body: object) {
-    setStatus("loading");
+  function closePanel() {
+    cancelRequest();
+    onClose();
+  }
+
+  function clearSession() {
+    cancelRequest();
+    setPrompt("");
+    setOutput("");
+    setOutputKind("none");
+    setGeneratedGraph(null);
+    setRemember(false);
     setError("");
     try {
-      const res = await fetch(path, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
-      setStatus("idle");
-      return json;
-    } catch (err) {
-      setStatus("error");
-      setError(err instanceof Error ? err.message : "Request failed");
-      throw err;
+      clearAiLocalHistory();
+      setHistoryState({ history: [], error: "", ready: true });
+    } catch (cause) {
+      setHistoryState({ history: [], error: cause instanceof Error ? cause.message : "Some saved AI data could not be removed.", ready: false });
     }
   }
 
-  async function handleGenerate() {
-    if (!prompt.trim()) return;
-    pushHistory(prompt.trim());
+  async function runRequest(intent: Intent) {
+    if (!open || request.current || (intent === "generate" && !prompt.trim())) return;
+    const controller = new AbortController();
+    request.current = controller;
+    const isCurrent = () => request.current === controller && !controller.signal.aborted;
+    setStatus("loading");
+    setError("");
+    setOutput("");
+    setOutputKind("none");
+    setGeneratedGraph(null);
+    if (intent === "generate" && remember && historyReady) {
+      try {
+        setHistoryState({ history: rememberAiPrompt(prompt, history, true), error: "", ready: true });
+      } catch (cause) {
+        setHistoryState((current) => ({ ...current, error: cause instanceof Error ? cause.message : "Could not save AI prompt history." }));
+      }
+    }
     try {
-      const json = (await callApi("/api/ai/generate", { prompt })) as { graph: PlaygroundGraph };
-      setOutputKind("generate");
-      setOutput(`Generated diagram with ${json.graph.nodes?.length ?? 0} nodes. Click "Apply to canvas" to load it.`);
-      // Park the generated graph for one-click apply
-      sessionStorage.setItem("architecture-playground:ai-generated", JSON.stringify(json.graph));
-    } catch {
-      /* surfaced via error state */
+      const res = await fetch(`/api/ai/${intent}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(intent === "generate" ? { prompt } : { graph }),
+        signal: controller.signal,
+      });
+      const json = await res.json();
+      if (!isCurrent()) return;
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      if (intent === "generate") {
+        if (!json.graph || !Array.isArray(json.graph.nodes) || !Array.isArray(json.graph.edges)) {
+          throw new Error("The AI response did not contain a valid diagram.");
+        }
+        setGeneratedGraph(json.graph as PlaygroundGraph);
+        setOutput(`Generated diagram with ${json.graph.nodes.length} nodes. Click "Apply to canvas" to load it.`);
+      } else {
+        if (typeof json.markdown !== "string") throw new Error("The AI response did not contain readable output.");
+        setOutput(json.markdown);
+      }
+      setOutputKind(intent);
+      setStatus("idle");
+    } catch (cause) {
+      if (!isCurrent()) return;
+      setStatus("error");
+      setError(cause instanceof Error ? cause.message : "Request failed");
+    } finally {
+      if (request.current === controller) request.current = null;
     }
   }
 
   function applyGenerated() {
+    if (!generatedGraph) return;
     try {
-      const raw = sessionStorage.getItem("architecture-playground:ai-generated");
-      if (!raw) return;
-      const g = JSON.parse(raw) as PlaygroundGraph;
-      onApplyGenerated(g);
-      sessionStorage.removeItem("architecture-playground:ai-generated");
+      onApplyGenerated(generatedGraph);
+      setGeneratedGraph(null);
+      setError("");
+      setStatus("idle");
       setOutput("Applied to canvas.");
     } catch (err) {
+      setStatus("error");
       setError(err instanceof Error ? err.message : "Apply failed");
-    }
-  }
-
-  async function handleDescribe() {
-    try {
-      const json = (await callApi("/api/ai/describe", { graph })) as { markdown: string };
-      setOutputKind("describe");
-      setOutput(json.markdown);
-    } catch {
-      /* surfaced */
-    }
-  }
-
-  async function handleReview() {
-    try {
-      const json = (await callApi("/api/ai/review", { graph })) as { markdown: string };
-      setOutputKind("review");
-      setOutput(json.markdown);
-    } catch {
-      /* surfaced */
     }
   }
 
@@ -122,14 +149,14 @@ export function AiAssistPanel({ graph, open, onClose, onApplyGenerated }: Props)
     <aside
       role="complementary"
       aria-label="AI Assist"
-      className="fixed right-4 top-20 z-40 flex max-h-[calc(100vh-6rem)] w-96 flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
+      className="fixed right-4 top-20 z-40 flex max-h-[calc(100vh-6rem)] w-96 max-w-[calc(100vw-2rem)] flex-col overflow-y-auto rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
     >
       <div className="flex items-center justify-between border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
           <Sparkles className="h-4 w-4 text-indigo-500" /> AI Assist
         </h2>
         <button
-          onClick={onClose}
+          onClick={closePanel}
           aria-label="Close AI Assist"
           className="rounded p-1 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
         >
@@ -138,7 +165,32 @@ export function AiAssistPanel({ graph, open, onClose, onApplyGenerated }: Props)
       </div>
 
       <div className="flex flex-col gap-3 p-3">
+        <p className="text-xs text-zinc-600 dark:text-zinc-400">
+          Prompts are not saved by default. Opt in below to keep up to 10 prompts in this browser&apos;s
+          local storage until you clear them. Existing saved prompts remain available without enabling
+          new saves. Generated candidates stay in panel memory; closing cancels pending requests.
+        </p>
+        <label className="flex items-center gap-2 text-xs text-zinc-700 dark:text-zinc-300">
+          <input type="checkbox" checked={remember} disabled={!historyReady} onChange={(event) => setRemember(event.target.checked)} />
+          Remember prompts on this device
+        </label>
+        <p className="text-xs text-zinc-600 dark:text-zinc-400">
+          This opt-in resets on reload. Turning it off stops future saves but does not erase existing
+          history. Clear AI session removes this panel&apos;s prompt, output, candidate and saved AI
+          history, including any legacy parked candidate. It does not delete diagrams, comments,
+          versions or copies already applied to the canvas, and cannot erase provider-retained data.
+        </p>
+        <button
+          type="button"
+          onClick={clearSession}
+          className="self-start rounded-md border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+        >
+          Clear AI session
+        </button>
+        <AiPrivacyNotice capability="chat" active={open} />
+        <AiPrivacyNotice capability="review" active={open} />
         <textarea
+          aria-label="Architecture prompt"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="Describe the architecture you want, e.g. 'Three-tier web app on Azure with App Service, SQL DB, and Front Door'"
@@ -147,7 +199,7 @@ export function AiAssistPanel({ graph, open, onClose, onApplyGenerated }: Props)
         />
         <div className="flex flex-wrap gap-2">
           <button
-            onClick={handleGenerate}
+            onClick={() => void runRequest("generate")}
             disabled={status === "loading" || !prompt.trim()}
             className="inline-flex items-center gap-1 rounded-md bg-indigo-600 px-2 py-1 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
           >
@@ -155,14 +207,14 @@ export function AiAssistPanel({ graph, open, onClose, onApplyGenerated }: Props)
             Generate
           </button>
           <button
-            onClick={handleDescribe}
+            onClick={() => void runRequest("describe")}
             disabled={status === "loading" || graph.nodes.length === 0}
             className="inline-flex items-center gap-1 rounded-md border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
           >
             <FileText className="h-3 w-3" /> Describe
           </button>
           <button
-            onClick={handleReview}
+            onClick={() => void runRequest("review")}
             disabled={status === "loading" || graph.nodes.length === 0}
             className="inline-flex items-center gap-1 rounded-md border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
           >
@@ -190,15 +242,16 @@ export function AiAssistPanel({ graph, open, onClose, onApplyGenerated }: Props)
         )}
       </div>
 
-      {error && (
-        <div className="border-t border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-900/30 dark:text-red-300">
-          {error}
+      {(error || storageError) && (
+        <div role="alert" className="border-t border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-900/30 dark:text-red-300">
+          {storageError && <p>{storageError}</p>}
+          {error && <p>{error}</p>}
         </div>
       )}
 
       {output && (
         <div className="flex min-h-0 flex-1 flex-col border-t border-zinc-200 dark:border-zinc-800">
-          {outputKind === "generate" && (
+          {outputKind === "generate" && generatedGraph && (
             <div className="border-b border-zinc-200 bg-indigo-50 p-2 dark:border-zinc-800 dark:bg-indigo-900/30">
               <button
                 onClick={applyGenerated}

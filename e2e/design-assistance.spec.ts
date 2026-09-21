@@ -27,7 +27,7 @@ test("guided AI generation captures constraints, previews advice and preserves o
       data: { label: "Telemetry", connectionType: "data-flow", lineStyle: "dashed", arrowStyle: "forward" } }],
   };
   let submitted: Record<string, unknown> | undefined;
-  await page.route("**/api/ai/status", (route) => route.fulfill({ json: { diagramConfigured: true } }));
+  await page.route("**/api/ai/status", (route) => route.fulfill({ json: { diagramConfigured: true, imageConfigured: false } }));
   await page.route("**/api/ai/generate", async (route) => {
     submitted = route.request().postDataJSON();
     await route.fulfill({ json: { graph, mode: "architecture", designAssistance: {

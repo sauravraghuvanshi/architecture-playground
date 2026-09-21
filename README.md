@@ -481,11 +481,19 @@ it does not prove agent existence, identity access, model capacity, or vision su
 Test an actual request after configuring and deploying. Deterministic WAF
 scorecards and explicitly selected offline code exports remain usable without AI.
 
-When local image credentials are absent, development proxies Whiteboard image
-requests through the configured public Diagrammatic demo without exposing Azure
-keys. Prompts are sent to that hosted endpoint. Set
-`DIAGRAMMATIC_AI_PROXY_URL=disabled` to opt out, or set it to another trusted
-Diagrammatic deployment.
+When image credentials are absent, image generation is unavailable unless an
+operator explicitly sets `DIAGRAMMATIC_AI_PROXY_URL` to an approved Diagrammatic
+origin. There is **no default public-demo proxy**, including in development.
+Use HTTPS without credentials, path, query or fragment; HTTP loopback is allowed
+only outside production. `disabled`, `off` and `none` explicitly disable proxying.
+Proxy redirects and chained/self-proxy requests are rejected. The proxy operator
+controls its downstream provider and retention, which this app cannot verify.
+
+AI surfaces show their server-configured destination origin, submitted data and
+retention limits using the authenticated, noncached `/api/ai/privacy` endpoint.
+API keys, deployment names and Foundry project paths are not exposed. Explicit
+configured credentials remain server-side. See [AI privacy controls](docs/ai-privacy.md)
+for local history opt-in, session clearing and provider-retention boundaries.
 
 The Azure Portal deployment handoff also uses `NEXT_PUBLIC_SITE_URL`. It must be
 the public HTTPS URL of the Diagrammatic deployment so Azure Portal can retrieve

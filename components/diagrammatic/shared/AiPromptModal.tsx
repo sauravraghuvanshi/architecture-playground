@@ -17,6 +17,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Sparkles, X } from "lucide-react";
 import type { DiagrammaticMode } from "./types";
+import { AiPrivacyNotice } from "./AiPrivacyNotice";
+import { AI_LOCAL_CLEAR_NOTICE } from "@/lib/ai-privacy-contract";
 import { consumeSseResponse } from "@/lib/sse-client";
 import { IMAGE_STYLES, imageCanvasContextSchema, type ImageCanvasContext } from "@/lib/image-styles";
 import {
@@ -134,6 +136,7 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult, ge
         signal: ac.signal,
       });
       const json = await res.json();
+      if (ac.signal.aborted || abortRef.current !== ac) return;
       if (!res.ok) {
         setError(json.error ?? `Request failed (${res.status})`);
         return;
@@ -180,6 +183,7 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult, ge
         // Non-200 means we never entered the SSE flow (e.g. 503 not configured,
         // 429 rate-limited at our layer). Try to surface the JSON error.
         const text = await res.text().catch(() => "");
+        if (ac.signal.aborted || abortRef.current !== ac) return;
         try {
           const j = JSON.parse(text) as { error?: string };
           setError(j.error ?? `Request failed (${res.status})`);
@@ -192,6 +196,7 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult, ge
       await consumeSseResponse(res, {
         signal: ac.signal,
         onEvent: ({ data }) => {
+          if (ac.signal.aborted || abortRef.current !== ac) return;
           let parsed: { type?: string; b64?: string; url?: string; size?: string; message?: string; elapsed?: number };
           try {
             parsed = JSON.parse(data);
@@ -227,7 +232,7 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult, ge
         setError((prev) => prev ?? "Image generation ended without a result");
       }
     } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") {
+      if (ac.signal.aborted || abortRef.current !== ac || (err instanceof DOMException && err.name === "AbortError")) {
         // User cancelled — modal already closed; no toast needed.
       } else {
         setError(err instanceof Error ? err.message : "Network error");
@@ -282,6 +287,13 @@ export function AiPromptModal({ mode, open, onClose, onResult, onImageResult, ge
           </button>
         </div>
         <div className="overflow-y-auto px-4 py-4">
+          <AiPrivacyNotice capability={isImageMode ? "image" : "chat"} active={open} />
+          <div className="mb-3 text-[11px] text-slate-400">
+            <button type="button" onClick={() => {
+              cancel(); setPrompt(""); setConstraints({}); setGenerated(null); setError(null); setElapsed(0);
+            }} className="mb-1 rounded border border-slate-600 px-2 py-1 text-slate-200">Clear AI session</button>
+            <p>{AI_LOCAL_CLEAR_NOTICE}</p>
+          </div>
           <label htmlFor="diagrammatic-ai-prompt" className="mb-1 block text-xs font-medium text-zinc-300">
             {isImageMode ? "Describe the image to generate" : "Describe what to build"}
           </label>

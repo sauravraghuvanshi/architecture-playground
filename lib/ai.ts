@@ -15,6 +15,7 @@
  * a single fetch call to the chat completions REST endpoint is enough.
  */
 import { readBoundedJson } from "./request-json.ts";
+import { configuredAiOrigin } from "./ai-destination.ts";
 
 export interface AiConfig {
   endpoint: string;
@@ -24,12 +25,12 @@ export interface AiConfig {
 }
 
 export function getAiConfig(): AiConfig | null {
-  const endpoint = process.env.AZURE_OPENAI_ENDPOINT?.trim();
+  const endpoint = configuredAiOrigin(process.env.AZURE_OPENAI_ENDPOINT);
   const apiKey = process.env.AZURE_OPENAI_API_KEY?.trim();
   const deployment = process.env.AZURE_OPENAI_DEPLOYMENT?.trim();
   if (!endpoint || !apiKey || !deployment) return null;
   return {
-    endpoint: endpoint.replace(/\/+$/, ""),
+    endpoint,
     apiKey,
     deployment,
     apiVersion: process.env.AZURE_OPENAI_API_VERSION?.trim() || "2024-10-21",
@@ -81,6 +82,7 @@ export async function chatComplete(messages: ChatMessage[], opts: ChatOptions = 
 
   const res = await fetch(url, {
     method: "POST",
+    redirect: "error",
     headers: {
       "api-key": cfg.apiKey,
       "Content-Type": "application/json",

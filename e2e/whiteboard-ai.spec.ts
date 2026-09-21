@@ -23,7 +23,7 @@ test.describe("Whiteboard AI", () => {
     };
     expect(typeof status.diagramConfigured).toBe("boolean");
     expect(typeof status.imageConfigured).toBe("boolean");
-    expect(["local", "development-proxy", null]).toContain(status.imageSource);
+    expect(["local", "configured-proxy", null]).toContain(status.imageSource);
 
     for (const [mode, configured] of [["whiteboard", status.imageConfigured], ["c4", status.diagramConfigured]] as const) {
       const browserStatus = page.waitForResponse((response) => response.url().endsWith("/api/ai/status"));

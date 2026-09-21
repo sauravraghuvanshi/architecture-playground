@@ -4,6 +4,7 @@ import type { ArchPayload } from "../components/diagrammatic/modes/architecture/
 import { parseArchitectureDocument } from "../lib/architecture-document";
 import { parseArmTemplate } from "../lib/deployment-assistance";
 import type { EngineeringValidation } from "../lib/engineering-validation-contract";
+import { privacyFixture } from "./ai-privacy-fixture";
 
 const architecture: ArchPayload = {
   nodes: [{
@@ -50,7 +51,9 @@ async function openDeployment(page: Page, context: BrowserContext, options: Mock
   const requests = { generation: [] as unknown[], publication: [] as unknown[], unexpected: [] as string[] };
   await context.route("**/api/ai/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path === "/api/ai/status") {
+    if (path === "/api/ai/privacy") {
+      await route.fulfill({ json: privacyFixture });
+    } else if (path === "/api/ai/status") {
       await route.fulfill({ json: {
         configured: true, diagramConfigured: false, imageConfigured: false,
         reviewAgentConfigured: false, deploymentAgentConfigured: options.generationStatus !== 503,

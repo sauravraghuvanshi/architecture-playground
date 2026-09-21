@@ -8,6 +8,8 @@ import { azureOnlyDeploymentPayload, DEPLOYMENT_DISCLAIMER, parseArmTemplate, pa
 import { FOUNDRY_PRIVACY_NOTICE } from "@/lib/foundry-contract";
 import { engineeringValidationSchema, type EngineeringValidation } from "@/lib/engineering-validation-contract";
 import type { ArtifactMapping } from "@/lib/engineering-coverage";
+import { AiPrivacyNotice } from "../shared/AiPrivacyNotice";
+import { AI_LOCAL_CLEAR_NOTICE } from "@/lib/ai-privacy-contract";
 
 interface Props {
   open: boolean;
@@ -83,6 +85,7 @@ function DeploymentSession({ payload, onClose, intent = "deploy" }: Omit<Props, 
         body: JSON.stringify({ payload, format, context }), signal: controller.signal,
       });
       const result = await response.json();
+      if (controller.signal.aborted || abort.current !== controller) return;
       if (!response.ok) {
         if (Array.isArray(result.diagnostics)) setDiagnostics(result.diagnostics.slice(0, 8).flatMap((item: unknown) =>
           item && typeof item === "object" && "message" in item && typeof item.message === "string" ? [item.message.slice(0, 500)] : []));
@@ -187,6 +190,7 @@ function DeploymentSession({ payload, onClose, intent = "deploy" }: Omit<Props, 
         body: JSON.stringify(body), signal: controller.signal,
       });
       const result = await response.json();
+      if (controller.signal.aborted || abort.current !== controller) return;
       if (!response.ok) {
         const validation = engineeringValidationSchema.safeParse(result.validation);
         if (validation.success) setPreview((current) => current ? { ...current, validation: validation.data } : current);
@@ -222,6 +226,11 @@ function DeploymentSession({ payload, onClose, intent = "deploy" }: Omit<Props, 
         <div className="space-y-4 overflow-y-auto p-5">
           <section className="space-y-3" aria-label="Generate deployment draft">
             <p className="text-xs text-slate-400">{FOUNDRY_PRIVACY_NOTICE}</p>
+            <AiPrivacyNotice capability="deployment" />
+            <div className="text-[10px] text-slate-400">
+              <button type="button" onClick={() => { reset(); setContext(""); }} className="mb-1 rounded border border-slate-600 px-2 py-1 text-slate-200">Clear AI session</button>
+              <p>{AI_LOCAL_CLEAR_NOTICE}</p>
+            </div>
             <div className="flex flex-wrap gap-2">
               {FORMATS.map((option) => <button key={option.id} type="button" aria-pressed={format === option.id} onClick={() => { reset(); setFormat(option.id); }} className={`rounded-lg border px-3 py-2 text-xs ${format === option.id ? "border-sky-300 text-sky-200" : "border-slate-700"}`}>{option.label}</button>)}
             </div>

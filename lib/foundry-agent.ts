@@ -44,6 +44,11 @@ export function isFoundryAgentConfigured(purpose: FoundryAgentPurpose): boolean 
   return configuration(purpose) !== null;
 }
 
+export function foundryProjectOrigin(purpose: FoundryAgentPurpose): string | null {
+  const config = configuration(purpose);
+  return config ? new URL(config.endpoint).origin : null;
+}
+
 export async function invokeFoundryAgent(
   purpose: FoundryAgentPurpose,
   instructions: string,

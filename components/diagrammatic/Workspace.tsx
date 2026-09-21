@@ -110,7 +110,7 @@ interface AiStatus {
   diagramConfigured: boolean;
   imageConfigured: boolean;
   reviewAgentConfigured: boolean;
-  imageSource?: "local" | "development-proxy" | null;
+  imageSource?: "local" | "configured-proxy" | null;
 }
 
 // Map hub TemplateBrowser ids → seed prompts. Keeps the cards working without
