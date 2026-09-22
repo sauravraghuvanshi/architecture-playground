@@ -3,13 +3,53 @@
 Latest consolidated handoff:
 [September 22 session summary, lessons and ordered resume checklist](session-summary-2026-09-22.md).
 
-**Numbered backlog remains paused:** screenshot-reported regressions were
-subsequently fixed and hosted-verified in `cf6da2b`. Priorities 16-33 have not
-resumed. The separate gesture/autosave fix `bd27fff` is locally verified, but
-its hosted verification remains incomplete after the user's
-end-of-day pause. The [early September 21 session summary](session-summary-2026-09-21.md)
+**Numbered backlog remains paused:** current application `625e199` is deployed
+and hosted-verified. The September 22 morning fix closes saved-scene restoration
+and the overnight pipeline-verification blocker. Priorities 16-33 have not
+resumed. The [early September 21 session summary](session-summary-2026-09-21.md)
 records the earlier stop after task 8, not the current execution boundary. Older
 close-out tables below are historical checkpoints, not the current release.
+
+## September 22 morning - Saved-scene recovery and successful release
+
+- New screenshot reproduced with a named saved board containing valid geometry,
+  a pen dot and unfinished remnants. The prior build rejected the entire board
+  and displayed duplicate recovery notices. Saving a separate blank recovery
+  copy did not remove the historical notices.
+- Corrected native classification: two-point zero-dimension paths are valid,
+  including dots. Saved scenes restore around only unfinished placeholders;
+  references to omitted placeholders are detached, without clamping or changing
+  the remaining geometry. Library intake retains the unmodified source payload
+  in an original version before any subsequent document overwrite. Scratch
+  source bytes remain unchanged.
+- Removed the persistent saved-data recovery banner across diagram pages.
+  Truly malformed content remains rejected and retained, with details and raw
+  downloads under **My diagrams > Retained original data**. Named recovery
+  downloads now include the original document. Actual save/quota/conflict
+  failures still remain actionable; no false success is introduced.
+- Last night's run `35648068866` failed at hosted Bicep HTTP 503 after deployment.
+  Its log did not expose a parser error code, so the historical underlying cause
+  cannot be named reliably. Valid/invalid Bicep and the unchanged complete
+  hosted parser smoke passed before today's new deployment.
+- Fixed the smoke test's first-fixture-only retry: bounded readiness retries now
+  apply to every fixture, with safe HTTP/code/attempt diagnostics. Persistent
+  unavailability and wrong validation outcomes still fail. No timeout increase,
+  fixture skip or validation-gate removal.
+- Release **`625e199d6ba360aa81142d5be2201c1045200390`**, workflow
+  **`35693782055`**, succeeded at **11:47:14 IST**. All pre/post-deployment gates
+  passed, including hosted parser validation and authenticated browser smoke.
+- Evidence: **374/374** application contracts, **21/21** parser/integration/retry
+  tests, lint/types/build, **5/5** mandatory screenshot journeys, **90/90 local**
+  and **90/90 hosted** adjacent three-engine cases. Hosted run took 5.2 minutes.
+  AI success responses remain fixtures, not live model-quality certification.
+- Learning: live editing deferral and saved-scene compatibility are separate
+  contracts. Never reject a whole historical board because the engine would
+  omit an unfinished item; archive original data before canonicalizing. Keep
+  historical recovery details out of the editing canvas, and test the exact
+  screenshot path as well as new drawing.
+- Owned servers stopped; temporary auth removed. No priority 16 or competitor
+  work started. Users on a blank recovery copy should reopen the original in
+  My diagrams after loading the updated app; do not clear browser storage.
 
 ## September 22 - Recurring gesture/autosave banner
 

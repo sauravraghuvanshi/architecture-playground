@@ -1,9 +1,9 @@
 # Azure Deployment Plan
 
-> **Status:** Validated
+> **Status:** Deployed and Verified - Saved Whiteboard Recovery Fix
 
 Generated: 2026-08-12
-Updated: 2026-09-22 (Asia/Kolkata; end-of-day pause)
+Updated: 2026-09-22 (Asia/Kolkata; morning recovery fix verified)
 
 Latest handoff: [completed work, lessons and tomorrow's checklist](../docs/session-summary-2026-09-22.md).
 
@@ -20,8 +20,8 @@ Latest handoff: [completed work, lessons and tomorrow's checklist](../docs/sessi
   existing pipeline and verify hosted before claiming completion.
 - **Scope:** Existing app-only target, no new infrastructure, model endpoints or
   roles. Priorities 16-33 and competitor additions remain paused.
-- **State:** Implemented, locally verified and passed the Azure validation
-  workflow. Ready for the existing app-only deployment.
+- **State:** Deployed and hosted-verified as
+  `625e199d6ba360aa81142d5be2201c1045200390`.
 - **Reproduction:** The previous production build reproduces all three
   screenshot recovery messages from a named board with one valid shape, a dot
   and unfinished remnants. This is persisted-scene intake, not the active
@@ -57,7 +57,21 @@ Latest handoff: [completed work, lessons and tomorrow's checklist](../docs/sessi
   corrected native cases pass without weakening geometry/source retention
   assertions. Authenticated current-production parser probes and full smoke
   also passed before any new deployment. No model inference or customer
-  infrastructure operation was invoked. New-release hosted checks remain pending.
+  infrastructure operation was invoked.
+- **Deployment proof:** Workflow
+  [35693782055](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35693782055)
+  succeeded in approximately five minutes, completed at 06:17:14 UTC
+  (11:47:14 IST). Contracts, all five pre-deployment screenshot journeys,
+  deployment, health, authenticated CSA API smoke, the previously failing
+  hosted parser smoke and final browser smoke all passed.
+- **Hosted proof:** The exact adjacent **90/90** Chromium/Firefox/WebKit cases
+  passed against the deployed site in **5.2 minutes**. They cover original
+  payload backups, saved draft/named restoration, no persistent canvas recovery
+  banner, genuine corrupt-data management in My diagrams, gesture autosave,
+  storage-failure protection, mode switching, reload and conversion.
+- **Cleanup:** Owned local server stopped; temporary hosted authentication
+  removed. Backlog remains paused. Last night's incomplete verification is
+  superseded by this successful release; the failed historical run is retained.
 
 ## September 22 - Autosave while a drawing gesture is in progress
 

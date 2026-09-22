@@ -1,5 +1,31 @@
 # Session close-out - September 21 work and September 22 follow-up
 
+## Morning update - completed September 22
+
+The overnight resume checklist below is now historical. The user resumed the
+saved-Whiteboard recovery warning and failed-pipeline issue; both are addressed
+in **`625e199d6ba360aa81142d5be2201c1045200390`**.
+
+- The persistent recovery banner is removed from all diagram pages. Usable
+  saved content opens around native unfinished placeholders, with the original
+  preserved as a version. Valid pen dots remain intact. Genuine retained-data
+  details/downloads are available in My diagrams.
+- Last night's HTTP 503 is documented without inventing an unlogged parser
+  cause. Every smoke fixture now has bounded transient retries and diagnostics;
+  persistent failure or incorrect validation results still fail.
+- [Deployment 35693782055](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35693782055)
+  succeeded, including the previously failing hosted parser check and final
+  browser smoke. **374 contracts, 21 parser/retry tests, lint/types/build,
+  5 screenshot gates, 90 local and 90 hosted browser cases passed.**
+- Servers stopped and temporary auth removed. **No urgent verification remains
+  open for this release.** Await the user's next selection; priorities 16-33
+  and competitor additions remain paused.
+
+Current evidence: [development log](development-log-2026-09-20.md) and
+[deployment plan](../.azure/deployment-plan.md).
+
+## Historical end-of-day checkpoint
+
 Recorded: September 22, 2026, approximately 01:34 IST (Asia/Kolkata).
 This is the latest handoff. The [September 21 summary](session-summary-2026-09-21.md)
 is the earlier stop-after-task-8 checkpoint, not the current task status.
