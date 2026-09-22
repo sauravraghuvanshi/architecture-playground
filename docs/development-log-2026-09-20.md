@@ -3,12 +3,47 @@
 Latest consolidated handoff:
 [September 22 session summary, lessons and ordered resume checklist](session-summary-2026-09-22.md).
 
-**Ordered backlog resumed:** priority 16 is complete in hosted-verified
-application `1404737`; priority 17 is next under the user's September 22
+**Ordered backlog resumed:** priority 17 is complete in hosted-verified
+application `596c1d0`; priority 18 is next under the user's September 22
 13:29 IST instruction. The morning recovery fix remains included.
 The [early September 21 session summary](session-summary-2026-09-21.md)
 records the earlier stop after task 8, not the current execution boundary. Older
 close-out tables below are historical checkpoints, not the current release.
+
+## September 22 - Priority 17 grounded and traceable reviews
+
+- New reviews cite specific articles from twelve verified Microsoft Learn
+  cards spanning AAC, ALZ, CAF and the five WAF pillars. Original summaries
+  include applicability and evidence needed for actual configuration validation.
+  Guidance IDs, framework/URL consistency and an applicability rationale are
+  required; generic landing-page citations no longer suffice for new results.
+- Server-authored provenance records prompt/schema/guidance versions, canonical
+  evidence/guidance/prompt/schema/review/attempt digests and bounded provider
+  identifiers/settings. UI checks input/result/guidance fingerprints and
+  separates depicted intent, proposed actions, contract validation and runtime
+  unverified facts. A model cannot author trusted provenance fields.
+- Explicit JSON downloads retain captured context/evidence and the complete
+  curated snapshot. Original image bytes are excluded and that replay limitation
+  is disclosed. Clear AI session clears the retained report data.
+- Cached clients without response-contract header 2 still receive the strict
+  v1 finding shape. Historical reports remain readable, and legacy Markdown
+  includes supporting guidance/provenance. Unknown contract versions fail
+  before provider invocation.
+- Provider model IDs are reported, not independently resolved immutable
+  versions. The existing agent is unpinned; missing IDs and nondeterministic
+  replay remain explicit. Grounding is not semantic entailment certification.
+- Local proof: 397 contracts, full lint/types/build and final 151/151 browser
+  gate. An earlier WebKit case exhausted its cumulative 30s test budget;
+  traces showed bounded steps completing. Removed redundant setup navigation,
+  retaining native drawing, the 1600ms hold, exact geometry, final roundtrip/
+  reload and all existing deadlines; three targeted repeats and final gate pass.
+- Release `596c1d0ea55ab6c1911f4a61da8f39f1c0e3dce5`; workflow
+  `35717017405` passed all Linux and hosted gates in 10m24s. Independent hosted
+  identity matched build `c7f8fcdf-1f30-4b17-bca7-6cac0f22e489`.
+  **51/51 hosted** review/native cases passed across three engines in 7.9m.
+- Provider success results in acceptance tests are deterministic fixtures;
+  no live model quality or customer deployment claim. Temporary authentication
+  removed and owned runners stopped. Next: priority 18 evaluations.
 
 ## September 22 afternoon - Priority 16 regression/release gates
 

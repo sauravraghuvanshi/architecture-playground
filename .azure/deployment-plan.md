@@ -1,6 +1,6 @@
 # Azure Deployment Plan
 
-> **Status:** Validated
+> **Status:** Deployed and Verified - Priority 17
 
 Generated: 2026-08-12
 Updated: 2026-09-22 (Asia/Kolkata; morning recovery fix verified)
@@ -21,7 +21,8 @@ Latest handoff: [completed work, lessons and tomorrow's checklist](../docs/sessi
 - **Scope:** Existing app-only target and configured AI endpoints. No new model
   resource, customer deployment or live inference required for deterministic
   acceptance. No SDK/language rewrite.
-- **State:** Implemented, locally verified and passed the Azure validation workflow.
+- **State:** Deployed and hosted-verified as
+  `596c1d0ea55ab6c1911f4a61da8f39f1c0e3dce5`.
 - **Grounding:** Twelve first-party article cards across AAC, ALZ, CAF and all
   five WAF pillars, with original summaries, applicability and required
   validation evidence. Ten additional articles were independently researched;
@@ -71,8 +72,18 @@ Latest handoff: [completed work, lessons and tomorrow's checklist](../docs/sessi
   September 22. First-party cards were verified through Microsoft Learn;
   deterministic provider fixtures exercise the complete acceptance paths
   without claiming live model quality. Provider-reported IDs are not resolved
-  immutable model/agent versions. Deployment and hosted verification remain
-  required before advancing to priority 18.
+  immutable model/agent versions.
+- **Deployment:** Workflow
+  [35717017405](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35717017405)
+  succeeded in **10m24s**, ending at 10:48:07 UTC. All Linux contract, parser,
+  compiler, browser, exact-release and hosted smoke gates passed.
+- **Hosted acceptance:** Independently confirmed the CI revision/build match
+  (`c7f8fcdf-1f30-4b17-bca7-6cac0f22e489`) and authenticated no-store version
+  endpoint. **51/51** grounded-review and screenshot journeys passed across
+  Chromium, Firefox and WebKit in **7.9 minutes**. Downloaded review/evidence/
+  guidance hashes were checked; success inference responses were fixtures,
+  not a live-model quality certification. Temporary auth removed; runners stopped.
+- **Next:** Priority 18, domain-specific AI quality evaluations.
 
 ## September 22 - Resuming priority 16
 

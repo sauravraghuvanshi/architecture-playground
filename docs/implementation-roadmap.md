@@ -1,10 +1,10 @@
 # Implementation roadmap
 
-Last updated: 2026-09-22, Asia/Kolkata (priority 16 deployed and verified; next 17).
+Last updated: 2026-09-22, Asia/Kolkata (priority 17 deployed and verified; next 18).
 
-**Priorities 1-16 are deployed and verified within their stated scopes.
+**Priorities 1-17 are deployed and verified within their stated scopes.
 The user resumed the remaining priorities at 13:29 IST on September 22.
-Priority 17 is next; 17-33 follow in order. Competitor-inspired additions
+Priority 18 is next; 18-33 follow in order. Competitor-inspired additions
 remain after the numbered roadmap.**
 
 **Previous urgent work completed:** the user resumed the saved-Whiteboard
@@ -45,8 +45,8 @@ They are not the 47 finding IDs in the original local HTML audit.
 - [Chronological development log and test evidence](development-log-2026-09-20.md)
 - [Deployment history and current release](../.azure/deployment-plan.md)
 - Live app: https://architecture-playground.azurewebsites.net
-- Current hosted-verified application: `1404737cbf1a54a0fb2bae6d53344c95eddbd07e`,
-  [successful deployment 35705631954](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35705631954).
+- Current hosted-verified application: `596c1d0ea55ab6c1911f4a61da8f39f1c0e3dce5`,
+  [successful deployment 35717017405](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35717017405).
 - Historical gesture release `bd27fff` reached Azure but failed its parser smoke;
   its incomplete verification is superseded by the current successful release.
 - [Earlier stop-after-8 checkpoint](session-summary-2026-09-21.md)
@@ -93,8 +93,9 @@ They are not the 47 finding IDs in the original local HTML audit.
 | 14 | Responsive and keyboard-accessible editing | **Deployed - `d81a0fd`.** Compact palette/assets/Inspector and utility drawers, full-width canvas, shared native/compatibility dialog focus management, commit-safe dismissal, asynchronous opener/tab focus restoration, viewport-bounded keyboard disclosures and context actions. Verified actual portrait/landscape geometry and 149 local/149 hosted Chromium cases; not a cross-browser or formal WCAG certification. |
 | 15 | Cross-browser reliability | **Deployed - `3a04dbc`, restoration correction `3b5d8fd`.** Portable native drag envelopes, standard font embedding, deterministic document handoffs, pointer-safe Whiteboard reconciliation, raster cleanup and WebKit focus handling. Playwright 1.63.0 and explicit support policy. Loading defaults cannot overwrite saved boards. Final correction: 356 contracts, 108 local and 108 hosted three-engine cases pass. Real Safari/iOS remains unqualified. |
 | 16 | Regression and release gates | **Deployed - `1404737`.** Actual production imports replace mirrored algorithms, 392 application contracts, official parser and script-safety gates, 17 Bicep/Terraform compiler/provider fixtures, 118 selected pre-deployment browser cases, credential-free PR checks, serialized deployments and authenticated exact commit/build verification. All Linux CI gates and 24 hosted three-engine cases passed. |
+| 17 | Grounded, reproducible architecture reviews | **Deployed - `596c1d0`.** Twelve curated first-party article cards, required source IDs/applicability rationale, server-authored prompt/schema/guidance versions and evidence/result/attempt fingerprints, provider-reported identifiers, explicit verification scope and downloadable captured report packages. Client verifies evidence/review/guidance hashes; cached v1 clients remain compatible. 397 contracts, 151 local release-browser cases and 51 hosted three-engine cases pass. Unpinned agents/model nondeterminism and unverified semantic truth remain explicit, not certification. |
 
-These releases are cumulative. Current production includes all sixteen numbered
+These releases are cumulative. Current production includes all seventeen numbered
 items plus the explicitly requested nested-boundary and conversion improvements.
 
 ## Remaining implementation priorities
@@ -105,7 +106,6 @@ Descriptions are acceptance guidance, not claims of deployed functionality.
 
 | Priority Number | Feature / Fix to Implement | Description |
 | ---: | --- | --- |
-| 17 | Grounded, reproducible architecture reviews | Tie recommendations to supporting evidence, not just framework landing pages. Record prompt/model/schema versions and distinguish depicted, proposed, validated and runtime-verified facts. |
 | 18 | Domain-specific AI quality evaluations | Build versioned golden tasks for generation, review, conversion and IaC. Measure requirements, identity/topology fidelity, grounding and artifact validity; gate prompt/model changes on meaningful results. |
 | 19 | Correct request-flow ordering and selectable scenarios | Make automatic ordering follow topology; separate infrastructure/telemetry relationships from narrated flows. Add named happy-path, failure, retry and streaming scenarios. The stage-bound fixes in priority 3 do not complete scenario semantics. |
 | 20 | Faithful diagram and document exports | Fix Mermaid/draw.io identity and direction loss; provide genuine editable interchange and a complete document package containing metadata, comments, versions and image files. Priority 3 covers architecture JSON fidelity, not every export format or package. |

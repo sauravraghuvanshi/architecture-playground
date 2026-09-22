@@ -2,6 +2,13 @@
 
 ## Afternoon update - ordered backlog resumed
 
+**Latest:** priority 17 is also deployed and verified as `596c1d0`, workflow
+`35717017405`. It adds article-grounded findings, server-authored provenance,
+independent fingerprints and downloadable evidence/guidance reports, with
+explicit limits on runtime verification and deterministic replay. All 397
+contracts, 151 local browser cases and 51 hosted cases pass. **Priority 18 is
+now next.** The earlier priority-16 checkpoint follows for history.
+
 The user resumed remaining priorities at 13:29 IST. **Priority 16 is now
 complete**, deployed as `1404737` through successful run `35705631954`.
 Production-import tests, compiler/provider validation, expanded browser gates,
