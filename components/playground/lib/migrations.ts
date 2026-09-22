@@ -9,7 +9,7 @@
  *   - Each migration returns a fresh object — never mutate in place.
  *   - After migration the payload should pass Zod validation.
  */
-import { CURRENT_SCHEMA_VERSION, DEFAULT_LAYER } from "./types";
+import { CURRENT_SCHEMA_VERSION, DEFAULT_LAYER } from "./types.ts";
 import type { ConnectionType, LineStyle, ArrowStyle, PlaygroundGraph, StoredPayload } from "./types";
 
 // ---------------------------------------------------------------------------

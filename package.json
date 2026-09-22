@@ -5,7 +5,7 @@
   "description": "Interactive multi-cloud architecture diagram editor — drag-and-drop Azure/AWS/GCP icons, animated request sequences, and PNG/JSON/GIF export.",
   "scripts": {
     "dev": "next dev",
-    "prebuild": "node scripts/build-cloud-icon-manifest.mjs && node scripts/build-whiteboard-assets.mjs && node scripts/bundle-gifenc-worker.mjs",
+    "prebuild": "node scripts/build-release-info.mjs && node scripts/build-cloud-icon-manifest.mjs && node scripts/build-whiteboard-assets.mjs && node scripts/bundle-gifenc-worker.mjs",
     "build": "next build",
     "postbuild": "node scripts/postbuild.mjs",
     "start": "node .next/standalone/server.js",

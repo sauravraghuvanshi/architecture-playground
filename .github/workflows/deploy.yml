@@ -3,7 +3,16 @@ name: Deploy to Azure
 on:
   push:
     branches: [master]
+  pull_request:
+    branches: [master]
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'production' }}
+  cancel-in-progress: false
 
 jobs:
   build-and-deploy:
@@ -29,11 +38,9 @@ jobs:
           npm run prebuild
           npm run test:playground
           node --test scripts/test-hosted-validation-request.mjs
-
-      - name: Restore the existing application build runtime
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
+          node --test scripts/test-release.mjs
+          npm run lint
+          npx tsc --noEmit
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -50,7 +57,36 @@ jobs:
           ARTIFACT_PARSER_TARGET: linux-x64
           DOTNET_CLI_TELEMETRY_OPTOUT: "1"
 
+      - name: Block deployment on real parser and script safety regressions
+        run: |
+          npm run test:artifact-parsers
+          npm run test:powershell-preview
+          npm run test:azure-cli-draft
+
+      - name: Install pinned Terraform validator
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.16.3"
+          terraform_wrapper: false
+
+      - name: Install pinned Bicep compiler
+        run: |
+          mkdir -p "$RUNNER_TEMP/diagrammatic-tools"
+          curl --fail --location --retry 3 https://github.com/Azure/bicep/releases/download/v0.47.16/bicep-linux-x64 -o "$RUNNER_TEMP/diagrammatic-tools/bicep"
+          echo "64c345a58e0c3e48b1bc98a4e62d6b3adb1d238281297de3400aeafb2697aa5a  $RUNNER_TEMP/diagrammatic-tools/bicep" | sha256sum --check
+          chmod +x "$RUNNER_TEMP/diagrammatic-tools/bicep"
+          echo "$RUNNER_TEMP/diagrammatic-tools" >> "$GITHUB_PATH"
+
+      - name: Block deployment on generated IaC compiler and provider regressions
+        run: npm run test:iac-compilers
+
+      - name: Restore the existing application build runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
       - name: Create runtime auth environment
+        if: github.event_name != 'pull_request'
         env:
           APP_AUTH_USERNAME: ${{ secrets.APP_AUTH_USERNAME }}
           APP_AUTH_PASSWORD: ${{ secrets.APP_AUTH_PASSWORD }}
@@ -63,37 +99,36 @@ jobs:
         env:
           NEXT_PUBLIC_SITE_URL: https://architecture-playground.azurewebsites.net
 
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Install release-gate browser engines
+        run: npx playwright install --with-deps chromium firefox webkit
 
-      - name: Block deployment on screenshot workflow regressions
-        run: node scripts/verify-screenshot-regressions.mjs
+      - name: Block deployment on architecture Whiteboard and AI workflow regressions
+        run: node scripts/verify-screenshot-regressions.mjs --release
 
       - name: Create deploy zip
+        if: github.event_name != 'pull_request'
         run: |
           cp .env.production .next/standalone/.env.production
           cd .next/standalone
           zip -r ../../deploy.zip . -x "node_modules/.cache/*"
 
       - name: Deploy to Azure
+        if: github.event_name != 'pull_request'
         env:
           DEPLOY_USER: ${{ secrets.AZURE_DEPLOY_USER }}
           DEPLOY_PASS: ${{ secrets.AZURE_DEPLOY_PASSWORD }}
         run: node scripts/deploy-zip.mjs
 
-      - name: Verify deployment
-        run: |
-          echo "Waiting 30s for app restart..."
-          sleep 30
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 https://architecture-playground.azurewebsites.net/ || echo "000")
-          LOGIN_STATUS=$(curl -L -s -o /dev/null -w "%{http_code}" --max-time 30 https://architecture-playground.azurewebsites.net/ || echo "000")
-          echo "Protected root HTTP status: $STATUS; followed redirect: $LOGIN_STATUS"
-          if [ "$STATUS" -ne 307 ] || [ "$LOGIN_STATUS" -ne 200 ]; then
-            echo "::error::Protected deployment is not healthy"
-            exit 1
-          fi
+      - name: Verify exact deployed revision and build
+        if: github.event_name != 'pull_request'
+        env:
+          LIVE_BASE_URL: https://architecture-playground.azurewebsites.net
+          APP_AUTH_USERNAME: ${{ secrets.APP_AUTH_USERNAME }}
+          APP_AUTH_PASSWORD: ${{ secrets.APP_AUTH_PASSWORD }}
+        run: node scripts/verify-release.mjs
 
       - name: Run authenticated live CSA API smoke
+        if: github.event_name != 'pull_request'
         env:
           LIVE_BASE_URL: https://architecture-playground.azurewebsites.net
           APP_AUTH_USERNAME: ${{ secrets.APP_AUTH_USERNAME }}
@@ -101,6 +136,7 @@ jobs:
         run: node scripts/smoke-live-csa.mjs
 
       - name: Verify hosted parser-only artifact validation
+        if: github.event_name != 'pull_request'
         env:
           LIVE_BASE_URL: https://architecture-playground.azurewebsites.net
           APP_AUTH_USERNAME: ${{ secrets.APP_AUTH_USERNAME }}
@@ -108,6 +144,7 @@ jobs:
         run: node scripts/smoke-engineering-validation.mjs
 
       - name: Run authenticated live CSA browser smoke
+        if: github.event_name != 'pull_request'
         env:
           LIVE_E2E: "true"
           PLAYWRIGHT_BASE_URL: https://architecture-playground.azurewebsites.net
@@ -115,3 +152,13 @@ jobs:
           E2E_AUTH_USERNAME: ${{ secrets.APP_AUTH_USERNAME }}
           E2E_AUTH_PASSWORD: ${{ secrets.APP_AUTH_PASSWORD }}
         run: npx playwright test e2e/live-csa.spec.ts --project=chromium --reporter=line
+
+      - name: Retain regression failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-regression-evidence
+          path: |
+            test-results/**/*.png
+            test-results/**/error-context.md
+          retention-days: 7

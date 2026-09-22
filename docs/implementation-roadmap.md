@@ -1,18 +1,19 @@
 # Implementation roadmap
 
-Last updated: 2026-09-22, Asia/Kolkata (morning saved-scene fix deployed and verified).
+Last updated: 2026-09-22, Asia/Kolkata (ordered backlog resumed; priority 16 active).
 
 **Priorities 1-15 are deployed and verified within their stated scopes.
-Execution is stopped at the user's request. Priorities 16-33 remain pending;
-the user's newly reported issue takes precedence. Competitor-inspired additions
-remain deferred.**
+The user resumed the remaining priorities at 13:29 IST on September 22.
+Priority 16 is active; 17-33 follow in order. Competitor-inspired additions
+remain after the numbered roadmap.**
 
-**Latest authorized work completed:** the user resumed the saved-Whiteboard
+**Previous urgent work completed:** the user resumed the saved-Whiteboard
 recovery warning and failed-pipeline issue. Release `625e199` removes the
 persistent canvas recovery banner, restores usable saved content while archiving
 the original, and hardens hosted parser smoke retries/diagnostics. Workflow
 `35693782055` and **90/90 hosted three-engine cases passed**. The overnight
-incomplete-verification blocker is closed. Do not start priority 16 automatically.
+incomplete-verification blocker is closed. The subsequent user instruction
+explicitly resumes priority 16 and the ordered backlog.
 
 The September 21 screenshot-reported regressions are now fixed in `cf6da2b`:
 native elbow binding compatibility restores saving/conversion/mode switching;
@@ -58,9 +59,9 @@ They are not the 47 finding IDs in the original local HTML audit.
 - Handle **one numbered priority at a time**.
 - Plan, implement, test, complete readiness checks, deploy through the existing
   application workflow, then verify the deployed behavior.
-- **Latest authorization:** the morning recovery/pipeline fix is complete.
-  Await the next user-selected task. Earlier resumes and stop-after-task-8
-  instructions are historical checkpoints, not authority to start priority 16.
+- **Latest authorization:** resume remaining priorities in order, beginning
+  with 16. Complete and verify each release before advancing to the next.
+  Earlier pause instructions remain historical checkpoints.
 - Competitor-audit product additions are stage 3, after the numbered backlog.
   Preserve their local WIP without mixing it into earlier priority releases.
 - Do not sacrifice verification to a time estimate; accurately record blockers
@@ -103,7 +104,7 @@ Descriptions are acceptance guidance, not claims of deployed functionality.
 
 | Priority Number | Feature / Fix to Implement | Description |
 | ---: | --- | --- |
-| **16 - paused** | **Regression and release gates** | Replace copied-test algorithms with production imports, add semantic/compiler-backed assertions, gate promotion on relevant suites, and verify completed deployment of the expected revision. Retain the production-bound tests already added. Resume only after the user's new issue is addressed. |
+| **16 - in progress** | **Regression and release gates** | Replace copied-test algorithms with production imports, add semantic/compiler-backed assertions, gate promotion on relevant suites, and verify completed deployment of the expected revision. Retain the production-bound tests already added. |
 | 17 | Grounded, reproducible architecture reviews | Tie recommendations to supporting evidence, not just framework landing pages. Record prompt/model/schema versions and distinguish depicted, proposed, validated and runtime-verified facts. |
 | 18 | Domain-specific AI quality evaluations | Build versioned golden tasks for generation, review, conversion and IaC. Measure requirements, identity/topology fidelity, grounding and artifact validity; gate prompt/model changes on meaningful results. |
 | 19 | Correct request-flow ordering and selectable scenarios | Make automatic ordering follow topology; separate infrastructure/telemetry relationships from narrated flows. Add named happy-path, failure, retry and streaming scenarios. The stage-bound fixes in priority 3 do not complete scenario semantics. |

@@ -41,6 +41,7 @@ next-env.d.ts
 
 # Generated icon manifest (rebuilt on prebuild)
 content/cloud-icons.json
+content/release.json
 
 # Generated worker bundle (rebuilt on prebuild)
 public/playground/gifenc.bundle.js

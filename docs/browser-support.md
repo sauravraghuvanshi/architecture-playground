@@ -49,6 +49,33 @@ is not considered released merely because this policy file exists.
 
 ## Testing
 
+The release pipeline runs the selected production-build suites declared in
+`scripts/release-browser-suites.mjs` before any Azure upload. Chromium covers
+architecture modeling/roundtrips/boundaries, Undo, persistence, Whiteboard
+restoration/conversion/fidelity and AI streaming/privacy/review/deployment
+contracts. Firefox and WebKit additionally run the core editing and exact
+screenshot-regression journeys. The existing single-engine screenshot command
+remains available for a narrower local check.
+
+```powershell
+node scripts\verify-screenshot-regressions.mjs --release
+```
+
+This runner starts and stops only its own loopback production server, disables
+real AI destinations, and verifies its built release identity before testing.
+CI also runs lint/types, application contracts, official parser checks, isolated
+script-safety mocks and Bicep/Terraform compiler/provider fixtures. Pull requests
+run these gates without deployment credentials or Azure publication. Production
+rollouts are serialized rather than cancelling an in-progress upload.
+
+An authenticated, no-store `/api/version` endpoint reports a build-time revision,
+unique build ID and timestamp from the packaged manifest, never a runtime
+revision environment override. After the SCM operation completes, promotion
+requires three consecutive probes matching both the expected commit and build
+ID; HTTP health from an older deployment is insufficient. This is release
+identity evidence, not a guarantee that every scaled-out instance has drained.
+All subsequent hosted parser/API/browser checks must still pass.
+
 The default project remains Chromium. Opt in to the other engines:
 
 ```powershell

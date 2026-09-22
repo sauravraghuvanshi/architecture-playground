@@ -1,11 +1,15 @@
 import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
+import { readReleaseInfo } from "../lib/release-info.mjs";
+import { releaseBrowserSuites } from "./release-browser-suites.mjs";
 
 const port = "3323";
+const releaseGate = process.argv.includes("--release");
+const suites = releaseGate ? releaseBrowserSuites : [{ files: ["screenshot-regressions.spec.ts"], projects: ["chromium"] }];
 const baseUrl = `http://127.0.0.1:${port}`;
 const env = {
   ...process.env, APP_AUTH_ENABLED: "false", PORT: port, HOSTNAME: "127.0.0.1",
-  PLAYWRIGHT_SKIP_WEBSERVER: "true", PLAYWRIGHT_BASE_URL: baseUrl, PLAYWRIGHT_CROSS_BROWSER: "false",
+  PLAYWRIGHT_SKIP_WEBSERVER: "true", PLAYWRIGHT_BASE_URL: baseUrl, PLAYWRIGHT_CROSS_BROWSER: releaseGate ? "true" : "false",
   DIAGRAMMATIC_AI_PROXY_URL: "disabled",
 };
 delete env.PLAYWRIGHT_STORAGE_STATE;
@@ -30,15 +34,22 @@ try {
     await delay(500);
   }
   if (!ready) throw new Error(`Regression server did not become ready.\n${logs}`);
-  const result = await new Promise((resolve, reject) => {
-    const tests = spawn(process.execPath, [
-      "node_modules/@playwright/test/cli.js", "test", "screenshot-regressions.spec.ts",
-      "--project=chromium", "--workers=1", "--reporter=line",
-    ], { env, stdio: "inherit" });
-    tests.once("error", reject);
-    tests.once("exit", (code, signal) => resolve(code ?? (signal ? 1 : 0)));
-  });
-  if (result !== 0) throw new Error(`Screenshot regression gate failed (${result}); deployment is blocked.`);
+  const identity = await fetch(`${baseUrl}/api/version`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
+  if (!identity.ok || JSON.stringify(await identity.json()) !== JSON.stringify(readReleaseInfo())) {
+    throw new Error("Regression server is not serving the expected built release.");
+  }
+  for (const suite of suites) {
+    const result = await new Promise((resolve, reject) => {
+      const tests = spawn(process.execPath, [
+        "node_modules/@playwright/test/cli.js", "test", ...suite.files,
+        ...suite.projects.map((project) => `--project=${project}`),
+        "--workers=1", "--reporter=line",
+      ], { env, stdio: "inherit" });
+      tests.once("error", reject);
+      tests.once("exit", (code, signal) => resolve(code ?? (signal ? 1 : 0)));
+    });
+    if (result !== 0) throw new Error(`Regression gate failed (${result}); deployment is blocked.`);
+  }
 } finally {
   if (server.exitCode === null && !server.killed) {
     server.kill("SIGTERM");

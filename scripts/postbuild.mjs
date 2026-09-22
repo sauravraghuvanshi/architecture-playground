@@ -6,6 +6,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { parserSourceHash } from "./artifact-parser-build-config.mjs";
+import { readReleaseInfo } from "../lib/release-info.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, "..");
@@ -40,6 +41,9 @@ copyDir(path.join(root, ".next", "static"), path.join(standaloneDir, ".next", "s
 // reads always have the latest bundled JSON/MDX, independent of Next.js tracing.
 console.log("[postbuild] Copying content/ → .next/standalone/content/");
 copyDir(path.join(root, "content"), path.join(standaloneDir, "content"));
+const builtRelease = readReleaseInfo(root);
+const packagedRelease = readReleaseInfo(standaloneDir);
+if (JSON.stringify(builtRelease) !== JSON.stringify(packagedRelease)) throw new Error("Packaged release identity differs from the build.");
 
 const parserDirectory = path.join(root, "node_modules", ".cache", "artifact-validation");
 const parserManifest = path.join(parserDirectory, "manifest.json");

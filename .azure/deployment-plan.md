@@ -1,11 +1,61 @@
 # Azure Deployment Plan
 
-> **Status:** Deployed and Verified - Saved Whiteboard Recovery Fix
+> **Status:** Validated
 
 Generated: 2026-08-12
 Updated: 2026-09-22 (Asia/Kolkata; morning recovery fix verified)
 
 Latest handoff: [completed work, lessons and tomorrow's checklist](../docs/session-summary-2026-09-22.md).
+
+## September 22 - Resuming priority 16
+
+- **Authorization:** User requested resuming remaining tasks in priority order.
+  Start with priority 16, then proceed sequentially only after verifying each
+  delivery. Competitor enhancements remain after the numbered roadmap.
+- **Baseline:** Hosted-verified application `625e199`; documentation `6068c8d`.
+- **Objective:** Complete regression/release gates beyond the screenshot hotfix
+  subset: production-bound tests, semantic/compiler evidence, relevant promotion
+  checks and verification of the exact deployed revision.
+- **Plan:** Inspect existing tests and workflow gaps, reuse current helpers,
+  implement missing gates and revision proof, test failures as well as success,
+  validate/deploy through the unchanged app-only target and verify hosted.
+- **State:** Implementation, local checks and Azure validation workflow complete.
+- **Constraints:** No customer infrastructure deployment or real model calls;
+  do not weaken tests, safety limits or the recent Whiteboard fixes.
+- **Delivered:** Playground tests import actual production modules rather than
+  copied algorithms (48 tests; eight in-memory production mutations detected).
+  Only runtime source change for that work is an explicit `.ts` module import,
+  with no algorithm behavior change.
+- **Release identity:** Build-time manifest with commit, unique build ID and
+  timestamp is packaged with the app. Authenticated no-store `/api/version`
+  fails closed without it. Verification requires three consecutive exact
+  commit/build matches after completed SCM upload; old healthy releases fail.
+- **CI gates:** Pull requests run validation without deployment credentials;
+  production deployments are serialized. Lint/types, all application contracts,
+  release-proof tests, official parsers, isolated script-safety tests, pinned
+  Bicep/Terraform compilation/provider validation and 118 selected browser
+  cases precede publication. Hosted identity/API/parser/browser checks follow.
+  Failure artifacts include screenshots/context only, not authenticated traces.
+- **All validation checks pass:**
+  - `npm run test:playground`: **392/392** final integrated contracts.
+  - `node --test scripts/test-release.mjs`: **7/7**; existing ZIP tests also pass.
+  - Production-import focused tests: **60/60**; mutation sensitivity **8/8**.
+  - `npm run test:powershell-preview` plus `npm run test:azure-cli-draft`:
+    **88/88**, isolated mocks only.
+  - `npm run test:iac-compilers`: **17/17** synthetic graphs; Bicep 0.47.16,
+    Terraform 1.16.3, AzureRM 5.6.0. No customer deployment or plan.
+  - Full lint, strict types and final `npm run build`: passed.
+  - Expanded production gate: **102 Chromium + 16 Firefox/WebKit** passed.
+    After the final import-only adjustment, rebuilt and reran **5/5** exact
+    screenshot journeys with package identity verification.
+  - Current old production was probed and correctly rejected by the new exact
+    release verifier. All test authentication was ephemeral.
+  - Static roles/target: no Azure resource or RBAC changes; unchanged App
+    Service deployment target. CI permissions limited to repository reads.
+- **Section 7: Validation Proof (priority 16):** Commands above ran September
+  22 on this worktree. Production-bound tests, compiler output and gate logs
+  are retained in session artifacts. New Linux CI and hosted verification
+  remain required before closing the priority.
 
 ## September 22 morning - Saved-scene rejection and failed pipeline
 
