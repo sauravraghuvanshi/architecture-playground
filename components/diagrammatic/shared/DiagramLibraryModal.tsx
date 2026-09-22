@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Check, FilePlus2, FolderOpen, Loader2, Pencil, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
 import {
@@ -27,6 +27,7 @@ export interface DiagramLibraryModalProps {
   currentMode?: DiagrammaticMode;
   onRenamed?: (record: DiagramRecord) => void;
   onDeleted?: (id: string) => void;
+  recovery?: ReactNode;
 }
 
 export default function DiagramLibraryModal(props: DiagramLibraryModalProps) {
@@ -35,7 +36,7 @@ export default function DiagramLibraryModal(props: DiagramLibraryModalProps) {
 
 function LibraryDialog({
   onClose, onOpen, onSave, onNew, currentName = "", currentDocumentId, currentMode = "architecture",
-  onRenamed, onDeleted, returnFocusRef,
+  onRenamed, onDeleted, returnFocusRef, recovery,
 }: DiagramLibraryModalProps) {
   const [records, setRecords] = useState<DiagramSummary[]>([]);
   const [query, setQuery] = useState("");
@@ -148,6 +149,7 @@ function LibraryDialog({
           <button ref={closeButton} type="button" onClick={close} disabled={Boolean(busy)} aria-label="Close diagram library" className="rounded p-2 text-slate-400 hover:bg-white/10 disabled:opacity-40"><X size={18} /></button>
         </header>
         <div className="min-h-0 overflow-y-auto">
+          {recovery}
           <div className="space-y-4 border-b border-white/10 p-5">
             <p className="text-xs leading-relaxed text-slate-400">Saved only in this browser and on this device using IndexedDB. No account sync or cloud backup. Clearing site data or using private browsing can remove this library. Existing drafts are recovered without deleting their original data.</p>
             <label className="block text-xs font-medium text-slate-300">Name for saved or new diagram

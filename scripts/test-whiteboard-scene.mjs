@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFileSync, readdirSync } from "node:fs";
 import vm from "node:vm";
 import sharp from "sharp";
+import { parseWhiteboardDocument } from "../lib/diagram-payload.ts";
 import {
   parseWhiteboardScene,
   whiteboardSceneSchema,
@@ -426,10 +427,33 @@ test("transient IDs flag unfinished content but preserve horizontal and vertical
   ));
   const before = structuredClone(parsed);
   assert.deepEqual(getWhiteboardSceneTransientElementIds(parsed), [
-    "zero-length", "first-point", "empty-frame", "empty-text", "pending-image",
+    "first-point", "empty-frame", "empty-text", "pending-image",
   ]);
   assert.deepEqual(parsed, before, "classification is read-only");
   assert.deepEqual(getWhiteboardSceneTransientElementIds(parseWhiteboardScene({ elements: [] })), []);
+});
+
+test("saved scenes open around native placeholders without changing source data or valid geometry", () => {
+  const original = scene(
+    shape("box", "rectangle", { boundElements: [{ id: "empty-text", type: "text" }] }),
+    shape("empty-text", "text", { text: "", containerId: "box" }),
+    shape("pending-image", "image", { fileId: null, status: "pending" }),
+    shape("empty-frame", "frame", { width: 0, height: 0 }),
+    shape("child", "rectangle", { frameId: "empty-frame" }),
+    shape("arrow", "arrow", { points: [[0, 0], [100, 0]], startBinding: { elementId: "pending-image", focus: 0, gap: 0 } }),
+    shape("dot", "freedraw", { width: 0, height: 0, points: [[0, 0], [0, 0]] }),
+  );
+  const before = structuredClone(original);
+  const result = parseWhiteboardDocument(original);
+  assert.deepEqual(original, before);
+  assert.deepEqual(result.elements.map(({ id }) => id), ["box", "child", "arrow", "dot"]);
+  assert.deepEqual(result.elements[0].boundElements, []);
+  assert.equal(result.elements[1].frameId, null);
+  assert.equal(result.elements[2].startBinding, null);
+  assert.deepEqual(result.elements[3].points, [[0, 0], [0, 0]]);
+  assert.equal(result.elements[0].width, original.elements[0].width);
+  assert.deepEqual(parseWhiteboardDocument(result), result);
+  assert.throws(() => parseWhiteboardDocument({ elements: [null] }), WhiteboardSceneValidationError);
 });
 
 test("malformed persisted appState types fail before restoration", () => {

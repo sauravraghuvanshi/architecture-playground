@@ -31,14 +31,19 @@ for (const [name, payload] of Object.entries({
       localStorage.setItem("diagrammatic.draft.whiteboard", raw);
     }, raw);
     await page.goto("/diagrammatic?mode=whiteboard");
-    await expect(page.getByRole("alert").filter({ hasText: /Whiteboard could not be recovered/ })).toBeVisible();
+    await waitForWorkspace(page);
+    await expect(page.getByText(/Some saved data needs recovery|Whiteboard could not be recovered/)).toHaveCount(0);
     await expect(page.locator(".excalidraw").first()).toBeVisible();
     expect(await page.evaluate(() => localStorage.getItem("diagrammatic.draft.whiteboard"))).toBe(raw);
     await page.getByRole("searchbox", { name: "Search Whiteboard assets" }).fill("user");
     await page.getByRole("button", { name: "User", exact: true }).first().click();
+    await page.getByRole("button", { name: "My diagrams", exact: true }).click();
+    await expect(page.getByRole("region", { name: "Retained original data" })).toContainText("Whiteboard could not be recovered");
     await page.getByRole("button", { name: "Save recovery copy", exact: true }).click();
     await expect.poll(async () => (await readSavedDiagram(page, "Whiteboard (recovery copy)"))?.mode).toBe("whiteboard");
     expect(await page.evaluate(() => localStorage.getItem("diagrammatic.draft.whiteboard"))).toBe(raw);
+    await page.getByRole("button", { name: "Close diagram library" }).click();
+    await expect(page.getByText(/Some saved data needs recovery|Whiteboard could not be recovered/)).toHaveCount(0);
     await assertCanvasErrors(page, failures);
   });
 }

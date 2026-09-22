@@ -41,6 +41,7 @@ import { KeyboardHints } from "./shared/KeyboardHints";
 import { buildPromptArchitecture, type PromptDiagnostics } from "@/lib/prompt-to-arch";
 import { parseArchitectureDocument } from "@/lib/architecture-document";
 import { parseDiagramPayload } from "@/lib/diagram-payload";
+import { getDiagram } from "@/lib/diagram-library";
 import { CanvasEditPendingError } from "@/lib/canvas-edit-state";
 import { correctDeploymentService } from "@/lib/deployment-eligibility";
 import { architectureMetadataSchema, architectureEdgeSemanticsSchema, legacyNodeSemantics, parseConnectionHandle } from "@/lib/architecture-model";
@@ -480,12 +481,16 @@ export function Workspace({
   const handleOpenLibrary = useCallback(async () => {
     libraryOpenerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     try {
+      if (!currentDocument && library.blockedDrafts[mode]) {
+        setLibraryOpen(true);
+        return;
+      }
       await saveCurrentDocument();
       setLibraryOpen(true);
     } catch {
       // Keep the current document visible when saving fails.
     }
-  }, [saveCurrentDocument]);
+  }, [saveCurrentDocument, currentDocument, library.blockedDrafts, mode]);
 
   const goHome = useCallback(async () => {
     try {
@@ -1189,31 +1194,6 @@ export function Workspace({
         </ResponsivePanel>
       </div>
 
-      {library.recoveryIssues.length > 0 && (
-        <details className="shrink-0 border-t border-amber-400/30 bg-amber-950 px-4 py-2 text-xs text-amber-100" open>
-          <summary className="cursor-pointer font-semibold">Some saved data needs recovery. Original data has been retained.</summary>
-          <div role="alert" className="max-h-28 overflow-y-auto pt-2">
-            <ul className="list-disc space-y-1 pl-4">
-              {library.recoveryIssues.map((issue, index) => <li key={`${issue.mode}:${issue.storageKey ?? index}`}>{issue.message}</li>)}
-            </ul>
-            <button type="button" className="mt-2 rounded border border-amber-200/40 px-2 py-1 underline"
-              onClick={() => {
-                try {
-                  const data = library.recoveryIssues.map((issue) => ({
-                    ...issue,
-                    ...(issue.storageKey ? { originalData: localStorage.getItem(issue.storageKey) } : {}),
-                  }));
-                  triggerDownload(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }), `diagram-recovery-${exportTimestamp()}.json`);
-                } catch (cause) { reportPersistenceFailure(cause); }
-              }}>Download recovery data</button>
-            {!currentDocument && library.blockedDrafts[mode] && (
-              <button type="button" onClick={saveRecoveryCopy}
-                className="ml-2 mt-2 rounded border border-amber-200/40 px-2 py-1 underline">Save recovery copy</button>
-            )}
-          </div>
-        </details>
-      )}
-
       <StatusBar
         nodeCount={mode === "architecture" ? archPayload.nodes?.filter((node) => node.kind !== "group").length ?? 0 : undefined}
         edgeCount={mode === "architecture" ? archPayload.edges?.length ?? 0 : undefined}
@@ -1243,6 +1223,29 @@ export function Workspace({
 
       <CommandPalette open={cmdOpen} onOpenChange={setCmdOpen} onAction={handleCommand} />
       <DiagramLibraryModal
+        recovery={library.recoveryIssues.length > 0 ? (
+          <section aria-label="Retained original data" className="border-b border-white/10 p-5 text-xs text-slate-300">
+            <h3 className="font-semibold">Retained original data</h3>
+            <p className="mt-1">These originals are unchanged. Manage or download them here; they will not interrupt your canvas.</p>
+            <ul className="mt-2 list-disc space-y-1 pl-4">
+              {library.recoveryIssues.map((issue, index) => <li key={`${issue.mode}:${issue.storageKey ?? issue.documentId ?? index}`}>{issue.message}</li>)}
+            </ul>
+            <button type="button" className="mt-2 rounded border border-white/30 px-2 py-1 underline"
+              onClick={async () => {
+                try {
+                  const data = await Promise.all(library.recoveryIssues.map(async (issue) => ({
+                    ...issue,
+                    ...(issue.storageKey ? { originalData: localStorage.getItem(issue.storageKey) } : {}),
+                    ...(issue.documentId ? { originalDocument: await getDiagram(issue.documentId) } : {}),
+                  })));
+                  triggerDownload(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }), `diagram-recovery-${exportTimestamp()}.json`);
+                } catch (cause) { reportPersistenceFailure(cause); }
+              }}>Download recovery data</button>
+            {!currentDocument && library.blockedDrafts[mode] && (
+              <button type="button" onClick={saveRecoveryCopy} className="ml-2 mt-2 rounded border border-white/30 px-2 py-1 underline">Save recovery copy</button>
+            )}
+          </section>
+        ) : null}
         returnFocusRef={libraryOpenerRef}
         open={libraryOpen && library.ready}
         onClose={() => setLibraryOpen(false)}

@@ -6,6 +6,7 @@ import ts from "typescript";
 import { parseArchitectureDocument, hasArchitectureContent } from "../lib/architecture-document.ts";
 import { parseDiagramPayload } from "../lib/diagram-payload.ts";
 import { CanvasEditPendingError } from "../lib/canvas-edit-state.ts";
+import * as whiteboardScene from "../lib/whiteboard-scene.ts";
 import { DiagramLibraryError, validateDiagramRecord } from "../lib/diagram-library.ts";
 
 const source = readFileSync(new URL("../components/diagrammatic/shared/useDiagramDocuments.ts", import.meta.url), "utf8");
@@ -134,6 +135,7 @@ function harness({ records = [document()], active = { architecture: "original" }
     "@/lib/architecture-document": { parseArchitectureDocument, hasArchitectureContent },
     "@/lib/diagram-payload": { parseDiagramPayload },
     "@/lib/canvas-edit-state": { CanvasEditPendingError },
+    "@/lib/whiteboard-scene": whiteboardScene,
     "./types": { MODE_META: { architecture: { label: "Architecture" }, whiteboard: { label: "Whiteboard" } } },
   };
   const exports = {};
@@ -188,7 +190,8 @@ test("failed initialization never activates or autosaves an oversized saved arch
   assert.equal(h.current.ready, true);
   assert.equal(h.current.documents.architecture, undefined);
   assert.deepEqual(JSON.parse(h.local.get("diagrammatic.active-documents")), {});
-  assert.equal(h.errors.length, 1);
+  assert.equal(h.errors.length, 0);
+  assert.equal(h.current.recoveryIssues.length, 1);
   await h.autosave();
   assert.equal(h.calls.length, 0);
   assert.equal(h.stored.get(invalid.id).payload.nodes.length, 501);
@@ -299,6 +302,36 @@ test("corrupt Whiteboard recovery never activates or rewrites the retained scene
   assert.equal(h.calls.length, 0);
   assert.deepEqual(h.stored.get(saved.id).payload, payload);
 });
+
+for (const source of ["named", "draft", "open"]) {
+  test(`${source} Whiteboard restores usable elements and saves its untouched original as a version`, async () => {
+    const payload = { elements: [
+      { id: "kept", type: "rectangle", x: 10, y: 20, width: 100, height: 40 },
+      { id: "unfinished", type: "rectangle", x: 50, y: 60, width: 0, height: 0 },
+    ] };
+    const record = document("board", { mode: "whiteboard", payload });
+    const h = harness({
+      records: source === "draft" ? [] : [record],
+      active: source === "named" ? { whiteboard: "board" } : {},
+      options: { mode: "whiteboard", ...(source === "named" ? { requestedId: "board" } : {}) },
+    });
+    const raw = JSON.stringify({ payload, savedAt: 1 });
+    if (source === "draft") h.local.set("diagrammatic.draft.whiteboard", raw);
+    await h.flush();
+    if (source === "open") { await h.current.open(record); await h.flush(); }
+    assert.equal(h.current.recoveryIssues.length, 0);
+    assert.equal(h.errors.length, 0);
+    assert.equal(h.current.documents.whiteboard.payload.elements.length, 1);
+    assert.deepEqual(structuredClone(h.current.documents.whiteboard.versions[0].payload), payload);
+    await h.current.save();
+    await h.flush();
+    const saved = h.stored.get(h.current.documents.whiteboard.id);
+    assert.equal(saved.payload.elements[0].id, "kept");
+    assert.equal(saved.versions.length, 1);
+    assert.deepEqual(saved.versions[0].payload, payload);
+    if (source === "draft") assert.equal(h.local.get("diagrammatic.draft.whiteboard"), raw);
+  });
+}
 
 test("invalid Whiteboard creation fails before saving or activating any document", async () => {
   const h = harness();
@@ -465,7 +498,8 @@ test("a malformed unrelated draft does not block a healthy named architecture", 
   assert.equal(h.canvases.architecture.nodes.length, 1);
   assert.equal(h.local.get("diagrammatic.draft.whiteboard"), "{broken");
   assert.equal(h.current.blockedDrafts.whiteboard, true);
-  assert.ok(h.errors.some((message) => message.includes("Whiteboard")));
+  assert.ok(h.current.recoveryIssues.some(({ message }) => message.includes("Whiteboard")));
+  assert.equal(h.errors.length, 0);
 });
 
 test("an unreadable active document does not prevent another mode or an explicit selection loading", async () => {
@@ -478,7 +512,7 @@ test("an unreadable active document does not prevent another mode or an explicit
   await h.flush();
   assert.equal(h.current.documents.architecture.id, selected.id);
   assert.equal(h.current.documents.whiteboard.id, board.id);
-  assert.ok(h.errors.some((message) => message.includes("Architecture")));
+  assert.ok(h.current.recoveryIssues.some(({ message }) => message.includes("Architecture")));
 });
 
 test("invalid legacy architecture is rejected before creating a recovered document", async () => {
@@ -502,7 +536,7 @@ test("one malformed legacy annotation does not discard the other annotation coll
   assert.deepEqual(structuredClone(h.current.documents.architecture.versions), [version]);
   assert.deepEqual(structuredClone(h.current.documents.architecture.comments), []);
   assert.equal(h.local.get("diagrammatic.comments.architecture:draft"), "{broken");
-  assert.ok(h.errors.some((message) => message.includes("comments")));
+  assert.ok(h.current.recoveryIssues.some(({ message }) => message.includes("comments")));
 });
 
 test("unchanged canvas notifications do not advance the persisted revision or cause tab conflicts", async () => {

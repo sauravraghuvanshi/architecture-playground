@@ -1,11 +1,63 @@
 # Azure Deployment Plan
 
-> **Status:** Paused by User - Deployed, Hosted Verification Incomplete
+> **Status:** Validated
 
 Generated: 2026-08-12
 Updated: 2026-09-22 (Asia/Kolkata; end-of-day pause)
 
 Latest handoff: [completed work, lessons and tomorrow's checklist](../docs/session-summary-2026-09-22.md).
+
+## September 22 morning - Saved-scene rejection and failed pipeline
+
+- **Request:** Remove the persistent recovery warning shown on the screenshot,
+  restore usable saved Whiteboards, and resolve last night's failed deployment.
+- **Baseline:** Deployed `bd27fff`, local documentation `37ff2f4`.
+- **Plan:** Inspect saved-scene intake and recovery notification lifecycle;
+  reproduce native unfinished remnants without losing valid elements or original
+  bytes; eliminate the persistent canvas recovery banner while keeping real
+  actionable storage failures accessible. Diagnose workflow `35648068866`'s
+  exact hosted parser failure. Add regressions, validate, deploy through the
+  existing pipeline and verify hosted before claiming completion.
+- **Scope:** Existing app-only target, no new infrastructure, model endpoints or
+  roles. Priorities 16-33 and competitor additions remain paused.
+- **State:** Implemented, locally verified and passed the Azure validation
+  workflow. Ready for the existing app-only deployment.
+- **Reproduction:** The previous production build reproduces all three
+  screenshot recovery messages from a named board with one valid shape, a dot
+  and unfinished remnants. This is persisted-scene intake, not the active
+  pointer guard fixed last night.
+- **Fix:** Match native transient classification (two-point dots are valid),
+  restore usable elements with bounded/reference validation, preserve the raw
+  source in a version on library intake, and move genuine recovery details and
+  original downloads into My diagrams. No persistent canvas recovery banner.
+  Live unfinished notifications/captures still defer.
+- **Workflow diagnosis:** Run `35648068866` failed at hosted Bicep HTTP 503.
+  The old script only retried its first fixture and did not log parser codes.
+  Exact historical parser cause is not recoverable from that log; do not invent
+  a timeout or packaging explanation. Authenticated valid/invalid Bicep probes
+  and the unchanged complete hosted parser smoke pass this morning.
+  Added bounded retries to every smoke fixture, safe error-code diagnostics,
+  and tests that persistent unavailability and wrong semantic results still fail.
+  No parser timeout increase, skipped fixture or disabled deployment gate.
+- **Evidence:** 374/374 application contracts, 21/21 parser/integration/retry
+  checks, full lint/types/build, and 5/5 mandatory production screenshot cases.
+  The new saved draft/named cases verify original-version preservation, exact
+  usable geometry, no banner, mode switching and reload.
+- **All validation checks pass (before deployment):**
+  - Application contracts: `npm run test:playground`, **374/374**.
+  - Real parser and smoke retry tests: `npm run test:artifact-parsers`, **21/21**.
+  - `npx tsc --noEmit`, `npm run lint`, `npm run build`: passed.
+  - `node scripts/verify-screenshot-regressions.mjs`: **5/5**.
+  - Adjacent save/recovery/conversion/native scene suite: **90/90** in a single
+    three-engine run, 4.9 minutes.
+  - Static role/target review: unchanged app-only pipeline, no IaC/RBAC/model
+    changes. Only the additional smoke-helper contract gate is new in CI.
+- **Section 7: Validation Proof (morning fix):** Commands above ran on this
+  worktree. Baseline screenshot failed with the three recovery messages; the
+  corrected native cases pass without weakening geometry/source retention
+  assertions. Authenticated current-production parser probes and full smoke
+  also passed before any new deployment. No model inference or customer
+  infrastructure operation was invoked. New-release hosted checks remain pending.
 
 ## September 22 - Autosave while a drawing gesture is in progress
 

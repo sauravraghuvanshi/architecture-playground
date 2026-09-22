@@ -8,6 +8,7 @@ import {
 import { parseArchitectureDocument, hasArchitectureContent } from "@/lib/architecture-document";
 import { parseDiagramPayload } from "@/lib/diagram-payload";
 import { CanvasEditPendingError } from "@/lib/canvas-edit-state";
+import { getWhiteboardSceneTransientElementIds, parseWhiteboardScene } from "@/lib/whiteboard-scene";
 import { MODE_META, type CanvasTheme, type DiagrammaticMode } from "./types";
 
 const ACTIVE_KEY = "diagrammatic.active-documents";
@@ -18,6 +19,7 @@ export interface DiagramRecoveryIssue {
   mode: DiagrammaticMode;
   message: string;
   storageKey?: string;
+  documentId?: string;
 }
 interface LoadedDocuments {
   documents: Documents;
@@ -71,6 +73,21 @@ function persistedJson(value: unknown): string | undefined {
   );
 }
 
+function prepareDocument(document: DiagramDocument): DiagramDocument {
+  const payload = parseDiagramPayload(document.mode, document.payload);
+  if (document.mode !== "whiteboard" || !getWhiteboardSceneTransientElementIds(parseWhiteboardScene(document.payload)).length) {
+    return { ...document, payload };
+  }
+  const id = `before-native-restoration-${document.revision}`;
+  return {
+    ...document, payload,
+    versions: document.versions.some((version) => version.id === id) ? document.versions : [
+      ...document.versions,
+      { id, label: "Original before unfinished drawing cleanup", payload: document.payload, createdAt: document.updatedAt },
+    ],
+  };
+}
+
 export function useDiagramDocuments(options: Options) {
   const optionsRef = useRef(options);
   useEffect(() => { optionsRef.current = options; });
@@ -105,13 +122,15 @@ export function useDiagramDocuments(options: Options) {
         const issues: DiagramRecoveryIssue[] = [];
         for (const mode of Object.keys(MODE_META) as DiagrammaticMode[]) {
           let storageKey: string | undefined;
+          let documentId: string | undefined;
           try {
             const id: unknown = Reflect.get(active, mode);
             if (id !== undefined) {
               const found = typeof id === "string" ? existing.find((document) => document.id === id && document.mode === mode) : undefined;
               if (!found) throw new Error("The previously active diagram no longer exists. Choose another saved diagram or save a new copy.");
+              documentId = found.id;
               const loaded = await getDiagram(found.id);
-              next[mode] = { ...loaded, payload: parseDiagramPayload(mode, loaded.payload) };
+              next[mode] = prepareDocument(loaded);
               continue;
             }
             storageKey = draftKey(mode);
@@ -127,17 +146,20 @@ export function useDiagramDocuments(options: Options) {
             const markerKey = `diagrammatic.recovered.${mode}`;
             const legacyId = localStorage.getItem(markerKey);
             const priorRecovery = existing.find((document) => document.id === legacyId && document.mode === mode);
+            const original = mode === "whiteboard" && getWhiteboardSceneTransientElementIds(parseWhiteboardScene(draft.payload)).length
+              ? [{ id: "before-native-restoration-draft", label: "Original before unfinished drawing cleanup", payload: draft.payload, createdAt: Date.now() }]
+              : [];
             const recovered = priorRecovery && priorRecovery.updatedAt >= draft.savedAt ? await getDiagram(priorRecovery.id) : await saveDiagram({
               name: `${MODE_META[mode].label} (recovered draft)`, mode,
               payload, canvasTheme: optionsRef.current.theme(mode),
-              ...annotations,
+              ...annotations, versions: [...annotations.versions, ...original],
             });
             localStorage.setItem(markerKey, recovered.id);
-            next[mode] = { ...recovered, payload: parseDiagramPayload(mode, recovered.payload) };
+            next[mode] = prepareDocument(recovered);
           } catch (cause) {
             blocked[mode] = true;
             issues.push({
-              mode, storageKey,
+              mode, storageKey, documentId,
               message: `${MODE_META[mode].label} could not be recovered: ${cause instanceof Error ? cause.message : "Browser storage unavailable."} Its original data has not been changed.`,
             });
           }
@@ -146,9 +168,11 @@ export function useDiagramDocuments(options: Options) {
         if (optionsRef.current.requestedId) {
           try {
             const selected = await getDiagram(optionsRef.current.requestedId);
-            next[selected.mode] = { ...selected, payload: parseDiagramPayload(selected.mode, selected.payload) };
+            next[selected.mode] = prepareDocument(selected);
           } catch (cause) {
-            issues.push({ mode: optionsRef.current.mode, message: `The requested diagram could not be opened: ${cause instanceof Error ? cause.message : "Browser storage unavailable."} Other recovered diagrams are still available.` });
+            if (!issues.some((issue) => issue.documentId === optionsRef.current.requestedId)) {
+              issues.push({ mode: optionsRef.current.mode, documentId: optionsRef.current.requestedId ?? undefined, message: `The requested diagram could not be opened: ${cause instanceof Error ? cause.message : "Browser storage unavailable."} Other recovered diagrams are still available.` });
+            }
           }
         }
         return { documents: next, blocked, issues };
@@ -170,7 +194,6 @@ export function useDiagramDocuments(options: Options) {
         }
         setBlockedDrafts(blocked);
         setRecoveryIssues(issues);
-        for (const issue of issues) optionsRef.current.onError(issue.message);
         updateDocuments(applied);
         setReady(true);
       }).catch((cause) => {
@@ -178,7 +201,6 @@ export function useDiagramDocuments(options: Options) {
           const message = `My diagrams could not be loaded: ${cause instanceof Error ? cause.message : "Browser database unavailable."} Your existing drafts have not been deleted. Export your canvas or retry saving before leaving.`;
           setBlockedDrafts(Object.fromEntries(Object.keys(MODE_META).map((mode) => [mode, true])));
           setRecoveryIssues([{ mode: optionsRef.current.mode, message }]);
-          optionsRef.current.onError(message);
           setReady(true);
         }
       });
@@ -196,7 +218,6 @@ export function useDiagramDocuments(options: Options) {
       mode, payload, canvasTheme: optionsRef.current.theme(mode),
       ...(current ? { comments: current.comments, versions: current.versions } : readAnnotations(mode, (issue) => {
         setRecoveryIssues((previous) => previous.some((entry) => entry.storageKey === issue.storageKey) ? previous : [...previous, issue]);
-        optionsRef.current.onError(issue.message);
       })),
     };
   }, []);
@@ -296,7 +317,7 @@ export function useDiagramDocuments(options: Options) {
       updateDocuments({ ...documentsRef.current, [old.mode]: old });
       const fresh = await getDiagram(document.id);
       if (!fresh) throw new Error("This diagram no longer exists. Refresh My diagrams.");
-      const checked = { ...fresh, payload: parseDiagramPayload(fresh.mode, fresh.payload) };
+      const checked = prepareDocument(fresh);
       optionsRef.current.apply(checked, true);
       updateDocuments({ ...documentsRef.current, [fresh.mode]: checked });
       latestRevisions.current.set(fresh.id, fresh.revision);

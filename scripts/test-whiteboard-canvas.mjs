@@ -238,10 +238,14 @@ test("invalid scene elements fail before adding files, changing elements or clea
   }
 });
 
-test("unfinished scenes cannot be restored as apparently successful empty geometry", () => {
-  const { handle, calls } = canvasHarness();
-  assert.throws(() => handle.hydrate({ elements: [{ ...imageElement, fileId: null, status: "pending" }] }), /unfinished/);
-  assert.equal(calls.length, 0);
+test("saved unfinished placeholders do not reject the rest of the restored board", () => {
+  const { handle } = canvasHarness();
+  handle.hydrate({ elements: [
+    { ...imageElement, fileId: null, status: "pending" },
+    { id: "kept", type: "rectangle", x: 5, y: 10, width: 100, height: 40 },
+  ] });
+  assert.equal(handle.serialize().elements.length, 1);
+  assert.equal(handle.serialize().elements[0].id, "kept");
 });
 
 test("undo, redo and delete use only this canvas's Excalidraw controls", () => {

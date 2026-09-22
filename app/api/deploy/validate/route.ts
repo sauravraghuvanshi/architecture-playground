@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     const validation = await validateEngineeringArtifact(draft, payload, request.signal);
     return NextResponse.json({ validation }, { headers: { "Cache-Control": "no-store" } });
   } catch (cause) {
-    if (cause instanceof ArtifactParserError) return NextResponse.json({ error: cause.message }, { status: cause.code === "cancelled" ? 499 : 503 });
+    if (cause instanceof ArtifactParserError) return NextResponse.json({ error: cause.message, code: cause.code }, { status: cause.code === "cancelled" ? 499 : 503 });
     return NextResponse.json({ error: "Artifact validation failed unexpectedly. Nothing was executed or published." }, { status: 502 });
   }
 }

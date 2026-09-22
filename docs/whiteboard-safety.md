@@ -62,17 +62,30 @@ save/navigation does not succeed or discard the outgoing canvas.
 
 Pointer-up and cancellation are observed at the window as well as the native
 canvas boundary. Starting another gesture invalidates an earlier queued
-notification. Restoration still rejects unfinished images, empty text or
-zero-length geometry that Excalidraw would discard; live captures defer those
-transient elements rather than persisting a partial scene. Horizontal and
-vertical paths are valid. Quota, conflict, malformed scene and other actual
-storage failures are still reported with recovery actions. Navigation/unload
-protection treats an unfinished gesture as unsaved work.
+notification. Live captures and change notifications defer incomplete elements
+rather than checkpointing an in-progress action.
 
-Corrupt saved records and original scratch bytes remain available for recovery.
-The normal recovery banner and **Save recovery copy** preserve work without
-overwriting the broken source. A malformed version fails explicitly and leaves
-the current canvas untouched.
+Saved-scene restoration is different: a historical empty shape/text or pending
+image must not reject the entire board. Only native unfinished placeholders are
+omitted from the editable scene; references to those placeholders are detached,
+and valid geometry, bindings and image files are retained. Zero-dimension paths
+with two points, including legitimate pen dots, remain valid.
+
+Before a named document or recovered draft with placeholders can be overwritten,
+library intake carries its unmodified original payload in a version labeled
+**Original before unfinished drawing cleanup**. The next document write saves
+that version and the editable scene together. Original scratch bytes are left
+unchanged. Reloading a settled scene does not create repeated backup versions.
+
+There is no persistent saved-data recovery banner on diagram pages. Truly
+malformed saved records are still rejected before mounting and are retained;
+details and **Download recovery data** live in **My diagrams > Retained original
+data**. Downloads include original draft bytes or the named document, not merely
+an error description. **Save recovery copy** there can preserve fresh work while
+leaving an unreadable source untouched. Quota, conflict and other actual save
+failures still produce actionable notifications; unfinished edits are not storage
+failures. A malformed version fails explicitly and leaves the current canvas
+untouched. Navigation/unload protection continues to protect unsaved work.
 
 Restoring a valid scene invalidates pending notifications and image decodes.
 An image started on an earlier scene cannot appear after restoring another scene,

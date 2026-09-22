@@ -325,6 +325,9 @@ export const WhiteboardCanvas = forwardRef<BaseCanvasHandle, Props>(function Whi
       return;
     }
     if (!onChange || interacting) return;
+    if (getWhiteboardSceneTransientElementIds(parseWhiteboardScene({
+      elements: nextElements, appState: nextAppState, files: nextFiles,
+    })).length) return;
     const signature = JSON.stringify({
       elements: nextElements,
       appState: nextAppState,

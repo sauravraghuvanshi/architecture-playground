@@ -914,8 +914,9 @@ export function parseWhiteboardScene(input: unknown): WhiteboardScenePayload {
  */
 export function getWhiteboardSceneTransientElementIds(scene: WhiteboardScenePayload): string[] {
   return scene.elements.filter((item) => !item.isDeleted && (
-    item.width === 0 && item.height === 0 ||
-    (item.type === "arrow" || item.type === "line" || item.type === "freedraw") && item.points.length < 2 ||
+    (item.type === "arrow" || item.type === "line" || item.type === "freedraw"
+      ? item.points.length < 2
+      : item.width === 0 && item.height === 0) ||
     item.type === "text" && item.text === "" ||
     item.type === "image" && item.fileId === null && item.status === "pending"
   )).map((item) => item.id);

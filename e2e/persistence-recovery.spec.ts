@@ -60,7 +60,9 @@ test("corrupted Whiteboard data stays recoverable while a healthy named architec
   await page.evaluate(() => localStorage.setItem("diagrammatic.draft.whiteboard", "{broken"));
   await page.reload();
   await expect(page.locator(".react-flow__node")).toHaveCount(1);
-  await expect(page.getByRole("alert").filter({ hasText: "Whiteboard" })).toBeVisible();
+  await expect(page.getByText(/Some saved data needs recovery|Whiteboard could not be recovered/)).toHaveCount(0);
+  await page.getByRole("button", { name: "My diagrams", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Retained original data" })).toContainText("Whiteboard could not be recovered");
   const [recoveryDownload] = await Promise.all([
     page.waitForEvent("download"),
     page.getByRole("button", { name: "Download recovery data", exact: true }).click(),
@@ -70,11 +72,13 @@ test("corrupted Whiteboard data stays recoverable while a healthy named architec
   const recoveredData: Array<{ storageKey?: string; originalData?: string }> =
     JSON.parse(await readFile(recoveryPath!, "utf8"));
   expect(recoveredData.find((entry) => entry.storageKey === "diagrammatic.draft.whiteboard")?.originalData).toBe("{broken");
+  await page.getByRole("button", { name: "Close diagram library" }).click();
   await page.getByRole("tab", { name: "Whiteboard", exact: true }).click();
   await expect(page.locator(".excalidraw").first()).toBeVisible({ timeout: 30_000 });
   await page.getByRole("searchbox", { name: "Search Whiteboard assets" }).fill("user");
   await page.getByRole("button", { name: "User", exact: true }).first().click();
   expect(await page.evaluate(() => localStorage.getItem("diagrammatic.draft.whiteboard"))).toBe("{broken");
+  await page.getByRole("button", { name: "My diagrams", exact: true }).click();
   await page.getByRole("button", { name: "Save recovery copy", exact: true }).click();
   await expect.poll(async () => (await readSavedDiagram(page, "Whiteboard (recovery copy)"))?.mode).toBe("whiteboard");
   expect(await page.evaluate(() => localStorage.getItem("diagrammatic.draft.whiteboard"))).toBe("{broken");
