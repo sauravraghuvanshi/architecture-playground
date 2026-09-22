@@ -1,6 +1,6 @@
 # Azure Deployment Plan
 
-> **Status:** Validated
+> **Status:** Deployed and Verified - Priority 16
 
 Generated: 2026-08-12
 Updated: 2026-09-22 (Asia/Kolkata; morning recovery fix verified)
@@ -19,7 +19,8 @@ Latest handoff: [completed work, lessons and tomorrow's checklist](../docs/sessi
 - **Plan:** Inspect existing tests and workflow gaps, reuse current helpers,
   implement missing gates and revision proof, test failures as well as success,
   validate/deploy through the unchanged app-only target and verify hosted.
-- **State:** Implementation, local checks and Azure validation workflow complete.
+- **State:** Complete and hosted-verified as
+  `1404737cbf1a54a0fb2bae6d53344c95eddbd07e`.
 - **Constraints:** No customer infrastructure deployment or real model calls;
   do not weaken tests, safety limits or the recent Whiteboard fixes.
 - **Delivered:** Playground tests import actual production modules rather than
@@ -54,8 +55,18 @@ Latest handoff: [completed work, lessons and tomorrow's checklist](../docs/sessi
     Service deployment target. CI permissions limited to repository reads.
 - **Section 7: Validation Proof (priority 16):** Commands above ran September
   22 on this worktree. Production-bound tests, compiler output and gate logs
-  are retained in session artifacts. New Linux CI and hosted verification
-  remain required before closing the priority.
+  are retained in session artifacts.
+- **Linux CI/deployment:** Run
+  [35705631954](https://github.com/sauravraghuvanshi/architecture-playground/actions/runs/35705631954)
+  succeeded in **12m14s**, completed 08:47:41 UTC. All added pre-deployment
+  gates passed, then SCM completion, exact build identity and hosted
+  API/parser/browser checks passed.
+- **Hosted acceptance:** Anonymous `/api/version` returned 401; authenticated
+  no-store response matched CI's revision and build
+  `56e05f8d-7293-40fa-8b87-3d1c30547bf0` exactly. **24/24** native core and
+  screenshot journeys passed across Chromium/Firefox/WebKit in **5.3 minutes**.
+  Temporary authentication was removed; owned local runners stopped.
+- **Next in order:** Priority 17, grounded and reproducible architecture reviews.
 
 ## September 22 morning - Saved-scene rejection and failed pipeline
 

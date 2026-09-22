@@ -3,12 +3,41 @@
 Latest consolidated handoff:
 [September 22 session summary, lessons and ordered resume checklist](session-summary-2026-09-22.md).
 
-**Numbered backlog remains paused:** current application `625e199` is deployed
-and hosted-verified. The September 22 morning fix closes saved-scene restoration
-and the overnight pipeline-verification blocker. Priorities 16-33 have not
-resumed. The [early September 21 session summary](session-summary-2026-09-21.md)
+**Ordered backlog resumed:** priority 16 is complete in hosted-verified
+application `1404737`; priority 17 is next under the user's September 22
+13:29 IST instruction. The morning recovery fix remains included.
+The [early September 21 session summary](session-summary-2026-09-21.md)
 records the earlier stop after task 8, not the current execution boundary. Older
 close-out tables below are historical checkpoints, not the current release.
+
+## September 22 afternoon - Priority 16 regression/release gates
+
+- Replaced copied playground algorithms with 48 tests importing production
+  modules. Focused suite: 60/60; eight deliberate in-memory production mutations
+  were detected. Only production adjustment was an explicit `.ts` import.
+- Added build-time revision/unique-build manifest and authenticated no-store
+  `/api/version`. Post-SCM verification requires three consecutive exact
+  revision/build matches. Healthy older instances and same-commit different
+  artifacts are explicitly rejected; no runtime environment can substitute a
+  revision. This does not prove every scaled-out instance has drained.
+- Expanded pre-deployment pipeline: full lint/types and contracts, official
+  parser checks, 88 isolated script-safety tests, 17 real Bicep/Terraform
+  compiler/provider fixtures, 102 Chromium and 16 Firefox/WebKit browser cases.
+  PRs validate without deployment credentials, production uploads are serialized,
+  and failure artifacts omit authenticated traces.
+- Final local contracts: 392/392; new release tests: 7/7. All compiler fixtures,
+  script safety and browser gates passed. Final rebuilt screenshot gate: 5/5.
+- Application `1404737cbf1a54a0fb2bae6d53344c95eddbd07e`, workflow
+  `35705631954`: all Linux pre/post-deployment gates passed in 12m14s.
+  Hosted API independently matched CI artifact build
+  `56e05f8d-7293-40fa-8b87-3d1c30547bf0`; anonymous access was denied.
+  Hosted native/core/screenshot acceptance: 24/24 across three engines.
+- Learning: a passing copied algorithm test does not protect the shipped
+  implementation; a healthy URL is not proof of the intended build. Gate both
+  semantics and actual release identity. Preserve mocked-provider/live-model
+  distinctions and never execute generated customer infrastructure.
+- Temporary authentication removed and owned runners stopped. Next is priority
+  17; competitor additions remain after the numbered roadmap.
 
 ## September 22 morning - Saved-scene recovery and successful release
 

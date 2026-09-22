@@ -1,5 +1,14 @@
 # Session close-out - September 21 work and September 22 follow-up
 
+## Afternoon update - ordered backlog resumed
+
+The user resumed remaining priorities at 13:29 IST. **Priority 16 is now
+complete**, deployed as `1404737` through successful run `35705631954`.
+Production-import tests, compiler/provider validation, expanded browser gates,
+credential-free PR validation and exact deployed commit/build checks are in
+place. All CI gates and 24 hosted three-engine cases passed. **Priority 17 is
+next**; the pause instructions in the historical sections below no longer apply.
+
 ## Morning update - completed September 22
 
 The overnight resume checklist below is now historical. The user resumed the
