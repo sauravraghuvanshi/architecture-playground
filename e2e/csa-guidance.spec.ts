@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { reviewResponse } from "./review-fixture";
 
 const payload = {
   nodes: [
@@ -20,7 +21,8 @@ const review = {
       framework: "Azure Landing Zones", pillar: "Governance", evidenceStatus: "unknown",
       evidence: "No subscription or policy ownership model was supplied.",
       recommendation: "Confirm landing-zone design areas and policy ownership before production.",
-      sourceUrl: "https://learn.microsoft.com/azure/cloud-adoption-framework/ready/landing-zone/",
+      sourceUrl: "https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ready/landing-zone/design-area/resource-org-subscriptions",
+      guidanceIds: ["alz-subscription-governance"], guidanceRationale: "The missing ownership model needs subscription governance boundaries and accountable owners.",
       nodeIds: [], edgeIds: [],
       remediation: {
         steps: ["Confirm the platform owner.", "Record policy ownership."],
@@ -33,7 +35,8 @@ const review = {
       framework: "Well-Architected Framework", pillar: "Reliability", evidenceStatus: "unknown",
       evidence: "The supplied architecture has no tested recovery objectives.",
       recommendation: "Agree and exercise recovery objectives for the orders flow.",
-      sourceUrl: "https://learn.microsoft.com/azure/well-architected/",
+      sourceUrl: "https://learn.microsoft.com/azure/well-architected/reliability/redundancy",
+      guidanceIds: ["waf-redundancy"], guidanceRationale: "Agreed recovery targets and tests are needed before selecting redundancy for the orders flow.",
       nodeIds: [], edgeIds: [],
       remediation: {
         steps: ["Agree RTO and RPO for the orders flow.", "Rehearse failover and restore."],
@@ -110,10 +113,10 @@ test.describe("Review my architecture", () => {
       expect(request.payload.nodes.map((node: { id: string }) => node.id)).toEqual(["api", "monitor"]);
       expect(request.context).toContain("four-hour RTO");
       await route.fulfill({
-        json: { transport: "foundry-agent", review: {
+        json: reviewResponse({
           ...review,
           findings: review.findings.map((finding) => ({ ...finding, nodeIds: finding.id === "rel-recovery" ? ["api"] : [], edgeIds: [] })),
-        } },
+        }, request),
       });
     });
     const modal = await prepare(page, true);
@@ -138,7 +141,7 @@ test.describe("Review my architecture", () => {
       expect(request.source).toBe("description");
       expect(request.description).toContain("two-region");
       expect(request.payload).toBeUndefined();
-      await route.fulfill({ json: { transport: "foundry-agent", review } });
+      await route.fulfill({ json: reviewResponse(review, request) });
     });
     const modal = await prepare(page, true);
     await modal.getByRole("button", { name: "Describe", exact: true }).click();
@@ -160,14 +163,14 @@ test.describe("Review my architecture", () => {
       expect(request.context).toContain("four-hour RTO");
       expect(request.image.name).toBe("customer-architecture.png");
       expect(request.image.dataUrl).toMatch(/^data:image\/png;base64,/);
-      await route.fulfill({ json: { transport: "foundry-agent", review: {
+      await route.fulfill({ json: reviewResponse({
         ...review,
         findings: [
           ...review.findings,
-          { ...review.findings[0], id: "aac", title: "Review asynchronous workload isolation", framework: "Azure Architecture Center", sourceUrl: "https://learn.microsoft.com/azure/architecture/" },
-          { ...review.findings[0], id: "caf", title: "Confirm your operating model", framework: "Cloud Adoption Framework", sourceUrl: "https://learn.microsoft.com/azure/cloud-adoption-framework/" },
+          { ...review.findings[0], id: "aac", title: "Review dependency failure isolation", framework: "Azure Architecture Center", sourceUrl: "https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker", guidanceIds: ["aac-circuit-breaker"], guidanceRationale: "Persistent dependency failures require bounded isolation and recovery probes." },
+          { ...review.findings[0], id: "caf", title: "Confirm your operating model", framework: "Cloud Adoption Framework", sourceUrl: "https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/manage/ready-cloud-operations", guidanceIds: ["caf-cloud-operations-ownership"], guidanceRationale: "The team needs named owners for operational procedures." },
         ],
-      } } });
+      }, request) });
     });
     const modal = await prepare(page, true);
     await modal.getByRole("button", { name: "Upload diagram" }).click();

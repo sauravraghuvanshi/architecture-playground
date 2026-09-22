@@ -1,5 +1,6 @@
 import { AIProjectClient } from "@azure/ai-projects";
 import { DefaultAzureCredential } from "@azure/identity";
+import type { ReviewInvocation } from "./review-provenance";
 
 export type FoundryAgentPurpose = "review" | "deployment";
 export type FoundryInputMessage = {
@@ -53,7 +54,8 @@ export async function invokeFoundryAgent(
   purpose: FoundryAgentPurpose,
   instructions: string,
   input: FoundryAgentInput,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onMetadata?: (metadata: ReviewInvocation) => void,
 ): Promise<string> {
   const config = configuration(purpose);
   if (!config) throw new FoundryAgentError(`The ${purpose} Foundry agent is not configured. Set the project endpoint and role-specific agent name.`, 503);
@@ -92,6 +94,19 @@ export async function invokeFoundryAgent(
     if (response.status !== "completed" || !response.output_text?.trim() || response.output_text.length > 250_000) {
       throw new FoundryAgentError("Foundry returned an incomplete or invalid agent response. Try again with a smaller diagram.", 502);
     }
+    const reported = (value: unknown): string | null => {
+      if (value === undefined || value === null) return null;
+      if (typeof value !== "string" || !value.trim() || value.length > 200 || /[\u0000-\u001f]/.test(value)) {
+        throw new FoundryAgentError("Foundry returned invalid response metadata. Review provenance could not be recorded.", 502);
+      }
+      return value;
+    };
+    onMetadata?.({
+      agentName: config.name, agentVersion: null,
+      modelReportedId: reported(response.model), responseId: reported(response.id),
+      maxOutputTokens: purpose === "deployment" ? 12_000 : 6000,
+      toolChoice: "none", store: false,
+    });
     return response.output_text;
   } catch (error) {
     if (signal?.aborted) throw new FoundryAgentError("Foundry request cancelled.", 499);

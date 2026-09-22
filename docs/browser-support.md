@@ -53,8 +53,8 @@ The release pipeline runs the selected production-build suites declared in
 `scripts/release-browser-suites.mjs` before any Azure upload. Chromium covers
 architecture modeling/roundtrips/boundaries, Undo, persistence, Whiteboard
 restoration/conversion/fidelity and AI streaming/privacy/review/deployment
-contracts. Firefox and WebKit additionally run the core editing and exact
-screenshot-regression journeys. The existing single-engine screenshot command
+contracts. Firefox and WebKit additionally run the core editing, grounded review
+contracts/guidance and exact screenshot-regression journeys. The existing single-engine screenshot command
 remains available for a narrower local check.
 
 ```powershell

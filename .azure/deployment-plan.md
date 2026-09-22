@@ -1,11 +1,78 @@
 # Azure Deployment Plan
 
-> **Status:** Deployed and Verified - Priority 16
+> **Status:** Validated
 
 Generated: 2026-08-12
 Updated: 2026-09-22 (Asia/Kolkata; morning recovery fix verified)
 
 Latest handoff: [completed work, lessons and tomorrow's checklist](../docs/session-summary-2026-09-22.md).
+
+## September 22 - Priority 17
+
+- **Baseline:** Priority 16 application `1404737`, documentation `fd80a82`.
+- **Objective:** Evidence-linked recommendations with reproducible review
+  metadata and explicit distinctions between depicted, proposed, statically
+  validated and runtime-verified facts.
+- **Plan:** Trace review input/output, guidance sources and retained reports;
+  preserve existing configured models/transport; add server-authored bounded
+  provenance and specific supporting guidance without allowing model-invented
+  verification. Preserve historical report reading and expose evidence in UI
+  and exports. Test, run new release gates, deploy and verify before priority 18.
+- **Scope:** Existing app-only target and configured AI endpoints. No new model
+  resource, customer deployment or live inference required for deterministic
+  acceptance. No SDK/language rewrite.
+- **State:** Implemented, locally verified and passed the Azure validation workflow.
+- **Grounding:** Twelve first-party article cards across AAC, ALZ, CAF and all
+  five WAF pillars, with original summaries, applicability and required
+  validation evidence. Ten additional articles were independently researched;
+  all were fetched/verified on September 22. New results require bounded
+  matching guidance IDs, specific article URLs and an applicability rationale.
+- **Provenance:** Server-authored prompt/schema/guidance versions and canonical
+  evidence/guidance/prompt/schema/result/attempt fingerprints. Provider-reported
+  model and response IDs and effective request settings are recorded; missing
+  IDs remain explicit nulls and malformed metadata fails. Unpinned agent
+  versions and nondeterminism are disclosed rather than invented away.
+- **Surfaces:** UI distinguishes depicted/proposed/schema-validated/runtime
+  unverified facts, validates source and fingerprints, exposes supporting
+  guidance and downloads a captured review/evidence/guidance package. Image
+  bytes are excluded and this limitation is explicit. Clear AI session removes
+  report state; legacy Markdown includes provenance.
+- **Compatibility:** Fresh UI requests response contract 2. Already-open v1
+  clients receive the prior strict finding shape without losing recommendations;
+  unknown contract versions fail before inference. Historical report parsing
+  does not fabricate missing fields.
+- **Verification so far:** 397/397 application contracts, full lint/types and
+  final build pass. Browser coverage now includes review provenance/downloads,
+  mismatched input/result/guidance rejection and all four evidence sources.
+- **Investigated test timing:** First broad run passed 150/151 cases; WebKit's
+  cumulative 30s gesture-test budget expired late in its multi-navigation
+  journey. Diagnostic traces showed completing bounded actions rather than a
+  stuck save, and trace capture itself added significant per-action overhead.
+  Removed two redundant setup navigations by seeding an empty recoverable
+  Whiteboard. The named-document autosave path, held native gesture, exact
+  geometry, final mode roundtrip/reload and every timeout remain unchanged.
+  The unchanged-deadline WebKit journey passed three consecutive runs.
+  Final frozen-build gate passed **151/151**: 111 Chromium cases in 7.1 minutes
+  and 40 Firefox/WebKit cases in 6.6 minutes. No deadlines or assertions were
+  relaxed, and no browser was skipped.
+- **All validation checks pass:**
+  - `npm run test:playground`: **397/397**.
+  - Full lint and strict types: passed.
+  - Final `npm run build`: passed with trusted helpers and release manifest.
+  - `node scripts/verify-screenshot-regressions.mjs --release`: **151/151**.
+  - New tests reject fabricated guidance, mismatched framework/article/IDs,
+    missing provenance, false runtime-verification flags and changed evidence,
+    review or guidance digests. Downloads preserve the captured evidence and
+    full guidance snapshot; v1 cached-client compatibility is exercised.
+  - Static role/target check: no Azure infrastructure, permission or model
+    configuration changes. Existing named-agent transport remains unchanged
+    except for recording bounded response identifiers.
+- **Section 7: Validation Proof (priority 17):** Final commands above ran on
+  September 22. First-party cards were verified through Microsoft Learn;
+  deterministic provider fixtures exercise the complete acceptance paths
+  without claiming live model quality. Provider-reported IDs are not resolved
+  immutable model/agent versions. Deployment and hosted verification remain
+  required before advancing to priority 18.
 
 ## September 22 - Resuming priority 16
 

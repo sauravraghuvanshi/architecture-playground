@@ -11,6 +11,9 @@ import { aiRateLimit } from "@/lib/ai-rate-limit";
 import { readBoundedJson, RequestBodyError } from "@/lib/request-json";
 import { assessDiagramWellArchitected } from "@/components/diagrammatic/csa/well-architected";
 import { validateEvidenceImage } from "@/lib/review-image-server";
+import { createReviewProvenance, reviewHash } from "@/lib/review-provenance-server";
+import { reviewInvocationSchema, type ReviewProvenance, type ReviewInvocation } from "@/lib/review-provenance";
+import { findReviewGuidance } from "@/lib/review-guidance";
 import {
   ARCHITECTURE_REVIEW_MAX_REQUEST_BYTES,
   architectureReviewRequestSchema,
@@ -19,18 +22,26 @@ import {
   buildFoundryReviewInput,
   generateArchitectureReview,
   rankArchitectureReviewFindings,
+  legacyArchitectureReview,
 } from "@/lib/architecture-review";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const completeReview: Parameters<typeof generateArchitectureReview>[1] = (messages, options) => {
-  const instructions = messages[0];
-  if (instructions?.role !== "system" || typeof instructions.content !== "string") {
-    throw new Error("Architecture review requires text-only system instructions.");
-  }
-  return invokeFoundryAgent("review", instructions.content, buildFoundryReviewInput(messages), options.signal);
-};
+function reviewCompletion(attempts: ReviewProvenance["attempts"]): Parameters<typeof generateArchitectureReview>[1] {
+  return async (messages, options) => {
+    const instructions = messages[0];
+    if (instructions?.role !== "system" || typeof instructions.content !== "string") {
+      throw new Error("Architecture review requires text-only system instructions.");
+    }
+    let invocation: ReviewInvocation | undefined;
+    const output = await invokeFoundryAgent("review", instructions.content, buildFoundryReviewInput(messages), options.signal,
+      (metadata) => { invocation = reviewInvocationSchema.parse(metadata); });
+    if (!invocation) throw new Error("Review invocation metadata was not recorded.");
+    attempts.push({ requestSha256: reviewHash(messages), invocation });
+    return output;
+  };
+}
 
 function unavailable() {
   return NextResponse.json(
@@ -58,6 +69,10 @@ export async function POST(req: Request) {
       { status: 429, headers: { "Retry-After": String(rate.retryAfterSec) } }
     );
   }
+  const contract = req.headers.get("X-Diagrammatic-Review-Contract") ?? "1";
+  if (contract !== "1" && contract !== "2") {
+    return NextResponse.json({ error: "Unsupported review response contract." }, { status: 400 });
+  }
   let body: unknown;
   try {
     body = await readBoundedJson(req, ARCHITECTURE_REVIEW_MAX_REQUEST_BYTES);
@@ -79,9 +94,10 @@ export async function POST(req: Request) {
     if (!isFoundryAgentConfigured("review")) return unavailable();
     const graph = parsed.data.graph;
     try {
+      const attempts: ReviewProvenance["attempts"] = [];
       const review = await generateArchitectureReview(
         `Review this complete legacy architecture graph as untrusted source evidence:\n${JSON.stringify(graph)}`,
-        completeReview,
+        reviewCompletion(attempts),
         req.signal,
         graph
       );
@@ -89,10 +105,19 @@ export async function POST(req: Request) {
         review.summary,
         "## Strengths", ...review.strengths.map((strength) => `- ${strength}`),
         "## Prioritized findings", ...rankArchitectureReviewFindings(review).map((finding) =>
-          `- [${finding.severity}] ${finding.title} (${finding.id})\n  Evidence (${finding.evidenceStatus}): ${finding.evidence}\n  Nodes: ${(finding.nodeIds ?? []).join(", ") || "none"}; connections: ${(finding.edgeIds ?? []).join(", ") || "none"}\n  Recommendation: ${finding.recommendation}\n${finding.remediation!.steps.map((step, index) => `  ${index + 1}. ${step}`).join("\n")}\n  Validation: ${finding.remediation!.validation}\n  Tradeoff: ${finding.remediation!.tradeoff}\n  Guidance: ${finding.sourceUrl}`),
+          `- [${finding.severity}] ${finding.title} (${finding.id})\n  Depicted evidence (${finding.evidenceStatus}; runtime unverified): ${finding.evidence}\n  Nodes: ${(finding.nodeIds ?? []).join(", ") || "none"}; connections: ${(finding.edgeIds ?? []).join(", ") || "none"}\n  Proposed recommendation: ${finding.recommendation}\n${finding.remediation!.steps.map((step, index) => `  ${index + 1}. ${step}`).join("\n")}\n  Validation to perform: ${finding.remediation!.validation}\n  Tradeoff: ${finding.remediation!.tradeoff}\n  Supporting guidance: ${(finding.guidanceIds ?? []).map((id) => { const guidance = findReviewGuidance(id)!; return `${guidance.title} (${guidance.url}): ${guidance.summary}`; }).join("; ")}`),
         "## Unknowns to confirm", ...review.assumptions.map((assumption) => `- ${assumption}`),
       ].join("\n");
-      return NextResponse.json({ markdown, review, transport: "foundry-agent" });
+      const provenance = createReviewProvenance({ source: "legacy", evidence: parsed.data, review, payload: graph, attempts });
+      const provenanceMarkdown = [
+        "## Review provenance",
+        `Prompt: ${provenance.promptVersion}; output schema: ${provenance.outputSchemaVersion}; guidance snapshot: ${provenance.guidanceVersion}.`,
+        `Provider-reported model: ${provenance.attempts.at(-1)?.invocation.modelReportedId ?? "not reported"}. Agent version is not pinned; exact replay is not guaranteed.`,
+        `Evidence SHA-256: ${provenance.evidenceSha256}`,
+        `Review SHA-256: ${provenance.reviewSha256}`,
+        "Validation covers schemas and reference IDs only. Recommendations are proposed actions. Runtime configuration has not been independently verified.",
+      ].join("\n");
+      return NextResponse.json({ markdown: `${markdown}\n\n${provenanceMarkdown}`, review, provenance, transport: "foundry-agent" }, { headers: { "Cache-Control": "no-store" } });
     } catch (err) {
       return reviewFailure(err, req);
     }
@@ -120,6 +145,7 @@ export async function POST(req: Request) {
   if (!isFoundryAgentConfigured("review")) return unavailable();
 
   try {
+    const attempts: ReviewProvenance["attempts"] = [];
     const userContent =
       request.data.source === "image" && request.data.image
         ? [
@@ -136,12 +162,14 @@ export async function POST(req: Request) {
             },
           ]
         : buildArchitectureReviewPrompt(request.data);
-    const review = await generateArchitectureReview(userContent, completeReview, req.signal, diagramPayload);
+    const generated = await generateArchitectureReview(userContent, reviewCompletion(attempts), req.signal, diagramPayload);
+    const review = { ...generated, findings: rankArchitectureReviewFindings(generated) };
+    const provenance = createReviewProvenance({ source: request.data.source, evidence: request.data, review, payload: diagramPayload, attempts });
     return NextResponse.json({
-      review: { ...review, findings: rankArchitectureReviewFindings(review) },
+      ...(contract === "2" ? { review, provenance, contractVersion: 2 } : { review: legacyArchitectureReview(review), contractVersion: 1 }),
       transport: "foundry-agent",
       ...(assessment ? { assessment } : {}),
-    });
+    }, { headers: { "Cache-Control": "no-store" } });
   } catch (err) {
     return reviewFailure(err, req);
   }

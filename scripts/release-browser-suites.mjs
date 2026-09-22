@@ -8,10 +8,11 @@ export const releaseBrowserSuites = [
       "whiteboard-conversion.spec.ts", "whiteboard-fidelity.spec.ts",
       "ai-streaming.spec.ts", "ai-readiness.spec.ts", "ai-privacy.spec.ts",
       "review-contracts.spec.ts", "engineering-validation.spec.ts", "deployment-assistance.spec.ts",
+      "csa-guidance.spec.ts",
     ],
   },
   {
     projects: ["firefox", "webkit"],
-    files: ["screenshot-regressions.spec.ts", "browser-core.spec.ts"],
+    files: ["screenshot-regressions.spec.ts", "browser-core.spec.ts", "review-contracts.spec.ts", "csa-guidance.spec.ts"],
   },
 ];

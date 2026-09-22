@@ -147,6 +147,26 @@ test("Foundry invokes the named role agent with Entra auth, stateless requests a
   assert.equal(agent.timeoutValues[0], 120_000);
 });
 
+test("Foundry invocation metadata reports provider identifiers without inventing model or agent versions", async () => {
+  for (const reported of [true, false]) {
+    const agent = foundryHarness({ response: {
+      status: "completed", output_text: '{"ok":true}',
+      ...(reported ? { model: "synthetic-model-2026-09", id: "response-fixture" } : {}),
+    } });
+    let metadata;
+    assert.equal(await agent.invokeFoundryAgent("review", "Return JSON", "Evidence", undefined, (value) => { metadata = value; }), '{"ok":true}');
+    assert.equal(metadata.modelReportedId, reported ? "synthetic-model-2026-09" : null);
+    assert.equal(metadata.responseId, reported ? "response-fixture" : null);
+    assert.equal(metadata.agentName, env.AZURE_AI_REVIEW_AGENT_NAME);
+    assert.equal(metadata.agentVersion, null);
+    assert.equal(metadata.maxOutputTokens, 6000);
+    assert.equal(metadata.store, false);
+    assert.equal(metadata.toolChoice, "none");
+    assert.equal("endpoint" in metadata, false);
+  }
+  const invalid = foundryHarness({ response: { status: "completed", output_text: '{"ok":true}', model: "x".repeat(201) } });
+  await assert.rejects(invalid.invokeFoundryAgent("review", "Return JSON", "Evidence", undefined, () => {}), { status: 502 });
+});
 test("installed Foundry SDK sends service-compatible named-agent messages without forbidden overrides", async () => {
   let sent;
   class Credential {

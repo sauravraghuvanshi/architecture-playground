@@ -12,6 +12,9 @@ import { parseArchitectureDocument } from "../lib/architecture-document.ts";
 import { chatComplete } from "../lib/ai.ts";
 import { readBoundedJson, RequestBodyError } from "../lib/request-json.ts";
 import * as reviewLibrary from "../lib/architecture-review.ts";
+import * as reviewProvenance from "../lib/review-provenance.ts";
+import * as reviewProvenanceServer from "../lib/review-provenance-server.ts";
+import * as reviewGuidance from "../lib/review-guidance.ts";
 import * as imageValidation from "../lib/review-image-server.ts";
 import * as aiPrivacyContract from "../lib/ai-privacy-contract.ts";
 import { evidenceImage } from "./fixtures/evidence-images.mjs";
@@ -322,7 +325,9 @@ const correctedReview = {
     framework: "Well-Architected Framework", pillar: "Reliability",
     evidence: "The supplied description states recovery targets are not defined.",
     recommendation: "Agree RTO and RPO with the owner and validate them in recovery exercises; weigh resilience costs.",
-    sourceUrl: REVIEW_SOURCES["Well-Architected Framework"],
+    sourceUrl: "https://learn.microsoft.com/azure/well-architected/reliability/redundancy",
+    guidanceIds: ["waf-redundancy"],
+    guidanceRationale: "The workload needs recovery targets to choose its redundancy and validate spare capacity.",
     evidenceStatus: "unknown", nodeIds: [], edgeIds: [],
     remediation: { steps: ["Agree recovery objectives.", "Run a recovery exercise."], validation: "Compare recovery results with the agreed objectives.", tradeoff: "Additional recovery capacity increases cost." },
   }],
@@ -525,9 +530,10 @@ function reviewRouteHarness({ configured = true, outputs = [JSON.stringify(corre
     "@/lib/foundry-agent": {
       FoundryAgentError,
       isFoundryAgentConfigured: (purpose) => { assert.equal(purpose, "review"); return configured; },
-      invokeFoundryAgent: async (purpose, instructions, input, signal) => {
+      invokeFoundryAgent: async (purpose, instructions, input, signal, onMetadata) => {
         calls.push({ purpose, instructions, input, signal });
         if (failure) throw new FoundryAgentError(failure.message, failure.status);
+        onMetadata?.({ agentName: "synthetic-review-agent", agentVersion: null, modelReportedId: "synthetic-model-v1", responseId: `synthetic-${calls.length}`, maxOutputTokens: 6000, toolChoice: "none", store: false });
         return outputs[Math.min(calls.length - 1, outputs.length - 1)];
       },
     },
@@ -536,6 +542,9 @@ function reviewRouteHarness({ configured = true, outputs = [JSON.stringify(corre
     "@/components/diagrammatic/csa/well-architected": wafLibrary,
     "@/lib/architecture-review": reviewLibrary,
     "@/lib/review-image-server": imageValidation,
+    "@/lib/review-provenance": reviewProvenance,
+    "@/lib/review-provenance-server": reviewProvenanceServer,
+    "@/lib/review-guidance": reviewGuidance,
   };
   const source = readFileSync(new URL("../app/api/ai/review/route.ts", import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, {
@@ -552,8 +561,30 @@ function reviewRouteHarness({ configured = true, outputs = [JSON.stringify(corre
   return { POST: exports.POST, calls };
 }
 
-const reviewRequest = (body, signal) => new Request("http://localhost/api/ai/review", {
+const reviewRequest = (body, signal, contract = "2") => new Request("http://localhost/api/ai/review", {
   method: "POST", body: JSON.stringify(body), signal,
+  headers: contract ? { "X-Diagrammatic-Review-Contract": contract } : {},
+});
+
+test("cached v1 clients retain the prior response shape while v2 requests receive grounded provenance", async () => {
+  const route = reviewRouteHarness();
+  const input = { source: "description", description: syntheticReviewDescription };
+  const old = await route.POST(reviewRequest(input, undefined, null));
+  assert.equal(old.status, 200);
+  const historical = await old.json();
+  assert.equal(historical.contractVersion, 1);
+  assert.equal(historical.provenance, undefined);
+  assert.equal(historical.review.findings[0].guidanceIds, undefined);
+  assert.equal(historical.review.findings[0].guidanceRationale, undefined);
+  assert.equal(historical.review.findings[0].sourceUrl, REVIEW_SOURCES["Well-Architected Framework"]);
+  assert.deepEqual(historical.review.findings[0].remediation, correctedReview.findings[0].remediation);
+  const modern = await route.POST(reviewRequest(input));
+  const grounded = await modern.json();
+  assert.equal(grounded.contractVersion, 2);
+  assert.deepEqual(grounded.review, correctedReview);
+  assert.equal(grounded.provenance.outputSchemaVersion, 2);
+  assert.equal((await route.POST(reviewRequest(input, undefined, "999"))).status, 400);
+  assert.equal(route.calls.length, 2);
 });
 
 test("actual review route requires Foundry configuration and keeps deterministic assessment offline", async () => {
@@ -741,12 +772,42 @@ test("legacy review sends complete bounded evidence, retains remediation, and re
   const result = await response.json();
   const sent = route.calls[0].input[0].content[0].text;
   assert.ok(sent.endsWith(JSON.stringify(graph)));
-  assert.match(result.markdown, /Validation:.*Compare recovery/);
+  assert.match(result.markdown, /Validation to perform:.*Compare recovery/);
   assert.match(result.markdown, /Tradeoff:.*capacity/);
   assert.deepEqual(result.review, correctedReview);
   const over = { ...graph, metadata: { description: "x".repeat(120_000) } };
   assert.equal((await route.POST(reviewRequest({ graph: over }))).status, 400);
   assert.equal(route.calls.length, 1);
+});
+
+test("review provenance is server-authored, input-bound and records both correction attempts", async () => {
+  const invalid = { ...correctedReview, findings: [{ ...correctedReview.findings[0], guidanceIds: ["invented"] }] };
+  const route = reviewRouteHarness({ outputs: [JSON.stringify(invalid), JSON.stringify(correctedReview)] });
+  const input = { source: "description", description: "Synthetic API; runtime proof not supplied.", context: "Four-hour recovery objective." };
+  const response = await route.POST(reviewRequest(input));
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  const result = await response.json();
+  const provenance = reviewProvenance.reviewProvenanceSchema.parse(result.provenance);
+  assert.equal(provenance.attempts.length, 2);
+  assert.notEqual(provenance.attempts[0].requestSha256, provenance.attempts[1].requestSha256);
+  assert.equal(provenance.attempts[1].invocation.modelReportedId, "synthetic-model-v1");
+  assert.equal(provenance.attempts[1].invocation.agentVersion, null);
+  assert.equal(provenance.reviewSha256, reviewProvenanceServer.reviewHash(result.review));
+  assert.equal(provenance.evidenceSha256, reviewProvenanceServer.reviewHash(architectureReviewRequestSchema.parse(input)));
+  assert.notEqual(provenance.evidenceSha256, reviewProvenanceServer.reviewHash({ ...input, context: "One-hour recovery objective." }));
+  assert.equal(provenance.runtimeVerified, false);
+  assert.equal(provenance.outputSchemaVersion, 2);
+  const spoofed = await route.POST(reviewRequest({ ...input, provenance: { runtimeVerified: true } }));
+  assert.equal(spoofed.status, 400);
+  assert.equal(route.calls.length, 2);
+});
+
+test("review digests ignore object insertion order but retain array order and all evidence", () => {
+  assert.equal(reviewProvenanceServer.reviewHash({ b: 2, a: 1 }), "43258cff783fe7036d8a43033f830adfc60ec037382473548ac742b888292777");
+  assert.equal(reviewProvenanceServer.reviewHash({ b: 2, a: { y: 1, x: 0 } }), reviewProvenanceServer.reviewHash({ a: { x: 0, y: 1 }, b: 2 }));
+  assert.notEqual(reviewProvenanceServer.reviewHash({ nodes: ["a", "b"] }), reviewProvenanceServer.reviewHash({ nodes: ["b", "a"] }));
+  assert.equal(reviewProvenance.reviewProvenanceSchema.safeParse({ runtimeVerified: true }).success, false);
 });
 
 test("Azure OpenAI cannot return valid-looking partial or refused results as complete", async () => {
@@ -811,6 +872,8 @@ function loadReviewModal(react = React, scorecard = () => React.createElement("p
     "react/jsx-runtime": jsxRuntime,
     "lucide-react": Object.fromEntries(["ArrowUpRight", "FileJson", "FileText", "ImageUp", "Loader2", "Network", "ShieldCheck", "TriangleAlert", "X"].map((name) => [name, icon])),
     "@/lib/architecture-review": reviewLibrary,
+    "@/lib/review-provenance": reviewProvenance,
+    "@/lib/review-guidance": reviewGuidance,
     "./CsaGuidancePanel": { WafDiagramScorecard: scorecard },
     "./well-architected": wafLibrary,
     "@/lib/architecture-document": { parseArchitectureDocument },

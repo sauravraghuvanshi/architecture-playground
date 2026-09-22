@@ -167,11 +167,12 @@ test("native elbow arrows save, reload, switch to Cloud Architecture and convert
 test("autosave waits through a long native Whiteboard gesture without a recovery banner or lost geometry", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.route("**/api/ai/status", (route) => route.fulfill({ json: { diagramConfigured: false, imageConfigured: false } }));
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem("gesture-board-seeded")) return;
+    sessionStorage.setItem("gesture-board-seeded", "yes");
+    localStorage.setItem("diagrammatic.draft.whiteboard", JSON.stringify({ payload: { elements: [], files: {} }, savedAt: 1 }));
+  });
   await page.goto("/diagrammatic?mode=whiteboard");
-  await waitForWorkspace(page);
-  await page.getByRole("tab", { name: "Cloud Architecture", exact: true }).click();
-  await waitForWorkspace(page);
-  await page.getByRole("tab", { name: "Whiteboard", exact: true }).click();
   await waitForWorkspace(page);
   const board = page.locator(".diagrammatic-whiteboard");
   const box = await board.boundingBox();

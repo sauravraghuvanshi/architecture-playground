@@ -21,6 +21,7 @@ import {
   ARCHITECTURE_REVIEW_MAX_REQUEST_BYTES,
   rankArchitectureReviewFindings,
   parseGeneratedArchitectureReview,
+  architectureReviewRequestSchema,
   aiEvidenceImageSchema,
   type ArchitectureReview,
 } from "@/lib/architecture-review";
@@ -30,6 +31,8 @@ import { parseArchitectureDocument } from "@/lib/architecture-document";
 import { AiPrivacyNotice } from "../shared/AiPrivacyNotice";
 import { AI_LOCAL_CLEAR_NOTICE } from "@/lib/ai-privacy-contract";
 import { useDialogFocus } from "../shared/useDialogFocus";
+import { canonicalReviewJson, reviewProvenanceSchema, type ReviewProvenance } from "@/lib/review-provenance";
+import { findReviewGuidance, REVIEW_GUIDANCE, REVIEW_GUIDANCE_VERSION, REVIEW_GUIDANCE_REVIEWED_AT } from "@/lib/review-guidance";
 
 interface Props {
   open: boolean;
@@ -46,6 +49,14 @@ interface ReviewImage {
   name: string;
   mimeType: (typeof ARCHITECTURE_IMAGE_MIME_TYPES)[number];
   dataUrl: string;
+}
+
+interface ReviewEvidenceSnapshot {
+  source: ReviewSource;
+  description?: string;
+  context?: string;
+  payload?: ArchPayload;
+  image?: { name: string; mimeType: string; bytesIncluded: false };
 }
 
 const SOURCE_OPTIONS: Array<{ id: ReviewSource; label: string; icon: typeof Network }> = [
@@ -69,6 +80,8 @@ export function ArchitectureReviewModal({
   const [reviewImage, setReviewImage] = useState<ReviewImage | null>(null);
   const [businessContext, setBusinessContext] = useState("");
   const [review, setReview] = useState<ArchitectureReview | null>(null);
+  const [provenance, setProvenance] = useState<ReviewProvenance | null>(null);
+  const [reviewEvidenceSnapshot, setReviewEvidenceSnapshot] = useState<ReviewEvidenceSnapshot | null>(null);
   const [reviewPayloadSnapshot, setReviewPayloadSnapshot] = useState<ArchPayload | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -204,24 +217,22 @@ export function ArchitectureReviewModal({
     const controller = new AbortController();
     activeRequest.current = controller;
     try {
+      const submitted = architectureReviewRequestSchema.parse({
+        source,
+        description: source === "description" ? description.trim() : undefined,
+        context: businessContext.trim() || undefined,
+        ...(source === "image" ? { image: reviewImage } : {}),
+        payload: reviewPayload,
+      });
       const response = await fetch("/api/ai/review", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Diagrammatic-Review-Contract": "2" },
         signal: controller.signal,
-        body: JSON.stringify({
-          source,
-          description: source === "description" ? description.trim() : undefined,
-          context: businessContext.trim() || undefined,
-          ...(source === "image"
-            ? {
-                image: reviewImage,
-              }
-            : {}),
-          payload: reviewPayload,
-        }),
+        body: JSON.stringify(submitted),
       });
       const result = (await response.json()) as {
         review?: ArchitectureReview;
+        provenance?: unknown;
         error?: string;
       };
 
@@ -229,7 +240,26 @@ export function ArchitectureReviewModal({
         throw new Error(result.error ?? `Review failed (${response.status}).`);
       }
       if (requestId.current !== currentRequestId || controller.signal.aborted) return;
-      setReview(parseGeneratedArchitectureReview(JSON.stringify(result.review), reviewPayload ?? undefined));
+      const checked = parseGeneratedArchitectureReview(JSON.stringify(result.review), reviewPayload ?? undefined);
+      const metadata = reviewProvenanceSchema.parse(result.provenance);
+      if (metadata.source !== source) throw new Error("Review provenance does not match the submitted evidence source.");
+      if (metadata.guidanceVersion !== REVIEW_GUIDANCE_VERSION) throw new Error("Review guidance changed. Reload the application before reviewing again.");
+      const digest = async (value: unknown) => [...new Uint8Array(await crypto.subtle.digest(
+        "SHA-256", new TextEncoder().encode(canonicalReviewJson(value)),
+      ))].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+      const [reviewHash, evidenceHash, guidanceHash] = await Promise.all([digest(checked), digest(submitted), digest(REVIEW_GUIDANCE)]);
+      if (reviewHash !== metadata.reviewSha256 || evidenceHash !== metadata.evidenceSha256) throw new Error("Review content or submitted evidence does not match its provenance digest.");
+      if (guidanceHash !== metadata.guidanceSha256) throw new Error("Review guidance does not match its recorded snapshot.");
+      if (requestId.current !== currentRequestId || controller.signal.aborted) return;
+      setReview(checked);
+      setProvenance(metadata);
+      setReviewEvidenceSnapshot(structuredClone({
+        source,
+        description: source === "description" ? description.trim() : undefined,
+        context: businessContext.trim() || undefined,
+        payload: reviewPayload ?? undefined,
+        ...(source === "image" && reviewImage ? { image: { name: reviewImage.name, mimeType: reviewImage.mimeType, bytesIncluded: false as const } } : {}),
+      }));
       setReviewPayloadSnapshot(reviewPayload ?? null);
       setReviewFingerprint(evidenceFingerprint);
     } catch (reviewError) {
@@ -251,6 +281,7 @@ export function ArchitectureReviewModal({
     setBusy(false); setError(""); setDescription(""); setBusinessContext("");
     setImportedPayload(null); setImportName(""); setReviewImage(null);
     setReview(null); setReviewPayloadSnapshot(null); setReviewFingerprint("");
+    setProvenance(null); setReviewEvidenceSnapshot(null);
   };
 
   return createPortal(
@@ -451,7 +482,7 @@ export function ArchitectureReviewModal({
                 </div>
               </div>
             ) : (
-              <ReviewResult review={review} payload={reviewPayloadSnapshot} />
+              <ReviewResult review={review} payload={reviewPayloadSnapshot} provenance={provenance} evidence={reviewEvidenceSnapshot} onError={setError} />
             )}
             {evidencePayload && diagramAssessment && baselineSource && (
               <section className="mt-5 border-t border-slate-700 pt-4" aria-label="Offline WAF scorecard">
@@ -473,7 +504,11 @@ export function ArchitectureReviewModal({
   );
 }
 
-function ReviewResult({ review, payload }: { review: ArchitectureReview; payload: ArchPayload | null }) {
+function ReviewResult({ review, payload, provenance, evidence, onError }: {
+  review: ArchitectureReview; payload: ArchPayload | null;
+  provenance: ReviewProvenance | null; evidence: ReviewEvidenceSnapshot | null;
+  onError: (message: string) => void;
+}) {
   const postureClass =
     review.posture === "strong"
       ? "text-emerald-300"
@@ -484,6 +519,40 @@ function ReviewResult({ review, payload }: { review: ArchitectureReview; payload
     <section aria-label="Your personalized review">
       <h2 className="mb-3 text-base font-semibold text-white">Your prioritized architecture review</h2>
       <p className="mb-3 text-[10px] leading-relaxed text-slate-400">{ARCHITECTURE_REVIEW_DISCLAIMER}</p>
+      {provenance && (
+        <section aria-label="Review provenance" className="mb-4 rounded-xl border border-slate-700 p-3 text-[11px] text-slate-300">
+          <h3 className="font-semibold text-cyan-200">Evidence and reproducibility</h3>
+          <p className="mt-1">Depicted: submitted design intent. Proposed: recommendations below. Validated: input/output schemas and reference IDs only. Runtime verified: no.</p>
+          <p className="mt-2">Prompt {provenance.promptVersion} · Schema {provenance.outputSchemaVersion} · Guidance {provenance.guidanceVersion}</p>
+          <p>Provider model: {provenance.attempts.at(-1)?.invocation.modelReportedId ?? "Not reported by provider"} · Attempts: {provenance.attempts.length}</p>
+          <p>Agent version: not pinned. Model identifiers are provider-reported, not independently resolved versions; identical replay is not guaranteed.</p>
+          <details className="mt-2">
+            <summary className="cursor-pointer">Evidence fingerprints</summary>
+            <p className="mt-1 break-all">Evidence SHA-256: {provenance.evidenceSha256}</p>
+            <p className="break-all">Review SHA-256: {provenance.reviewSha256}</p>
+            <p>Generated: {provenance.generatedAt}</p>
+          </details>
+          <button type="button" className="mt-2 rounded border border-cyan-300/40 px-2 py-1 text-cyan-200"
+            onClick={() => {
+              let url: string | undefined;
+              try {
+                const guidance = [...new Set(review.findings.flatMap((finding) => finding.guidanceIds ?? []))].map(findReviewGuidance);
+                url = URL.createObjectURL(new Blob([JSON.stringify({
+                  format: "diagrammatic-review", version: 1, review, provenance, evidence, guidance,
+                  guidanceSnapshot: { version: REVIEW_GUIDANCE_VERSION, reviewedAt: REVIEW_GUIDANCE_REVIEWED_AT, entries: REVIEW_GUIDANCE },
+                  imageBytesIncluded: false,
+                }, null, 2)], { type: "application/json" }));
+                const anchor = document.createElement("a");
+                anchor.href = url; anchor.download = "architecture-review.json"; anchor.click();
+              } catch (cause) {
+                onError(cause instanceof Error ? cause.message : "Review download failed.");
+              } finally {
+                if (url) { const release = url; setTimeout(() => URL.revokeObjectURL(release), 1000); }
+              }
+            }}>Download review JSON</button>
+          <p className="mt-1 text-slate-400">Includes the captured diagram/text/context and selected guidance. Image bytes are excluded; their original request remains represented by its digest. Nothing is saved automatically.</p>
+        </section>
+      )}
       <div className="flex items-start justify-between gap-5 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
         <div>
           <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500">
@@ -548,6 +617,19 @@ function ReviewResult({ review, payload }: { review: ArchitectureReview; payload
                 : "No node-specific evidence supplied"}
               {" "}· Connections: {finding.edgeIds?.join(", ") || "Not specified"}
             </p>
+            {finding.guidanceIds?.map((id) => {
+              const guidance = findReviewGuidance(id);
+              return guidance ? (
+                <section key={id} aria-label={`Supporting guidance ${id}`} className="mt-3 rounded-xl border border-slate-700 p-3 text-[10px] leading-relaxed text-slate-300">
+                  <a href={guidance.url} target="_blank" rel="noreferrer" className="font-semibold text-cyan-200 underline">{guidance.title}</a>
+                  <p className="mt-1">{guidance.summary}</p>
+                  <p className="mt-1"><strong>Applies when:</strong> {guidance.applicability}</p>
+                  <p className="mt-1"><strong>Evidence still needed:</strong> {guidance.validationEvidence}</p>
+                  <p className="mt-1 text-slate-400">Curated guidance, not proof of the deployed configuration.</p>
+                </section>
+              ) : null;
+            })}
+            {finding.guidanceRationale && <p className="mt-2 text-[11px] text-slate-300"><strong>Why this guidance applies:</strong> {finding.guidanceRationale}</p>}
             {finding.remediation && (
               <section className="mt-3 rounded-xl border border-cyan-400/20 p-3 text-[10px] leading-relaxed text-slate-300">
                 <h4 className="font-semibold text-cyan-200">Your remediation playbook</h4>

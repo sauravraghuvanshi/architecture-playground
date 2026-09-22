@@ -6,10 +6,12 @@ import {
 } from "../lib/architecture-review.ts";
 import { legacyReviewRequestSchema, REVIEW_EVIDENCE_MAX_BYTES } from "../lib/review-evidence.ts";
 import { readBoundedJson, RequestBodyError } from "../lib/request-json.ts";
+import { REVIEW_GUIDANCE, REVIEW_GUIDANCE_VERSION } from "../lib/review-guidance.ts";
 
 const finding = {
   id: "recovery", title: "Confirm recovery objectives", severity: "high",
-  framework: "Well-Architected Framework", sourceUrl: "https://learn.microsoft.com/azure/well-architected/",
+  framework: "Well-Architected Framework", sourceUrl: "https://learn.microsoft.com/azure/well-architected/reliability/redundancy",
+  guidanceIds: ["waf-redundancy"], guidanceRationale: "The critical flow needs agreed recovery targets before choosing redundant capacity.",
   evidence: "Recovery objectives were not supplied.", recommendation: "Agree and test recovery objectives.",
   evidenceStatus: "unknown", nodeIds: [], edgeIds: [],
   remediation: { steps: ["Agree objectives.", "Test recovery."], validation: "Measure recovery time and data loss.", tradeoff: "Additional recovery capacity has cost." },
@@ -19,7 +21,7 @@ const parse = (value, payload) => parseGeneratedArchitectureReview(JSON.stringif
 
 test("new reviews require complete remediation and explicit evidence; historical reads do not fabricate fields", () => {
   assert.deepEqual(parse(review), review);
-  for (const field of ["evidenceStatus", "nodeIds", "edgeIds", "remediation"]) {
+  for (const field of ["evidenceStatus", "nodeIds", "edgeIds", "remediation", "guidanceIds", "guidanceRationale"]) {
     const old = structuredClone(review);
     delete old.findings[0][field];
     assert.throws(() => parse(old), field);
@@ -37,11 +39,34 @@ test("duplicate findings, references, blank evidence and framework/source mismat
   for (const patch of [
     { id: "   " }, { evidence: " " }, { recommendation: "\n" },
     { sourceUrl: "https://learn.microsoft.com/azure/architecture/" },
+    { sourceUrl: "https://learn.microsoft.com/azure/well-architected/" },
+    { guidanceIds: ["invented-source"] },
+    { guidanceIds: ["aac-retry"] },
+    { guidanceIds: ["waf-redundancy", "waf-redundancy"] },
+    { guidanceRationale: " " },
     { nodeIds: ["app", "app"] }, { edgeIds: ["edge", "edge"] },
     { remediation: { ...finding.remediation, steps: [" "] } },
   ]) assert.throws(() => parse({ ...review, findings: [{ ...finding, ...patch }] }));
 });
 
+test("all four guidance families use specific versioned source cards and model grounding cannot be invented", () => {
+  assert.equal(REVIEW_GUIDANCE.length, 12);
+  assert.equal(new Set(REVIEW_GUIDANCE.map(({ id }) => id)).size, REVIEW_GUIDANCE.length);
+  assert.equal(new Set(REVIEW_GUIDANCE.map(({ framework }) => framework)).size, 4);
+  assert.match(REVIEW_GUIDANCE_VERSION, /^\d{4}-\d{2}-\d{2}\.\d+$/);
+  for (const guide of REVIEW_GUIDANCE) {
+    const url = new URL(guide.url);
+    assert.equal(url.protocol, "https:");
+    assert.equal(url.hostname, "learn.microsoft.com");
+    for (const value of [guide.summary, guide.applicability, guide.validationEvidence]) assert.ok(value.length > 30);
+    const generated = { ...review, findings: [{
+      ...finding, framework: guide.framework, sourceUrl: guide.url,
+      guidanceIds: [guide.id], guidanceRationale: "The submitted evidence has an explicit discovery gap addressed by this guidance.",
+    }] };
+    assert.equal(parse(generated).findings[0].guidanceIds[0], guide.id);
+  }
+  assert.throws(() => parse({ ...review, provenance: { runtimeVerified: true } }), /Unrecognized/);
+});
 test("observed structured findings require exact diagram references while images cannot invent IDs", () => {
   const observed = { ...review, findings: [{ ...finding, evidenceStatus: "observed" }] };
   const payload = { nodes: [{ id: "app" }], edges: [] };
