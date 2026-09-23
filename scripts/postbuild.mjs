@@ -11,10 +11,11 @@ import { readReleaseInfo } from "../lib/release-info.mjs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, "..");
 
-function copyDir(src, dest) {
+function copyDir(src, dest, excludedNames = new Set()) {
   if (!fs.existsSync(src)) return;
   fs.mkdirSync(dest, { recursive: true });
   for (const entry of fs.readdirSync(src)) {
+    if (excludedNames.has(entry)) continue;
     const srcPath = path.join(src, entry);
     const destPath = path.join(dest, entry);
     if (fs.statSync(srcPath).isDirectory()) {
@@ -40,7 +41,10 @@ copyDir(path.join(root, ".next", "static"), path.join(standaloneDir, ".next", "s
 // Explicitly copy content/ → standalone so lazy field-merge and other runtime
 // reads always have the latest bundled JSON/MDX, independent of Next.js tracing.
 console.log("[postbuild] Copying content/ → .next/standalone/content/");
-copyDir(path.join(root, "content"), path.join(standaloneDir, "content"));
+copyDir(path.join(root, "content"), path.join(standaloneDir, "content"), new Set(["ai-evaluation"]));
+if (fs.existsSync(path.join(standaloneDir, "content", "ai-evaluation"))) {
+  throw new Error("Evaluation data must not be packaged in the production runtime. Inspect stale output or file tracing before deploying.");
+}
 const builtRelease = readReleaseInfo(root);
 const packagedRelease = readReleaseInfo(standaloneDir);
 if (JSON.stringify(builtRelease) !== JSON.stringify(packagedRelease)) throw new Error("Packaged release identity differs from the build.");

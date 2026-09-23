@@ -8,6 +8,7 @@ node_modules/
 coverage/
 playwright-report/
 test-results/
+ai-evaluation-results/
 
 # Next.js
 .next/

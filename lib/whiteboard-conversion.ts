@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { parseArchitectureDocument } from "./architecture-document";
+import { parseArchitectureDocument } from "./architecture-document.ts";
 import type { ArchPayload, ArchitectureMetadata } from "./architecture-model";
 import { resolveServiceIcon as resolveConversionIcon, serviceLabelProvider as labeledProvider } from "./service-identity.ts";
 export { resolveServiceIcon as resolveConversionIcon } from "./service-identity.ts";

@@ -19,6 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -62,6 +64,11 @@ jobs:
           npm run test:artifact-parsers
           npm run test:powershell-preview
           npm run test:azure-cli-draft
+
+      - name: Block unqualified AI subject changes
+        run: |
+          npm run test:ai-evaluations
+          npm run evaluate:ai -- --gate --output node_modules/.cache/ai-evaluation/gate-report.json
 
       - name: Install pinned Terraform validator
         uses: hashicorp/setup-terraform@v3

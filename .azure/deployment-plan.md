@@ -9,6 +9,22 @@ Latest handoff: [completed work, lessons and tomorrow's checklist](../docs/sessi
 
 ## September 23 - Immediate screenshot priority
 
+- **Latest live result:** Grounded-code application `fd48a30`, successful
+  workflow35831837917, independently matched hosted build
+  `33979939-7880-4b4d-b4ca-1d2e0f559bda`. The exact screenshot topology generated
+  and rendered Bicep through the hosted UI in50.1s. Syntax passed and all five
+  cloud-service nodes n2,n3,n4,n5,n7 were mapped; publication remained disabled
+  because real environment prerequisites are still explicitly unverified.
+- **Review repeatability:** A subsequent review exposed a cross-framework
+  citation mismatch, correctly rejected by validation. Added framework-specific
+  guidance constraints/correction lists; synchronized review agent version3.
+  Three consecutive fresh hosted UI review tests then passed in51s total.
+  No fields were dropped/coerced and no validator was weakened.
+- **Remaining integration:** The tested constraint correction is checkpoint
+  `4ba594f`; priority18's initial subject baseline is that reviewed checkpoint,
+  not a fabricated provider-evaluation result. Finish18 and full demo
+  qualification, then stop as instructed; do not start19.
+
 - **Follow-up after first urgent rollout:** `f2fbb61` / workflow35824625420
   passed allCI gates; live screenshot review passed but real code generation
   exposed malformed model Bicep and missing Function/Container Apps settings
@@ -109,7 +125,38 @@ Latest handoff: [completed work, lessons and tomorrow's checklist](../docs/sessi
   prompt/model subjects; preserve the currently qualified application behavior.
 - **Scope:** Existing app/repository only; unchanged Azure resources and models.
   No new cloud evaluation resource or dataset upload.
-- **State:** Inspecting evaluation entry points and semantic fixtures.
+- **State:** Implemented offline evaluator and16 golden tasks; reference gate
+  and26 evaluator/benchmark tests pass. Final integration and demo checks remain.
+- **Final implementation:**16 versioned synthetic tasks (4 generation,4
+  conversion with original SVG/PNG evidence,4 review,4 IaC). Per-task structural
+  requirements, identity/provider fidelity, directed topology/labels, grounding
+  associations/unknowns and real artifact validation use threshold1.0; all
+  cases must pass. Input/source/dataset hashes, per-model identity/version,
+  and output-bound human review requirements prevent reference fixtures being
+  mistaken for recorded qualification.
+- **Initial baseline:** Reviewed checkpoint4ba594f, selected at the gate's
+  first installation after urgent fixes. It is explicitly grandfathered, not
+  a passing live-model benchmark. Subsequent prompt/contract/transport/catalog/
+  nominated-model changes require a passing recorded candidate, not fixture
+  output. External runtime model/agent changes remain operator-managed.
+- **All validation checks pass (final18 candidate):**
+  -401/401 application contracts;26/26 evaluator/benchmark tests.
+  -Reference benchmark16/16, with model promotion explicitly false.
+  -Subject gate passes unchanged reviewed baseline; no model was invoked.
+  -Full lint, strict types, production build and package exclusion checks pass.
+  -Complete local Chromium sweep:232 passed,8 explicitly skipped,0 failures,
+   0 flaky in15.3 minutes. Skips are auth/live-provider-only cases and one
+   pre-existing mid-scroll diagnostic; hosted auth/live paths are separate.
+  -Earlier integrated172-case release gate passed across three engines.
+  -Urgent live screenshot review passed three consecutive fresh invocations;
+   codegeneration covered all5 supported service nodes with syntax passed and
+   explicit needs-review publication lock. These are smoke results, not16-case
+   model qualification or customer deployment proof.
+- **Section 7: Validation Proof (priority18/demo):** Commands/results above
+  are retained in session artifacts. Existing Linux release gates and exact
+  deployed-build verification run before final hosted qualification.
+  No new application/model resources, permissions or generated infrastructure
+  execution. After18 and demo qualification, stop; no19.
 
 ### Post-18 hackathon qualification
 
