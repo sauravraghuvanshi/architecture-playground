@@ -23,6 +23,20 @@ The server and personalized-review UI use the strict new-result parser.
 Historical-review reading keeps optional legacy fields without inventing them.
 Both reject duplicate findings and framework/source mismatches.
 
+### Named-agent deployment contract
+
+Application prompts do not replace an existing Foundry prompt agent's stored
+instructions. A stale stored schema can conflict with the developer message and
+cause every otherwise valid review to fail. Before releasing a changed review
+contract, inspect the configured immutable agent version using
+`node scripts/sync-review-agent.mjs --check` with the existing project/name and
+explicit numeric `AZURE_AI_REVIEW_AGENT_VERSION`. This read-only check fails on
+instruction drift. `--apply` explicitly creates a new version retaining the
+existing model, settings and tool configuration (nonempty tools require manual
+review). Follow it with a live synthetic acceptance check; fixture tests cannot
+establish that the remote configuration matches. Do not add/remap a model merely
+to repair this contract.
+
 The current UI requests `X-Diagrammatic-Review-Contract: 2`. Already-open v1
 clients without that header receive an explicit `contractVersion: 1` projection
 with the original finding fields and framework URLs, so deploying the new

@@ -71,6 +71,25 @@ export function emitTerraformDraft(resources: readonly Resource[], options: Opti
       'variable "sql_admin_login" {', "  type    = string", '  default = "Azure SQL Administrators"', "}");
   }
   if (kinds.has("apim")) lines.push("", 'variable "publisher_email" {', "  type = string", "}");
+  if (kinds.has("container-apps")) {
+    lines.push("", `variable "container_app_environment_id" {
+  type        = string
+  description = "Existing same-region managed environment; not created or verified by this starter."
+  validation {
+    condition     = can(regex("(?i)^/subscriptions/[0-9a-f-]{36}/resourceGroups/[^/]+/providers/Microsoft[.]App/managedEnvironments/[^/?#]+$", var.container_app_environment_id))
+    error_message = "Supply a Microsoft.App/managedEnvironments resource ID."
+  }
+}
+
+variable "container_app_image" {
+  type        = string
+  description = "Reviewed anonymously pullable Linux image serving HTTP on port 8080; shared by all generated apps."
+  validation {
+    condition     = length(trimspace(var.container_app_image)) > 0
+    error_message = "Supply a reviewed container image; this starter does not build application code."
+  }
+}`);
+  }
   if (kinds.has("app-service") || kinds.has("functions")) {
     lines.push("", `resource "azurerm_service_plan" "main" {
   name                = "csa-plan-\${var.environment_name}"
@@ -149,6 +168,45 @@ function terraformResource(resource: Resource, options: Options): string {
   const common = `  resource_group_name = data.azurerm_resource_group.target.name
   location            = local.location`;
   switch (kind) {
+    case "container-apps":
+      return `resource "azurerm_container_app" "${variable}" {
+  name                         = "${name}-\${var.environment_name}"
+  resource_group_name          = data.azurerm_resource_group.target.name
+  container_app_environment_id = var.container_app_environment_id
+  revision_mode                = "Single"
+  identity { type = "SystemAssigned" }
+  ingress {
+    external_enabled           = false
+    allow_insecure_connections = false
+    target_port                = 8080
+    transport                  = "auto"
+    traffic_weight {
+      latest_revision = true
+      percentage      = 100
+    }
+  }
+  template {
+    min_replicas = 1
+    max_replicas = 1
+    container {
+      name   = "workload"
+      image  = var.container_app_image
+      cpu    = 1
+      memory = "2Gi"
+    }
+  }
+}`;
+    case "search":
+      return `resource "azurerm_search_service" "${variable}" {
+  name                          = "${name}-\${var.environment_name}"
+${common}
+  sku                           = "basic"
+  replica_count                 = 1
+  partition_count               = 1
+  local_authentication_enabled  = false
+  public_network_access_enabled = false
+  identity { type = "SystemAssigned" }
+}`;
     case "app-service":
       return `resource "azurerm_linux_web_app" "${variable}" {
   name                = "${name}-\${var.environment_name}"

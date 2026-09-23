@@ -211,6 +211,7 @@ const TF_TYPES: Record<string, string> = {
   azurerm_virtual_network: "Microsoft.Network/virtualNetworks", azurerm_subnet: "Microsoft.Network/virtualNetworks/subnets",
   azurerm_log_analytics_workspace: "Microsoft.OperationalInsights/workspaces", azurerm_application_insights: "Microsoft.Insights/components",
   azurerm_user_assigned_identity: "Microsoft.ManagedIdentity/userAssignedIdentities", azurerm_role_assignment: "Microsoft.Authorization/roleAssignments",
+  azurerm_container_app: "Microsoft.App/containerApps", azurerm_search_service: "Microsoft.Search/searchServices",
 };
 
 function fieldMap(body: ArtifactBody, failures: string[]): Map<string, Expr> {
@@ -229,9 +230,17 @@ function selectedFields(fields: Map<string, Expr>): Map<string, Expr> {
   for (const key of ["location", "kind", "identity", "tags"]) if (fields.has(key)) result.set(key, fields.get(key)!);
   const sku = member(fields.get("sku"), "name");
   if (sku) result.set("sku.name", sku);
-  for (const key of ["serverFarmId", "httpsOnly", "enableRbacAuthorization", "enablePurgeProtection", "allowSharedKeyAccess", "allowBlobPublicAccess", "disableLocalAuth", "publicNetworkAccess", "WorkspaceResourceId"]) {
+  for (const key of ["serverFarmId", "httpsOnly", "enableRbacAuthorization", "enablePurgeProtection", "allowSharedKeyAccess", "allowBlobPublicAccess", "disableLocalAuth", "publicNetworkAccess", "WorkspaceResourceId", "environmentId", "managedEnvironmentId", "replicaCount", "partitionCount"]) {
     const value = member(fields.get("properties"), key);
     if (value) result.set(`properties.${key}`, value);
+  }
+  for (const path of [
+    "configuration.activeRevisionsMode", "configuration.ingress.external", "configuration.ingress.targetPort",
+    "configuration.ingress.allowInsecure", "configuration.ingress.transport",
+    "template.containers", "template.scale.minReplicas", "template.scale.maxReplicas",
+  ]) {
+    const value = path.split(".").reduce<Expr | undefined>((current, key) => member(current, key), fields.get("properties"));
+    if (value) result.set(`properties.${path}`, value);
   }
   return result;
 }
@@ -263,6 +272,42 @@ function terraformFields(type: string, attributes: Map<string, Expr>, body: Arti
     result.set("sku.name", sku.kind === "string" ? text(sku.text?.replace(/_\d+$/, "") ?? "") : unknown());
   }
   if (type === "azurerm_cognitive_account") copy("kind", "kind");
+  if (type === "azurerm_search_service") {
+    copy("sku", "sku.name");
+    copy("replica_count", "properties.replicaCount");
+    copy("partition_count", "properties.partitionCount");
+  }
+  if (type === "azurerm_container_app") {
+    copy("container_app_environment_id", "properties.environmentId");
+    copy("revision_mode", "properties.configuration.activeRevisionsMode");
+    for (const block of body.blocks.filter((item) => item.type === "ingress")) {
+      const fields = fieldMap(block.body, failures);
+      for (const [attribute, target] of [
+        ["external_enabled", "external"], ["target_port", "targetPort"],
+        ["allow_insecure_connections", "allowInsecure"], ["transport", "transport"],
+      ]) {
+        const value = fields.get(attribute);
+        if (value) result.set(`properties.configuration.ingress.${target}`, value);
+      }
+    }
+    for (const block of body.blocks.filter((item) => item.type === "template")) {
+      const fields = fieldMap(block.body, failures);
+      for (const [attribute, target] of [["min_replicas", "minReplicas"], ["max_replicas", "maxReplicas"]]) {
+        const value = fields.get(attribute);
+        if (value) result.set(`properties.template.scale.${target}`, value);
+      }
+      const containers: Expr[] = block.body.blocks.filter((item) => item.type === "container").map((container) => {
+        const values = fieldMap(container.body, failures);
+        return {
+          kind: "object", entries: [
+            ...["name", "image"].map((key) => ({ key: text(key), value: values.get(key) ?? unknown() })),
+            { key: text("resources"), value: { kind: "object", entries: ["cpu", "memory"].map((key) => ({ key: text(key), value: values.get(key) ?? unknown() })) } },
+          ],
+        };
+      });
+      result.set("properties.template.containers", { kind: "array", items: containers });
+    }
+  }
   if (type === "azurerm_cosmosdb_account") copy("kind", "kind");
   if (type === "azurerm_storage_account") {
     copy("account_kind", "kind");

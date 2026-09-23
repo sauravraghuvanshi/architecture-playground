@@ -124,13 +124,14 @@ test("feature and similar product icons never masquerade as deployable App Servi
   for (const id of [
     "azure/application/web-app-file", "azure/application/app-service-api",
     "azure/security/azure-key-vault-managed-hsm", "azure/data/azure-database-for-mysql",
-    "azure/data/azure-database-for-postgresql", "azure/ai/cognitive-services-search",
+    "azure/data/azure-database-for-postgresql",
     "azure/storage/storage-account-queue",
   ]) {
     assert.ok(byId.has(id), `Fixture must be a real catalog asset: ${id}`);
     assert.equal(azureResourceKind(id), undefined, id);
     assert.equal(generateArmTemplate(payload(id, "SQL Database Azure OpenAI Key Vault App Service")).supportedNodes, 0, id);
   }
+  assert.equal(azureResourceKind("azure/ai/cognitive-services-search"), "search", "Search is not an OpenAI alias");
 });
 
 test("legacy IaC uses the same canonical identity and blocks zero-mapping artifacts", () => {

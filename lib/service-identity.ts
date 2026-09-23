@@ -30,6 +30,7 @@ const SERVICE_ALIASES: Record<string, Record<string, string>> = {
     "cosmos": "azure/data/azure-cosmos-db",
     "blob storage": "azure/storage/storage-account-blob",
     "container apps": "azure/application/container-app",
+    "container app": "azure/application/container-app",
     "static web apps": "azure/application/static-web-app",
     "entra id": "azure/identity/azure-active-directory",
     "active directory": "azure/identity/azure-active-directory",
@@ -44,6 +45,7 @@ const SERVICE_ALIASES: Record<string, Record<string, string>> = {
     "mysql": "azure/data/azure-database-for-mysql",
     "ai search": "azure/ai/cognitive-services-search",
     "cognitive search": "azure/ai/cognitive-services-search",
+    "search service": "azure/ai/search-service",
     "synapse": "azure/data/azure-synapse-analytics",
     "databricks": "azure/data/azure-databricks",
     "managed hsm": "azure/security/azure-key-vault-managed-hsm",
@@ -185,7 +187,8 @@ export function searchServiceIcons<T extends ServiceIcon & { category?: string; 
 }
 
 export type AzureResourceKind = "app-service" | "sql" | "storage" | "apim" | "openai" | "key-vault" |
-  "front-door" | "service-bus" | "cosmos" | "functions" | "aks" | "vnet" | "log-analytics" | "app-insights";
+  "front-door" | "service-bus" | "cosmos" | "functions" | "aks" | "vnet" | "log-analytics" | "app-insights" |
+  "container-apps" | "search";
 
 const AZURE_RESOURCE_KINDS: Readonly<Record<string, AzureResourceKind>> = {
   "azure/application/application-service": "app-service",
@@ -204,9 +207,15 @@ const AZURE_RESOURCE_KINDS: Readonly<Record<string, AzureResourceKind>> = {
   "azure/networking/virtual-network": "vnet",
   "azure/management/log-analytics-workspace": "log-analytics",
   "azure/management/application-insights": "app-insights",
+  "azure/application/container-app": "container-apps",
+  "azure/ai/cognitive-services-search": "search",
+  "azure/ai/search-service": "search",
 };
 
 export function azureResourceKind(iconId: string, cloud?: string): AzureResourceKind | undefined {
   const icon = resolveServiceIcon({ iconId, cloud }, SERVICE_CATALOG);
-  return icon && iconProvider(icon) === "azure" ? AZURE_RESOURCE_KINDS[icon.id] : undefined;
+  const kind = icon && iconProvider(icon) === "azure" ? AZURE_RESOURCE_KINDS[icon.id] : undefined;
+  if ((kind === "container-apps" || kind === "search") && icon &&
+      iconId !== icon.id && LEGACY_ICON_IDS[iconId] !== icon.id) return undefined;
+  return kind;
 }

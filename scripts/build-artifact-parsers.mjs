@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parserSourceHash, PARSER_SOURCE_FILES } from "./artifact-parser-build-config.mjs";
@@ -60,7 +60,13 @@ function copyNotices(directory, name) {
     if (!/^(license|thirdpartynotices|notice)(\.[^.]+)?$/i.test(file)) continue;
     const destination = path.join(licenses, name);
     mkdirSync(destination, { recursive: true });
-    copyFileSync(path.join(directory, file), path.join(destination, file));
+    const source = path.join(directory, file);
+    const target = path.join(destination, file);
+    if (existsSync(target)) {
+      if (readFileSync(source).equals(readFileSync(target))) continue;
+      chmodSync(target, 0o644);
+    }
+    copyFileSync(source, target);
   }
 }
 const assets = JSON.parse(readFileSync(path.join(root, "tools", "artifact-validation", "dotnet", "obj", "project.assets.json"), "utf8"));

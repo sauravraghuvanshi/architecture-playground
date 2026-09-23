@@ -6,6 +6,7 @@
  * deterministic five-pillar { assessment } without calling or configuring AI.
  */
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { FoundryAgentError, invokeFoundryAgent, isFoundryAgentConfigured } from "@/lib/foundry-agent";
 import { aiRateLimit } from "@/lib/ai-rate-limit";
 import { readBoundedJson, RequestBodyError } from "@/lib/request-json";
@@ -57,6 +58,17 @@ function reviewFailure(error: unknown, request: Request) {
       { error: error.status === 499 ? "Architecture review timed out." : error.message },
       { status: error.status === 499 ? 504 : error.status }
     );
+  }
+  const validation = error instanceof Error ? error.cause : undefined;
+  if (validation instanceof z.ZodError) {
+    const issues = validation.issues.slice(0, 8).map((issue) => ({
+      path: issue.path.map(String).join(".").slice(0, 160), code: issue.code,
+    }));
+    console.error("[review-contract] Named agent output rejected", JSON.stringify(issues));
+    return NextResponse.json({
+      error: "The review agent could not return a valid architecture review. Please retry.",
+      code: "review_contract_invalid", issues,
+    }, { status: 502, headers: { "Cache-Control": "no-store" } });
   }
   return NextResponse.json({ error: "The review agent could not return a valid architecture review. Please retry." }, { status: 502 });
 }

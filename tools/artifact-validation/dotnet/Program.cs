@@ -16,6 +16,20 @@ var json = new JsonSerializerOptions
 };
 try
 {
+    if (args.Length == 1 && args[0] == "--ready")
+    {
+        const string warmup = "param warmup string = 'ready'";
+        var warmParser = new Parser(warmup);
+        var warmProgram = warmParser.Program();
+        var warmProjector = new Projector(warmup);
+        _ = JsonSerializer.Serialize(new ParseResult(
+            "azure-bicep-parser", "0.47.16", true, true, [],
+            warmProjector.Program(warmProgram)), json);
+        Console.WriteLine("DIAGRAMMATIC_PARSER_READY_V1");
+        Console.Out.Flush();
+    }
+    else if (args.Length != 0) throw new InvalidDataException();
+
     using var input = Console.OpenStandardInput();
     using var buffer = new MemoryStream();
     var chunk = new byte[8192];

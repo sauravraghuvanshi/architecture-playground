@@ -15,6 +15,11 @@ const apim = node("apim", "azure/integration/api-management");
 const graph = (...nodes) => ({ nodes, edges: [] });
 const simple = graph(app);
 const full = graph(app, sql, apim);
+const containerApp = graph(node("orchestrator", "azure/application/container-app"));
+const containerInputs = {
+  CONTAINER_APP_ENVIRONMENT_ID: "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/existing/providers/Microsoft.App/managedEnvironments/reviewed",
+  CONTAINER_APP_IMAGE: "example.invalid/reviewed-image:v1",
+};
 const subscription = "abcdefab-1234-5678-9012-abcdefabcdef";
 const requiredEnv = {
   AZURE_SUBSCRIPTION_ID: subscription,
@@ -32,6 +37,7 @@ const authVariables = [
   "MSI_ENDPOINT", "MSI_SECRET", "IDENTITY_ENDPOINT", "IDENTITY_HEADER",
   "ACTIONS_ID_TOKEN_REQUEST_TOKEN", "ACTIONS_ID_TOKEN_REQUEST_URL", "SYSTEM_ACCESSTOKEN",
 ];
+
 const shellPath = (path) => process.platform === "win32"
   ? resolve(path).replaceAll("\\", "/").replace(/^([A-Za-z]):/, (_, drive) => `/${drive.toLowerCase()}`)
   : resolve(path);
@@ -203,6 +209,27 @@ test("--deploy is the only write opt-in and deploys the same template and parame
   assert.deepEqual(result.calls.at(-1), result.calls.at(-2).map((argument, index) => index === 3 ? "create" : argument));
   assert.equal(flag(result.calls.at(-1), "--subscription"), subscription);
   assert.doesNotMatch(result.stdout, /Nothing deployed/);
+});
+
+test("Container Apps CLI passes explicit existing-environment and image inputs as literal Bicep parameters", () => {
+  const result = execute({ payload: containerApp, env: containerInputs });
+  assert.equal(result.status, 0, result.stderr);
+  const preview = result.calls.find((call) => call.slice(0, 4).join(" ") === "az deployment group what-if");
+  assert.ok(preview.includes(`containerAppEnvironmentId=${containerInputs.CONTAINER_APP_ENVIRONMENT_ID}`));
+  assert.ok(preview.includes(`containerAppImage=${containerInputs.CONTAINER_APP_IMAGE}`));
+  assert.equal(result.calls.some((call) => call.slice(0, 4).join(" ") === "az deployment group create"), false);
+});
+
+test("Container Apps CLI rejects absent or malformed prerequisites before any mocked Azure requests", () => {
+  for (const env of [
+    {}, { ...containerInputs, CONTAINER_APP_ENVIRONMENT_ID: "" },
+    { ...containerInputs, CONTAINER_APP_ENVIRONMENT_ID: "/providers/Microsoft.Web/sites/not-environment" },
+    { ...containerInputs, CONTAINER_APP_IMAGE: "" }, { ...containerInputs, CONTAINER_APP_IMAGE: " " },
+  ]) {
+    const result = execute({ payload: containerApp, env });
+    assert.notEqual(result.status, 0);
+    assert.deepEqual(result.calls, []);
+  }
 });
 
 for (const args of [["--yes"], ["--Deploy"], ["deploy"], ["--deploy=true"], ["--deploy", "--deploy"], ["", "--deploy"]]) {

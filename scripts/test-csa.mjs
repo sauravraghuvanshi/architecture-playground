@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { z } from "zod";
 import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
@@ -527,6 +528,7 @@ function reviewRouteHarness({ configured = true, outputs = [JSON.stringify(corre
   }
   const dependencies = {
     "next/server": { NextResponse },
+    zod: { z },
     "@/lib/foundry-agent": {
       FoundryAgentError,
       isFoundryAgentConfigured: (purpose) => { assert.equal(purpose, "review"); return configured; },

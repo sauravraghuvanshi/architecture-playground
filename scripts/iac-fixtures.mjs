@@ -13,6 +13,8 @@ export const supportedIcons = [
   ["vnet", "azure/networking/virtual-network"],
   ["log-analytics", "azure/management/log-analytics-workspace"],
   ["app-insights", "azure/management/application-insights"],
+  ["container-apps", "azure/application/container-app"],
+  ["search", "azure/ai/search-service"],
 ];
 
 export const service = (id, iconId, label = id) => ({ id, kind: "icon", iconId, label, cloud: "azure" });
@@ -34,4 +36,5 @@ export const compilerFixtures = [
   ...supportedIcons.map(([kind, iconId]) => [kind, graph([service(kind, iconId)])]),
   ["repeated-kinds", repeatedKinds],
   ["edge-names", edgeNames],
+  ["search-cognitive-icon", graph([service("search", "azure/ai/cognitive-services-search")])],
 ];

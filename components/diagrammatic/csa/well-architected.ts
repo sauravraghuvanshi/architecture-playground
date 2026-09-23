@@ -1,3 +1,5 @@
+import { azureResourceKind } from "../../../lib/service-identity.ts";
+
 export type WafPillarId =
   | "reliability"
   | "security"
@@ -230,6 +232,7 @@ interface EvidenceNode {
   iconId: string;
   parentId: string;
   subtitle: string;
+  provider: string;
 }
 
 interface EvidenceEdge {
@@ -286,8 +289,13 @@ const record = (value: unknown): value is Record<string, unknown> =>
 const text = (value: unknown): string => typeof value === "string" ? value : "";
 const ordered = (values: Iterable<string>): string[] => [...new Set(values)].sort();
 const matchesSignal = (node: EvidenceNode, signal: Signal): boolean => {
-  if (node.kind !== "icon" || !node.iconId.startsWith("azure/")) return false;
+  if (node.kind !== "icon" || !node.iconId.startsWith("azure/") || (node.provider && node.provider !== "azure")) return false;
   const slug = node.iconId.split("/").at(-1) ?? "";
+  if (signal === "workload") {
+    const kind = azureResourceKind(node.iconId, node.provider || undefined);
+    if (kind === "search" || kind === "container-apps") return true;
+    if (["container-app", "container-apps"].includes(slug)) return false;
+  }
   return SIGNAL_SLUGS[signal].includes(slug);
 };
 
@@ -315,6 +323,9 @@ export function assessDiagramWellArchitected(payload: WafDiagramPayload): WafDia
       id: text(value.id), kind: text(value.kind) || "icon",
       label: text(value.label), iconId: text(value.iconId),
       parentId: text(value.parentId), subtitle: text(value.subtitle),
+      provider: record(value.semantics) && text(value.semantics.provider)
+        ? text(value.cloud) && text(value.cloud) !== text(value.semantics.provider) ? "conflicting" : text(value.semantics.provider)
+        : text(value.cloud),
     });
   }
   nodes.sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
@@ -333,8 +344,7 @@ export function assessDiagramWellArchitected(payload: WafDiagramPayload): WafDia
   const workload = nodes.filter((node) => matchesSignal(node, "workload"));
   if (!services.length) warnings.push("No service icons to assess. Add architecture services and connections.");
   else if (!workload.length) warnings.push("No supported Azure workload service was recognized; unsupported services remain unknown.");
-  const unsupported = services.filter((node) => !node.iconId.startsWith("azure/") ||
-    !Object.values(SIGNAL_SLUGS).some((slugs) => slugs.includes(node.iconId.split("/").at(-1) ?? "")));
+  const unsupported = services.filter((node) => !(Object.keys(SIGNAL_SLUGS) as Signal[]).some((signal) => matchesSignal(node, signal)));
   if (unsupported.length) warnings.push(`Unrecognized service IDs (not assessed): ${unsupported.map((node) => node.id).join(", ")}.`);
   const findings: WafDiagramFinding[] = DIAGRAM_RULES.map((rule) => {
     const candidates = nodes.filter((node) => matchesSignal(node, rule.signal));

@@ -24,6 +24,8 @@ const RESOURCE_TYPES: Record<AzureResourceKind, { primary: string; support: read
   vnet: { primary: "Microsoft.Network/virtualNetworks", support: [] },
   "log-analytics": { primary: "Microsoft.OperationalInsights/workspaces", support: [] },
   "app-insights": { primary: "Microsoft.Insights/components", support: ["Microsoft.OperationalInsights/workspaces"] },
+  "container-apps": { primary: "Microsoft.App/containerApps", support: [] },
+  search: { primary: "Microsoft.Search/searchServices", support: [] },
 };
 
 const object = (value: unknown): Record<string, unknown> | undefined =>
@@ -41,6 +43,7 @@ function reference(value: unknown, type: string): boolean {
 
 export function deploymentTargetKind(node: ArchitectureCodeInput["nodes"][number]): AzureResourceKind | undefined {
   if (node.kind === "group" || node.kind === "shape" || !node.iconId) return undefined;
+  if (node.cloud && node.semantics?.provider && node.cloud !== node.semantics.provider) return undefined;
   return azureResourceKind(node.iconId, node.semantics?.provider ?? node.cloud);
 }
 
@@ -120,6 +123,73 @@ export function inspectEngineeringPrerequisites(template: ArmTemplate): Engineer
   const uncertain: string[] = [];
   for (const resource of template.resources) {
     const properties = object(resource.properties) ?? {};
+    if (typeEquals(resource.type, "Microsoft.App/containerApps")) {
+      const environment = properties.environmentId ?? properties.managedEnvironmentId;
+      const parameter = typeof environment === "string" && /^\[parameters\('([^']+)'\)\]$/.exec(environment);
+      const suppliedParameter = parameter ? template.parameters?.[parameter[1]] : undefined;
+      const directId = typeof environment === "string" && environment.startsWith("/") &&
+        reference(environment, "Microsoft.App/managedEnvironments");
+      const resourceId = typeof environment === "string" &&
+        /^\[\s*resourceId\(\s*'Microsoft\.App\/managedEnvironments'\s*,\s*.+\)\s*\]$/i.test(environment);
+      if (!directId && !resourceId && suppliedParameter?.type !== "string") {
+        failures.push(`${resource.name}: Container Apps requires an explicit managed environment resource ID or declared string parameter.`);
+      }
+      if ("environmentId" in properties && "managedEnvironmentId" in properties) {
+        failures.push(`${resource.name}: supply one managed environment reference, not conflicting environmentId/managedEnvironmentId fields.`);
+      }
+      const identity = object(resource.identity);
+      if (typeof identity?.type !== "string" || !identity.type.split(",").map((part) => part.trim()).some((part) => ["SystemAssigned", "UserAssigned"].includes(part))) {
+        failures.push(`${resource.name}: Container App managed identity is missing.`);
+      }
+      const workload = object(properties.template);
+      const containers = Array.isArray(workload?.containers) ? workload.containers : [];
+      if (!containers.length) failures.push(`${resource.name}: an explicit Container App container image and resource allocation are required.`);
+      for (const value of containers) {
+        const container = object(value);
+        const allocation = object(container?.resources);
+        const image = container?.image;
+        const imageParameter = typeof image === "string" && /^\[parameters\('([^']+)'\)\]$/.exec(image);
+        const validImage = typeof image === "string" && Boolean(image.trim()) &&
+          (image.startsWith("[") ? imageParameter && template.parameters?.[imageParameter[1]]?.type === "string" : !/\s/.test(image));
+        if (!validImage || typeof container?.name !== "string" || !container.name.trim() ||
+            typeof allocation?.cpu !== "number" || !Number.isFinite(allocation.cpu) || allocation.cpu <= 0 ||
+            typeof allocation.memory !== "string" || !/^\d+(?:\.\d+)?Gi$/.test(allocation.memory) || Number.parseFloat(allocation.memory) <= 0) {
+          failures.push(`${resource.name}: every container needs a named image (literal or declared string parameter), positive CPU and Gi memory.`);
+        }
+      }
+      const configuration = object(properties.configuration);
+      const ingress = object(configuration?.ingress);
+      if (ingress && (ingress.allowInsecure !== false || typeof ingress.external !== "boolean" ||
+          typeof ingress.targetPort !== "number" || !Number.isInteger(ingress.targetPort) || ingress.targetPort < 1 || ingress.targetPort > 65535)) {
+        failures.push(`${resource.name}: Container App ingress must declare HTTPS-only access, external scope and a valid target port.`);
+      }
+      uncertain.push(`${resource.name}: existing environment/region, image availability and HTTP port, registry access, application health, scaling, diagnostics and workload permissions need independent validation. A container declaration does not implement an orchestrator.`);
+    }
+    if (typeEquals(resource.type, "Microsoft.Search/searchServices")) {
+      const sku = object(resource.sku)?.name;
+      if (typeof sku !== "string" || !["free", "basic", "standard", "standard2", "standard3", "storage_optimized_l1", "storage_optimized_l2"].includes(sku)) {
+        failures.push(`${resource.name}: Azure AI Search requires an explicit supported SKU at the resource root.`);
+      }
+      for (const key of ["replicaCount", "partitionCount"]) {
+        const value = properties[key];
+        if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 12 ||
+            (key === "partitionCount" && ![1, 2, 3, 4, 6, 12].includes(value)) ||
+            (sku === "basic" && (key === "replicaCount" ? value > 3 : value !== 1))) {
+          failures.push(`${resource.name}: Azure AI Search requires explicit valid ${key} capacity for its SKU.`);
+        }
+      }
+      if (properties.disableLocalAuth !== true || "authOptions" in properties) {
+        failures.push(`${resource.name}: Azure AI Search must disable API-key authentication without conflicting authOptions.`);
+      }
+      if (!["Enabled", "Disabled", "SecuredByPerimeter"].includes(String(properties.publicNetworkAccess))) {
+        failures.push(`${resource.name}: Azure AI Search requires an explicit public network access policy.`);
+      }
+      const identity = object(resource.identity);
+      if (typeof identity?.type !== "string" || !identity.type.split(",").map((part) => part.trim()).some((part) => ["SystemAssigned", "UserAssigned"].includes(part))) {
+        failures.push(`${resource.name}: Azure AI Search managed identity is missing.`);
+      }
+      uncertain.push(`${resource.name}: Search network reachability/private DNS, caller data-plane RBAC, indexes, document ingestion, capacity and retrieval quality are not verified by a service declaration.`);
+    }
     if (typeEquals(resource.type, "Microsoft.Web/sites") || typeEquals(resource.type, "Microsoft.Web/serverfarms")) {
       for (const key of ["identity", "kind", "sku"]) {
         if (key in properties) failures.push(`${resource.name}: Web resource "${key}" must be at the resource root, not inside properties.`);

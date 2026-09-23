@@ -123,6 +123,18 @@ body {
 }
 
 /* Align the embedded Whiteboard controls with the Diagrammatic enterprise shell. */
+.diagrammatic-whiteboard .excalidraw.excalidraw {
+  --color-primary: #22d3ee;
+  --color-primary-darker: #0891b2;
+  --color-primary-darkest: #0e7490;
+  --color-primary-light: #cffafe;
+  --color-primary-light-darker: #a5f3fc;
+  --color-primary-hover: #06b6d4;
+  --color-selection: #0891b2;
+  --color-surface-primary-container: #cffafe;
+  --color-on-primary-container: #164e63;
+}
+
 .diagrammatic-whiteboard .excalidraw.theme--dark {
   --color-primary: #22d3ee;
   --color-primary-darker: #06b6d4;

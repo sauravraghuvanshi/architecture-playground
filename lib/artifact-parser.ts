@@ -62,13 +62,14 @@ const syntaxSchema: z.ZodType<ArtifactSyntax> = z.object({
 }).strict();
 
 export class ArtifactParserError extends Error {
-  readonly code: "unavailable" | "unsupported" | "busy" | "timeout" | "cancelled" | "protocol";
+  readonly code: "unavailable" | "unsupported" | "busy" | "timeout" | "startup-timeout" | "cancelled" | "protocol";
   constructor(code: ArtifactParserError["code"]) {
     super({
       unavailable: "The trusted artifact parser is unavailable. No generated code was executed; validation did not pass.",
       unsupported: "No approved execution-free parser is available for this language/profile. Syntax remains unverified; nothing was executed.",
       busy: "Artifact validation is busy. Retry shortly; no generated code was executed.",
       timeout: "Artifact validation exceeded its safe processing limit. Simplify the draft; no generated code was executed.",
+      "startup-timeout": "The trusted validator is taking too long to start. Retry shortly; your draft was not rejected as invalid and no generated code was executed.",
       cancelled: "Artifact validation was cancelled. No generated code was executed.",
       protocol: "The trusted parser returned an invalid response. Validation did not pass.",
     }[code]);
@@ -108,6 +109,8 @@ let activeParsers = 0;
 const MAX_PARSERS = 2;
 const MAX_OUTPUT_BYTES = 2_000_000;
 const PARSER_TIMEOUT_MS = 5000;
+const PARSER_STARTUP_TIMEOUT_MS = 15000;
+const PARSER_READY = Buffer.from("DIAGRAMMATIC_PARSER_READY_V1\n");
 
 async function invokeParser(executable: string, input: string, signal?: AbortSignal, args: string[] = []): Promise<{ stdout: string; stderr: string; code: number | null }> {
   if (signal?.aborted) throw new ArtifactParserError("cancelled");
@@ -125,6 +128,8 @@ async function invokeParser(executable: string, input: string, signal?: AbortSig
       let bytes = 0;
       let done = false;
       let pendingError: ArtifactParserError | undefined;
+      let ready = !args.includes("--ready");
+      let greeting = Buffer.alloc(0);
       const finish = (error?: ArtifactParserError, code: number | null = null) => {
         if (done) return;
         done = true;
@@ -138,14 +143,30 @@ async function invokeParser(executable: string, input: string, signal?: AbortSig
         child.kill("SIGKILL");
       };
       const cancel = () => stop(new ArtifactParserError("cancelled"));
-      const timer = setTimeout(() => stop(new ArtifactParserError("timeout")), PARSER_TIMEOUT_MS);
+      let timer = setTimeout(() => stop(new ArtifactParserError(ready ? "timeout" : "startup-timeout")), ready ? PARSER_TIMEOUT_MS : PARSER_STARTUP_TIMEOUT_MS);
       signal?.addEventListener("abort", cancel, { once: true });
       child.on("error", () => finish(new ArtifactParserError("unavailable")));
       child.stdin.on("error", () => stop(new ArtifactParserError("protocol")));
       child.stdout.on("data", (chunk: Buffer) => {
         bytes += chunk.length;
-        if (bytes > MAX_OUTPUT_BYTES) stop(new ArtifactParserError("protocol"));
-        else chunks.push(chunk);
+        if (bytes > MAX_OUTPUT_BYTES) { stop(new ArtifactParserError("protocol")); return; }
+        if (!ready) {
+          greeting = Buffer.concat([greeting, chunk]);
+          const newline = greeting.indexOf(10);
+          if (newline === -1) {
+            if (greeting.length > PARSER_READY.length + 1) stop(new ArtifactParserError("protocol"));
+            return;
+          }
+          const received = greeting.subarray(0, newline + 1).toString("utf8").replace(/\r\n$/, "\n");
+          if (received !== PARSER_READY.toString("utf8") || pendingError) { stop(new ArtifactParserError("protocol")); return; }
+          ready = true;
+          clearTimeout(timer);
+          timer = setTimeout(() => stop(new ArtifactParserError("timeout")), PARSER_TIMEOUT_MS);
+          const rest = greeting.subarray(newline + 1);
+          if (rest.length) chunks.push(rest);
+          greeting = Buffer.alloc(0);
+          child.stdin.end(input);
+        } else chunks.push(chunk);
       });
       child.stderr.on("data", (chunk: Buffer) => {
         bytes += chunk.length;
@@ -154,9 +175,10 @@ async function invokeParser(executable: string, input: string, signal?: AbortSig
       });
       child.on("close", (code) => {
         if (pendingError) finish(pendingError);
+        else if (!ready) finish(new ArtifactParserError("protocol"));
         else finish(undefined, code);
       });
-      child.stdin.end(input);
+      if (ready) child.stdin.end(input);
       if (signal?.aborted) cancel();
     });
   } finally {
@@ -195,7 +217,7 @@ export async function parseArtifactSyntax(
     ? path.join(root, `hcl-parser${suffix}`)
     : path.join(root, "dotnet", `Diagrammatic.ArtifactParser${suffix}`);
   const request = format === "terraform" ? { code } : { language: format, code };
-  const output = await invokeParser(executable, JSON.stringify(request), signal);
+  const output = await invokeParser(executable, JSON.stringify(request), signal, format === "bicep" ? ["--ready"] : []);
   if (output.code !== 0 || output.stderr.trim()) throw new ArtifactParserError("protocol");
   try {
     return syntaxSchema.parse(JSON.parse(output.stdout));

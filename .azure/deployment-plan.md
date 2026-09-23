@@ -1,11 +1,111 @@
 # Azure Deployment Plan
 
-> **Status:** Deployed and Verified - Priority 17
+> **Status:** Validated - Urgent Support Diagram Repair
 
 Generated: 2026-08-12
 Updated: 2026-09-22 (Asia/Kolkata; morning recovery fix verified)
 
 Latest handoff: [completed work, lessons and tomorrow's checklist](../docs/session-summary-2026-09-22.md).
+
+## September 23 - Immediate screenshot priority
+
+- **User request:** Prioritize failing Review my architecture and code generation
+  on the shown customer-support design before further demo/backlog work.
+- **Observed:** Review rejects named-agent output; code generation reports the
+  trusted artifact parser time limit. Container Apps and AI Search also lack
+  deployment mappings; one Search identity is unrecognized by offline scoring.
+  These are distinct issues, not evidence that the diagram itself is invalid.
+- **Plan:** Reconstruct the existing synthetic template shown, diagnose exact
+  review response/schema failure and parser cold-start/processing boundary,
+  correct provider-safe support gaps if necessary, preserve validation safety,
+  then verify actual hosted review and code generation for this diagram.
+- **Scope:** Existing app-only target. Freeze unrelated work and do not start19.
+  Keep priority18/demo changes preserved; no customer resource deployment.
+- **Review root cause confirmed:** Foundry `diagrammatic-review` version1 stored
+  the old schema, disallowing guidance fields required by the deployed app.
+  Created version2 with the exact current application contract, preserving
+  `gpt-4o-mini`, JSON response format, temperature and empty tools.
+  Read-back verification succeeded. No model deployment or identity change.
+- **Live review proof:** The synthetic eight-node screenshot topology returned
+  HTTP200 in13.2s after synchronization. A separate fresh invocation through the
+  hosted UI also returned200 and rendered the personalized review/provenance.
+  Original user documents were not accessed or altered.
+- **Parser correction implemented:** Warm the trusted Bicep lexer/projector
+  before accepting untrusted input, with a separate15s startup deadline and the
+  unchanged5s artifact-processing budget. Bad handshake, cancellation,
+  startup timeout and processing timeout remain failing states; no script
+  execution or validation bypass.27 real-parser/startup/agent-sync tests pass.
+- **Remote contract prevention:** Added explicit read-only `--check` and
+  separately opted-in `--apply` synchronization tooling with drift, idempotence,
+  model preservation and unexpected-tool tests. Cached mock tests alone cannot
+  certify a Foundry agent definition matches its app.
+- **Current status:** Review is repaired live. Parser/runtime and service
+  coverage corrections still require final integration/deployment/hosted tests.
+- **Integrated coverage:** Container Apps and both official Search identities
+  now have provider-safe supported mappings, all four emitters, static
+  prerequisites/correspondence and WAF recognition. Existing environment/image
+  are explicit Container Apps inputs; Search RBAC/network/index configuration
+  remains an unverified deployment responsibility, not a silent guarantee.
+- **Deployment agent:** Its version1 also had stale instructions missing
+  service-readiness and independent-validation requirements. Synchronized to
+  version2 retaining model/settings and no tools; read-back verification passed.
+- **All validation checks pass (urgent app release):**
+  - 397/397 integrated application contracts; full lint/types/build.
+  - 34 parser, startup, agent-sync and service-coverage tests (33 combined
+    before the additional deployment-sync test, then all4 sync tests passed).
+  - Service implementation:80 targeted tests,92 isolated script-wrapper tests
+    and20 real Bicep/Terraform/compiler/provider fixtures passed.
+  - Final production-browser release gate:132 Chromium +40 Firefox/WebKit
+    cases passed.45 focused crash-interrupted/stale-test/demo cases passed.
+    Original broad run had193 passes,2 stale/theme failures and29 worker-crash
+    interruptions; those interruptions are not reported as application passes.
+  - Presentation demo blocker repaired using existing local saved documents
+    rather than removed API;8 targeted tests pass and are in the release gate.
+  - Azure context: unchanged App Service/resources/RBAC/model deployments.
+    Only the two existing prompt-agent instruction versions changed.
+- **Section 7: Validation Proof:** Existing application pipeline will deploy
+  only the urgent repairs and completed demo blocker fixes first. Unreleased
+  priority18 evaluation tooling/gate remains separate; do not bypass or label
+  it complete. Hosted exact-build, review/codegen and demo verification follow.
+
+## September 22 - Priority 18
+
+- **Latest user direction:** Finish priority 18, then stop new feature work.
+  Run end-to-end demo qualification for the hackathon presentation tomorrow.
+  Do not start priority 19. Reproduced demo blockers may be repaired within
+  this qualification work; do not expand later backlog features.
+- **Baseline:** Hosted-verified `596c1d0`, documentation `4d612dc`.
+- **Objective:** Versioned domain-specific golden tasks for architecture
+  generation, Whiteboard conversion, review grounding and IaC; measurable
+  requirements/identity/topology/grounding/artifact metrics and release gates.
+- **Plan:** Inspect production contracts and existing fixtures; build a bounded
+  local evaluator over supplied candidate outputs using independent semantic
+  expectations and actual production validators. Add reproducible reports,
+  negative/mutation coverage and subject-version checks in CI.
+- **Truth boundary:** Distinguish reference/contract fixtures from recorded
+  provider evaluations. Never label fixture success as live-model quality.
+  Do not silently invoke paid models or run generated customer infrastructure.
+  Identify what actual provider evidence is needed before promoting changed
+  prompt/model subjects; preserve the currently qualified application behavior.
+- **Scope:** Existing app/repository only; unchanged Azure resources and models.
+  No new cloud evaluation resource or dataset upload.
+- **State:** Inspecting evaluation entry points and semantic fixtures.
+
+### Post-18 hackathon qualification
+
+- Exercise the full existing product's supported workflows using the actual
+  production build, then the exact deployed revision: authentication, hub and
+  templates, all editor modes, architecture/Whiteboard editing, persistence,
+  recovery, Undo/Redo, conversions, AI contracts, exports, presentation and
+  code-generation/validation/consent flows.
+- Reuse all existing automated suites. Separate environment/test-driver
+  problems from application regressions and repair actual demo blockers.
+- Keep destructive Azure operations and generated customer code execution out
+  of testing. Distinguish fixture-backed AI acceptance from verified live
+  provider operation. Do not claim live inference or unavailable capabilities
+  passed without evidence.
+- Deliver a concise verified demo path, readiness evidence and explicit
+  limitations/fallbacks. Preserve original user data and temporary-auth hygiene.
 
 ## September 22 - Priority 17
 

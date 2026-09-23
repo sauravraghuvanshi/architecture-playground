@@ -9,6 +9,7 @@ export const releaseBrowserSuites = [
       "ai-streaming.spec.ts", "ai-readiness.spec.ts", "ai-privacy.spec.ts",
       "review-contracts.spec.ts", "engineering-validation.spec.ts", "deployment-assistance.spec.ts",
       "csa-guidance.spec.ts",
+      "presentation.spec.ts", "platform-ui.spec.ts", "hackathon-workflows.spec.ts",
     ],
   },
   {

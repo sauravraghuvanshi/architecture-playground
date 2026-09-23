@@ -1,4 +1,4 @@
-export function emitAzureCliDraft(options: { sql: boolean; apim: boolean }): string {
+export function emitAzureCliDraft(options: { sql: boolean; apim: boolean; containerApps?: boolean }): string {
   const lines = [
     "#!/usr/bin/env bash",
     "# Preview by default. --deploy explicitly executes the reviewed Bicep after What-If.",
@@ -41,6 +41,14 @@ export function emitAzureCliDraft(options: { sql: boolean; apim: boolean }): str
       '[[ "$APIM_PUBLISHER_EMAIL" =~ ^[^[:space:]@]+@[^[:space:]@]+\\.[^[:space:]@]+$ ]] || fail "APIM_PUBLISHER_EMAIL must be an email address."',
     );
   }
+  if (options.containerApps) {
+    lines.push(
+      ': "${CONTAINER_APP_ENVIRONMENT_ID:?Set CONTAINER_APP_ENVIRONMENT_ID to an existing same-region managed environment ID}"',
+      '[[ "${CONTAINER_APP_ENVIRONMENT_ID,,}" =~ ^/subscriptions/[0-9a-f-]{36}/resourcegroups/[^/]+/providers/microsoft\\.app/managedenvironments/[^/?#]+$ ]] || fail "CONTAINER_APP_ENVIRONMENT_ID must be a managed environment resource ID."',
+      ': "${CONTAINER_APP_IMAGE:?Set CONTAINER_APP_IMAGE to a reviewed anonymously pullable Linux image serving HTTP on port 8080}"',
+      '[[ "$CONTAINER_APP_IMAGE" =~ [^[:space:]] ]] || fail "CONTAINER_APP_IMAGE must not be blank."',
+    );
+  }
   lines.push(
     "",
     'COMPILED_TEMPLATE="$(mktemp)"',
@@ -55,6 +63,7 @@ export function emitAzureCliDraft(options: { sql: boolean; apim: boolean }): str
   );
   if (options.sql) lines.push('PARAMETERS+=("sqlAdminObjectId=$SQL_ADMIN_OBJECT_ID" "sqlAdminLogin=$SQL_ADMIN_LOGIN")');
   if (options.apim) lines.push('PARAMETERS+=("publisherEmail=$APIM_PUBLISHER_EMAIL")');
+  if (options.containerApps) lines.push('PARAMETERS+=("containerAppEnvironmentId=$CONTAINER_APP_ENVIRONMENT_ID" "containerAppImage=$CONTAINER_APP_IMAGE")');
   lines.push(
     "",
     'az deployment group what-if --subscription "$AZURE_SUBSCRIPTION_ID" --resource-group "$AZURE_RESOURCE_GROUP" --name "diagrammatic-$AZURE_SUFFIX" --mode Incremental --template-file "$COMPILED_TEMPLATE" --parameters "${PARAMETERS[@]}"',

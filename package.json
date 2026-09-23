@@ -18,7 +18,7 @@
     "test:azure-cli-draft": "node --test scripts/test-azure-cli-draft.mjs",
     "test:iac-compilers": "node scripts/validate-iac.mjs",
     "build:validators": "node scripts/build-artifact-parsers.mjs",
-    "test:artifact-parsers": "node --test scripts/test-artifact-parser.mjs scripts/test-engineering-validation.mjs scripts/test-hosted-validation-request.mjs",
+    "test:artifact-parsers": "node --test scripts/test-artifact-parser.mjs scripts/test-engineering-validation.mjs scripts/test-hosted-validation-request.mjs scripts/test-parser-startup.mjs scripts/test-review-agent-sync.mjs scripts/test-support-service-coverage.mjs",
     "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {

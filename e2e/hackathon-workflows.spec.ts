@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { readSavedDiagram } from "./read-saved-diagram";
+import { parseArchitectureDocument } from "../lib/architecture-document";
 
 const diagram = {
   nodes: [
@@ -16,7 +17,7 @@ test("imports exported architecture JSON without losing evidence or flow configu
     name: "architecture.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(diagram)),
   });
   await expect(page.locator(".react-flow__node")).toHaveCount(3);
-  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("diagrammatic.draft") ?? "{}").payload)).toEqual(diagram);
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("diagrammatic.draft") ?? "{}").payload)).toEqual(parseArchitectureDocument(diagram));
   await page.reload();
   await expect(page.locator(".react-flow__node")).toHaveCount(3);
   await page.getByRole("button", { name: "Export", exact: true }).click();
@@ -27,7 +28,7 @@ test("imports exported architecture JSON without losing evidence or flow configu
   if (!stream) throw new Error("Export was not readable");
   const chunks = [];
   for await (const chunk of stream) chunks.push(chunk);
-  expect(JSON.parse(Buffer.concat(chunks).toString())).toEqual(diagram);
+  expect(JSON.parse(Buffer.concat(chunks).toString())).toEqual(parseArchitectureDocument(diagram));
 });
 
 test("invalid JSON imports leave the active architecture untouched", async ({ page }) => {

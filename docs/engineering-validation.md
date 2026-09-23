@@ -1,5 +1,16 @@
 # Engineering artifact validation
 
+## Parser startup and processing budgets
+
+The trusted Bicep subprocess announces readiness only after warming its lexer,
+parser, projector and JSON serializer with a fixed internal sample. The parent
+allows at most 15 seconds for this cold start and sends no user-authored code
+before the exact readiness handshake. The existing five-second processing
+limit then starts; it is not expanded or disabled. Startup timeout and artifact
+processing timeout are distinct failures. Output/input/concurrency/memory bounds,
+cancellation and owned-child termination remain in force; none of these checks
+executes generated code.
+
 AI deployment drafts receive an independently computed static report. The model
 cannot supply a trusted "passed" flag, and a nonempty code string is not proof
 of a usable artifact.

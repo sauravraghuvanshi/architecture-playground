@@ -97,7 +97,7 @@ function detectResources(payload: ArchitecturePayload): {
   }
   if (
     resources.some((resource) =>
-      ["app-service", "functions", "apim", "openai", "aks"].includes(resource.kind)
+      ["app-service", "functions", "apim", "openai", "aks", "container-apps", "search"].includes(resource.kind)
     )
   ) {
     warnings.push(
@@ -109,6 +109,12 @@ function detectResources(payload: ArchitecturePayload): {
   }
   if (resources.some((resource) => resource.kind === "functions")) {
     warnings.push("Function drafts use Node 22 on a Dedicated plan with separate keyless host storage and a scoped managed identity. Host storage has authenticated public endpoints; configure private connectivity explicitly if required. Additional trigger/binding permissions are not inferred, and function code is not deployed.");
+  }
+  if (resources.some((resource) => resource.kind === "container-apps")) {
+    warnings.push("Container Apps is an infrastructure starter, not an implemented orchestrator. Supply containerAppEnvironmentId / CONTAINER_APP_ENVIRONMENT_ID for an existing same-region managed environment and containerAppImage / CONTAINER_APP_IMAGE for a reviewed, anonymously pullable Linux image serving HTTP on port 8080. All generated apps share these inputs. Internal HTTPS ingress, one 1-vCPU/2Gi replica and system identity are proposed defaults; image publishing, registry credentials, application code, probes, private connectivity, diagnostics and workload RBAC are not generated or verified.");
+  }
+  if (resources.some((resource) => resource.kind === "search")) {
+    warnings.push("Azure AI Search is a Basic service shell with one replica/partition, system identity, API-key authentication disabled and public access disabled. Configure private endpoints/DNS, caller data-plane RBAC, indexes, approved documents and ingestion separately. Semantic/vector search, model integration, availability, capacity and retrieval quality are not inferred or verified.");
   }
   const configured = serviceNodes.filter(({ semantics }) => semantics && (semantics.region || semantics.sku || semantics.environmentId || Object.keys(semantics.properties ?? {}).length));
   if (configured.length) warnings.push(`${configured.length} service nodes contain declared region/SKU/environment/properties. This offline starter does not implement those per-service settings; retain the architecture JSON, reconcile them with the generated defaults, and do not treat this export as satisfying that configuration.`);
@@ -152,6 +158,16 @@ export interface GeneratedArmTemplate {
         parameters.publisherEmail = {
           type: "string",
           metadata: { description: "API Management publisher email." },
+        };
+      }
+      if (kinds.has("container-apps")) {
+        parameters.containerAppEnvironmentId = {
+          type: "string", minLength: 1,
+          metadata: { description: "Existing same-region Microsoft.App/managedEnvironments resource ID. The environment is not created or verified." },
+        };
+        parameters.containerAppImage = {
+          type: "string", minLength: 1,
+          metadata: { description: "Reviewed anonymously pullable Linux image serving HTTP on port 8080, shared by every generated Container App. No application image is built." },
         };
       }
 
@@ -209,6 +225,35 @@ export interface GeneratedArmTemplate {
       const { kind, name } = resource;
       const location = "[parameters('location')]";
       switch (kind) {
+        case "container-apps":
+          return [{
+            type: "Microsoft.App/containerApps",
+            apiVersion: "2025-01-01",
+            name: armName(name),
+            location,
+            identity: { type: "SystemAssigned" },
+            properties: {
+              environmentId: "[parameters('containerAppEnvironmentId')]",
+              configuration: {
+                activeRevisionsMode: "Single",
+                ingress: { external: false, targetPort: 8080, allowInsecure: false, transport: "auto" },
+              },
+              template: {
+                containers: [{ name: "workload", image: "[parameters('containerAppImage')]", resources: { cpu: 1, memory: "2Gi" } }],
+                scale: { minReplicas: 1, maxReplicas: 1 },
+              },
+            },
+          }];
+        case "search":
+          return [{
+            type: "Microsoft.Search/searchServices",
+            apiVersion: "2025-05-01",
+            name: armName(name),
+            location,
+            identity: { type: "SystemAssigned" },
+            sku: { name: "basic" },
+            properties: { replicaCount: 1, partitionCount: 1, disableLocalAuth: true, publicNetworkAccess: "Disabled" },
+          }];
         case "app-service":
         case "functions":
           return [...(kind === "functions" ? functionArmSupport(resource) : []), {
@@ -515,6 +560,17 @@ function emitBicep(resources: DetectedResource[]): string {
       ""
     );
   }
+  if (kinds.has("container-apps")) {
+    lines.push(
+      "@description('Existing same-region Microsoft.App/managedEnvironments ID; the environment is not created or verified')",
+      "@minLength(1)",
+      "param containerAppEnvironmentId string",
+      "@description('Reviewed anonymously pullable Linux image serving HTTP on port 8080; shared by all generated Container Apps')",
+      "@minLength(1)",
+      "param containerAppImage string",
+      ""
+    );
+  }
   if (kinds.has("app-service") || kinds.has("functions")) {
     lines.push(
       "resource appServicePlan 'Microsoft.Web/serverfarms@2024-04-01' = {",
@@ -571,6 +627,47 @@ function bicepResource(resource: DetectedResource): string {
   const { kind, name, variable } = resource;
   const globalName = `${name}-\${uniqueSuffix}`;
   switch (kind) {
+    case "container-apps":
+      return `resource ${variable} 'Microsoft.App/containerApps@2025-01-01' = {
+  name: '${globalName}'
+  location: location
+  identity: { type: 'SystemAssigned' }
+  properties: {
+    environmentId: containerAppEnvironmentId
+    configuration: {
+      activeRevisionsMode: 'Single'
+      ingress: {
+        external: false
+        targetPort: 8080
+        allowInsecure: false
+        transport: 'auto'
+      }
+    }
+    template: {
+      containers: [
+        {
+          name: 'workload'
+          image: containerAppImage
+          resources: { cpu: 1, memory: '2Gi' }
+        }
+      ]
+      scale: { minReplicas: 1, maxReplicas: 1 }
+    }
+  }
+}`;
+    case "search":
+      return `resource ${variable} 'Microsoft.Search/searchServices@2025-05-01' = {
+  name: '${globalName}'
+  location: location
+  identity: { type: 'SystemAssigned' }
+  sku: { name: 'basic' }
+  properties: {
+    replicaCount: 1
+    partitionCount: 1
+    disableLocalAuth: true
+    publicNetworkAccess: 'Disabled'
+  }
+}`;
     case "app-service":
     case "functions":
       return `${kind === "functions" ? functionBicepSupport(resource) : ""}resource ${variable} 'Microsoft.Web/sites@2024-04-01' = {
@@ -822,6 +919,16 @@ function emitPowerShell(resources: DetectedResource[]): string {
       "$Parameters.publisherEmail = $Publisher.Address",
     );
   }
+  if (resources.some((resource) => resource.kind === "container-apps")) {
+    lines.push(
+      "if ($env:CONTAINER_APP_ENVIRONMENT_ID -notmatch '\\A/subscriptions/[0-9a-f-]{36}/resourceGroups/[^/]+/providers/Microsoft\\.App/managedEnvironments/[^/?#]+\\z') {",
+      "  throw 'Set CONTAINER_APP_ENVIRONMENT_ID to an existing same-region managed environment resource ID.'",
+      "}",
+      "if ([string]::IsNullOrWhiteSpace($env:CONTAINER_APP_IMAGE)) { throw 'Set CONTAINER_APP_IMAGE to a reviewed anonymously pullable Linux image serving HTTP on port 8080.' }",
+      "$Parameters.containerAppEnvironmentId = $env:CONTAINER_APP_ENVIRONMENT_ID",
+      "$Parameters.containerAppImage = $env:CONTAINER_APP_IMAGE",
+    );
+  }
   lines.push(
     "",
     "# Preflight dependencies and local sign-in context; never install or sign in automatically.",
@@ -874,7 +981,7 @@ export function generateArchitectureCode(
       output = emitTerraformDraft(resources, { nodeRuntime: NODE_RUNTIME, providerVersion: AZURERM_VERSION });
       break;
     case "azure-cli":
-      output = emitAzureCliDraft({ sql: resources.some((resource) => resource.kind === "sql"), apim: resources.some((resource) => resource.kind === "apim") });
+      output = emitAzureCliDraft({ sql: resources.some((resource) => resource.kind === "sql"), apim: resources.some((resource) => resource.kind === "apim"), containerApps: resources.some((resource) => resource.kind === "container-apps") });
       if (resources.length) warnings.push("Download the matching main.bicep beside deploy.sh. The CLI wrapper validates the existing subscription/group and previews by default. --deploy is an explicit write action after What-If; review the template and permissions first.");
       break;
     case "powershell":
