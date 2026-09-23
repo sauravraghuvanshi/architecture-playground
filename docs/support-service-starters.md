@@ -31,6 +31,18 @@ configuration, model integration and retrieval quality are **not generated**.
 
 ## Validation scope
 
+Foundry deployment requests now include an optional `referenceStarter` containing
+the actual deterministic Bicep/ARM starter and exact resource mappings emitted for
+the selected diagram. Business shapes are marked as non-provisionable annotations;
+required image/environment inputs remain parameters without defaults. This is
+model input, never a fallback response: the model must reconcile original context
+and requirements, return its own complete requested-format artifact, and pass the
+unchanged independent validators. Corrections retain the exact original wrapper.
+The complete reference is omitted above 24 service nodes or 64 KB, not partially
+truncated; total deployment text input is bounded to 1 MB including instructions
+and correction history. Oversized original evidence is rejected without a model
+request. Time limits and the single correction attempt are unchanged.
+
 Both services participate in the canonical engineering coverage table, explicit
 prerequisite checks, Bicep/ARM selected-field consistency and Terraform type/field
 mapping. Prerequisites remain `not-verified` for valid service shells: resource

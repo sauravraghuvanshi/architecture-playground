@@ -1,6 +1,6 @@
 # Azure Deployment Plan
 
-> **Status:** Validated - Urgent Support Diagram Repair
+> **Status:** Validated
 
 Generated: 2026-08-12
 Updated: 2026-09-22 (Asia/Kolkata; morning recovery fix verified)
@@ -8,6 +8,26 @@ Updated: 2026-09-22 (Asia/Kolkata; morning recovery fix verified)
 Latest handoff: [completed work, lessons and tomorrow's checklist](../docs/session-summary-2026-09-22.md).
 
 ## September 23 - Immediate screenshot priority
+
+- **Follow-up after first urgent rollout:** `f2fbb61` / workflow35824625420
+  passed allCI gates; live screenshot review passed but real code generation
+  exposed malformed model Bicep and missing Function/Container Apps settings
+  after the timeout was resolved. That live failure is not counted as success.
+- **Generation repair:** The request now includes bounded parameterized
+  starter Bicep, ARM and exact mappings from existing canonical emitters for
+  the submitted graph. Model output is still generated and independently
+  validated, never replaced with a silent offline fallback. Input/reference
+  limits and the two-attempt deadline remain enforced.
+- **Remote deployment agent:** Synchronized version3 with the grounding
+  contract, preserving model/settings. Actual named-agent generation on the
+  screenshot topology now completes in55.7s with2 attempts; real parsers return
+  `needs-review` (syntax passes, external/environment prerequisites unverified).
+  Nine resources cover ContainerApps, both OpenAI accounts, Search and Functions
+  with supporting resources. No generated code was executed or published.
+- **Follow-up validation proof:** 401/401 app contracts,36/36 independent-parser/
+  grounding/startup/sync/service tests, full lint/types/build and21/21 targeted
+  production-browser cases pass. Existing release gates run again inLinux.
+  Hosted UI code generation must still pass after this follow-up deployment.
 
 - **User request:** Prioritize failing Review my architecture and code generation
   on the shown customer-support design before further demo/backlog work.

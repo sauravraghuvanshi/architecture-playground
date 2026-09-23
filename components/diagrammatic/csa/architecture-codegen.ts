@@ -124,6 +124,7 @@ function detectResources(payload: ArchitecturePayload): {
 
 export interface GeneratedArmTemplate {
       template: Record<string, unknown>;
+      resourceMappings: Array<{ nodeId: string; resourceType: string; resourceName: string }>;
       warnings: string[];
       supportedNodes: number;
       totalServiceNodes: number;
@@ -172,8 +173,17 @@ export interface GeneratedArmTemplate {
       }
 
       const armResources: Array<Record<string, unknown>> = [];
-      if (kinds.has("app-service") || kinds.has("functions")) {
-        armResources.push({
+      const resourceMappings: GeneratedArmTemplate["resourceMappings"] = [];
+      const append = (nodeId: string, emitted: Array<Record<string, unknown>>) => {
+        for (const item of emitted) {
+          if (typeof item.type !== "string" || typeof item.name !== "string") throw new Error("ARM emitter omitted a resource identity.");
+          armResources.push(item);
+          resourceMappings.push({ nodeId, resourceType: item.type, resourceName: item.name });
+        }
+      };
+      const planOwner = resources.find((resource) => resource.kind === "app-service" || resource.kind === "functions");
+      if (planOwner) {
+        append(planOwner.id, [{
           type: "Microsoft.Web/serverfarms",
           apiVersion: "2024-04-01",
           name: armName("csa-plan"),
@@ -181,10 +191,10 @@ export interface GeneratedArmTemplate {
           sku: { name: "P0v3", tier: "PremiumV3", capacity: 1 },
           kind: "linux",
           properties: { reserved: true },
-        });
+        }]);
       }
       for (const resource of resources) {
-        armResources.push(...armResourcesFor(resource));
+        append(resource.id, armResourcesFor(resource));
       }
       if (resources.length === 0) {
         warnings.unshift("No supported Azure service nodes were found. Add Azure services before deployment.");
@@ -210,6 +220,7 @@ export interface GeneratedArmTemplate {
           },
         },
         warnings,
+        resourceMappings,
         supportedNodes: resources.length,
         totalServiceNodes,
       };

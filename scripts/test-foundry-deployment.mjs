@@ -17,6 +17,9 @@ import * as engineeringContract from "../lib/engineering-validation-contract.ts"
 import * as engineeringCoverage from "../lib/engineering-coverage.ts";
 import * as deploymentEligibility from "../lib/deployment-eligibility.ts";
 import { ArtifactParserError } from "../lib/artifact-parser.ts";
+import * as grounding from "../lib/deployment-grounding.ts";
+import { supportDemo } from "./fixtures/support-demo.mjs";
+import { compilerFixtures } from "./iac-fixtures.mjs";
 
 function validationFixture(canPublish = true) {
   return {
@@ -357,6 +360,7 @@ test("deployment generation corrects the observed missing-plan mapping without c
   assert.deepEqual(JSON.parse(calls[0].input), {
     format: "bicep", context: "User chooses region.", diagram: payload,
     serviceReadiness: [{ nodeId: "app", iconId: payload.nodes[0].iconId, resourceKind: "app-service", status: "supported" }],
+    referenceStarter: grounding.buildDeploymentReference(payload),
   });
   assert.equal(calls[1].input[0].content, calls[0].input);
   assert.equal(calls[1].input[1].role, "assistant");
@@ -407,7 +411,7 @@ test("deployment validation reports safe ARM paths while retaining security reje
 test("deployment correction shares one deadline and bounds previous output", async () => {
   const timeout = new AbortController();
   const deadlines = [];
-  const helper = load("lib/deployment-assistance.ts", { zod: { z }, "./deployment-eligibility.ts": deploymentEligibility }, {
+  const helper = load("lib/deployment-assistance.ts", { zod: { z }, "./deployment-eligibility.ts": deploymentEligibility, "./deployment-grounding.ts": grounding }, {
     AbortSignal: {
       timeout: (ms) => { deadlines.push(ms); return timeout.signal; },
       any: (signals) => AbortSignal.any(signals),
@@ -437,6 +441,112 @@ test("deployment correction shares one deadline and bounds previous output", asy
   });
   assert.equal(inputs[1][1].content.length, 32_000);
   assert.match(inputs[1][2].content, /truncated/);
+});
+
+test("actual ARM exporter provides exact deterministic ownership for every primary and supporting resource", () => {
+  for (const [name, evidence] of compilerFixtures) {
+    const generated = codegen.generateArmTemplate(evidence);
+    const template = deployment.parseArmTemplate(generated.template);
+    assert.equal(generated.resourceMappings.length, template.resources.length, name);
+    assert.deepEqual(generated.resourceMappings.map(({ resourceType, resourceName }) => `${resourceType}/${resourceName}`),
+      template.resources.map(({ type, name }) => `${type}/${name}`), name);
+    assert.equal(engineeringCoverage.inspectEngineeringCoverage(template, generated.resourceMappings, evidence).mapping.status, "passed", name);
+    assert.deepEqual(codegen.generateArmTemplate({ ...evidence, nodes: [...evidence.nodes].reverse() }).resourceMappings,
+      generated.resourceMappings, name);
+  }
+});
+
+test("support screenshot request carries real starter syntax, exact mappings and external prerequisites without rewriting evidence", async () => {
+  const evidence = structuredClone(supportDemo);
+  const before = structuredClone(evidence);
+  const context = "Preserve human approval and private retrieval; the customer must supply an image and environment.";
+  const calls = [];
+  let expected;
+  const result = await deployment.generateDeploymentDraft(evidence, "bicep", context, async (instructions, input) => {
+    calls.push({ instructions, input });
+    const wrapper = JSON.parse(input);
+    assert.deepEqual(wrapper.diagram, before);
+    assert.equal(wrapper.context, context);
+    const reference = wrapper.referenceStarter;
+    assert.equal(reference.status, "reference-only");
+    assert.equal(reference.source, "deterministic-offline-emitter");
+    assert.equal(reference.format, "bicep");
+    assert.equal(reference.code, codegen.generateArchitectureCode(evidence, "bicep").output);
+    assert.deepEqual(reference.armTemplate, codegen.generateArmTemplate(evidence).template);
+    assert.deepEqual(reference.annotations.map(({ nodeId, status }) => [nodeId, status]), [
+      ["n1", "non-provisionable-annotation"], ["n6", "non-provisionable-annotation"], ["n8", "non-provisionable-annotation"],
+    ]);
+    assert.deepEqual(reference.unsupportedServices, []);
+    const app = reference.armTemplate.resources.find((item) => item.type === "Microsoft.App/containerApps");
+    const worker = reference.armTemplate.resources.find((item) => item.type === "Microsoft.Web/sites");
+    assert.deepEqual(app.identity, { type: "SystemAssigned" });
+    assert.equal(app.properties.environmentId, "[parameters('containerAppEnvironmentId')]");
+    assert.equal(app.properties.template.containers[0].image, "[parameters('containerAppImage')]");
+    assert.deepEqual(app.properties.template.containers[0].resources, { cpu: 1, memory: "2Gi" });
+    assert.equal(worker.kind, "functionapp,linux");
+    assert.equal(reference.resourceMappings.find((item) => item.resourceType === "Microsoft.Web/sites").nodeId, "n7");
+    assert.ok(reference.requiredParameters.some((item) => item.name === "containerAppImage"));
+    assert.ok(reference.requiredParameters.some((item) => item.name === "containerAppEnvironmentId"));
+    for (const name of ["containerAppEnvironmentId", "containerAppImage"]) {
+      assert.equal("defaultValue" in reference.armTemplate.parameters[name], false);
+    }
+    assert.match(instructions, /YOUR returned code, ARM and mappings/);
+    assert.match(reference.assumptions.join(" "), /unverified/);
+    expected = {
+      format: "bicep", code: `${reference.code}\n// Explicit model adaptation.\n`, armTemplate: reference.armTemplate,
+      resourceMappings: reference.resourceMappings, warnings: reference.warnings, assumptions: reference.assumptions,
+    };
+    return JSON.stringify(expected);
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(result.source, "foundry-agent");
+  assert.equal(result.code, expected.code.trim(), "Only existing schema whitespace normalization may change the model's returned artifact");
+  assert.deepEqual(evidence, before);
+});
+
+test("grounding budgets omit the entire optional reference, never truncate original context or service coverage", async () => {
+  const small = grounding.buildDeploymentReference(supportDemo, 100);
+  assert.equal(small.status, "omitted");
+  assert.equal(small.reason, "byte-limit");
+  assert.equal("code" in small, false);
+  const large = { ...payload, nodes: Array.from({ length: grounding.DEPLOYMENT_REFERENCE_MAX_SERVICES + 1 }, (_, index) => ({ ...payload.nodes[0], id: `app${index}` })) };
+  assert.equal(grounding.buildDeploymentReference(large).reason, "service-limit");
+  const withUnknowns = { ...supportDemo, nodes: [...supportDemo.nodes,
+    { ...payload.nodes[0], id: "other", iconId: "aws/compute/lambda", label: "Azure Functions" }] };
+  const reference = grounding.buildDeploymentReference(withUnknowns);
+  assert.deepEqual(reference.unsupportedServices.map(({ nodeId, status }) => [nodeId, status]), [["other", "unsupported"]]);
+  assert.ok(reference.resourceMappings.every((item) => item.nodeId !== "other"));
+  assert.ok(Buffer.byteLength(JSON.stringify(reference)) <= grounding.DEPLOYMENT_REFERENCE_MAX_BYTES);
+  let calls = 0;
+  await assert.rejects(deployment.generateDeploymentDraft(payload, "bicep", "界".repeat(400_000), async () => {
+    calls++;
+    return JSON.stringify(draft());
+  }), (error) => error instanceof deployment.DeploymentDraftError && error.diagnostics[0].code === "evidence_too_large");
+  assert.equal(calls, 0);
+});
+
+test("bounded correction preserves the exact grounded wrapper and requested format instead of returning an offline fallback", async () => {
+  const calls = [];
+  const result = await deployment.generateDeploymentDraft(payload, "powershell", "No deployment.", async (instructions, input) => {
+    calls.push({ instructions, input });
+    const size = Buffer.byteLength(instructions) + (typeof input === "string" ? Buffer.byteLength(input) :
+      input.reduce((sum, message) => sum + Buffer.byteLength(message.content), 0));
+    assert.ok(size <= deployment.DEPLOYMENT_INPUT_MAX_BYTES);
+    return calls.length === 1 ? "{}" : JSON.stringify(draftWithSupportingPlan("powershell"));
+  });
+  const wrapper = JSON.parse(calls[0].input);
+  assert.equal(wrapper.format, "powershell");
+  assert.equal(wrapper.referenceStarter.format, "bicep", "Canonical reference syntax does not override requested output syntax");
+  assert.equal(calls[1].input[0].content, calls[0].input);
+  assert.match(calls[1].input[2].content, /referenceStarter remains available/);
+  assert.equal(result.format, "powershell");
+  assert.equal(result.code, draftWithSupportingPlan("powershell").code);
+  let invalidCalls = 0;
+  await assert.rejects(deployment.generateDeploymentDraft(supportDemo, "bicep", "", async () => {
+    invalidCalls++;
+    return "{}";
+  }), deployment.DeploymentDraftError);
+  assert.equal(invalidCalls, 2, "A valid reference cannot turn rejected model output into a successful fallback");
 });
 
 test("ARM validation blocks embedded secrets, unsafe execution resources and oversized templates", () => {
