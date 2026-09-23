@@ -55,7 +55,8 @@ const findingSchema = z.object({
     code: "custom", path: ["sourceUrl"], message: "Source URL must match the selected guidance framework.",
   });
   if (finding.guidanceIds?.some((id) => findReviewGuidance(id)?.framework !== finding.framework)) context.addIssue({
-    code: "custom", path: ["guidanceIds"], message: "Supporting guidance must match the finding's framework.",
+    code: "custom", path: ["guidanceIds"],
+    message: `For framework "${finding.framework}", guidanceIds must be selected only from ${JSON.stringify(REVIEW_GUIDANCE.filter((entry) => entry.framework === finding.framework).map(({ id, url }) => ({ id, sourceUrl: url })))}. Preserve the finding; choose matching guidance or split cross-framework findings.`,
   });
 });
 const reviewShape = {
@@ -88,6 +89,16 @@ export const generatedArchitectureReviewSchema = z.object({
 export type ArchitectureReview = z.infer<typeof architectureReviewSchema>;
 
 export const ARCHITECTURE_REVIEW_JSON_SCHEMA = z.toJSONSchema(generatedArchitectureReviewSchema);
+const generatedFindingJson = ARCHITECTURE_REVIEW_JSON_SCHEMA.properties?.findings;
+if (generatedFindingJson && typeof generatedFindingJson === "object" && generatedFindingJson.items && typeof generatedFindingJson.items === "object" && !Array.isArray(generatedFindingJson.items)) {
+  generatedFindingJson.items.allOf = Object.keys(REVIEW_SOURCES).map((framework) => ({
+    if: { properties: { framework: { const: framework } }, required: ["framework"] },
+    then: { properties: {
+      guidanceIds: { items: { enum: REVIEW_GUIDANCE.filter((entry) => entry.framework === framework).map((entry) => entry.id) } },
+      sourceUrl: { enum: REVIEW_GUIDANCE.filter((entry) => entry.framework === framework).map((entry) => entry.url) },
+    } },
+  }));
+}
 export const ARCHITECTURE_REVIEW_MAX_RESPONSE_BYTES = 128_000;
 
 export const ARCHITECTURE_REVIEW_DISCLAIMER =

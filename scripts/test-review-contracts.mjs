@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   parseArchitectureReview, parseGeneratedArchitectureReview, generateArchitectureReview,
   architectureReviewRequestSchema, ARCHITECTURE_REVIEW_MAX_RESPONSE_BYTES,
+  ARCHITECTURE_REVIEW_JSON_SCHEMA,
 } from "../lib/architecture-review.ts";
 import { legacyReviewRequestSchema, REVIEW_EVIDENCE_MAX_BYTES } from "../lib/review-evidence.ts";
 import { readBoundedJson, RequestBodyError } from "../lib/request-json.ts";
@@ -53,6 +54,12 @@ test("all four guidance families use specific versioned source cards and model g
   assert.equal(REVIEW_GUIDANCE.length, 12);
   assert.equal(new Set(REVIEW_GUIDANCE.map(({ id }) => id)).size, REVIEW_GUIDANCE.length);
   assert.equal(new Set(REVIEW_GUIDANCE.map(({ framework }) => framework)).size, 4);
+  const branches = ARCHITECTURE_REVIEW_JSON_SCHEMA.properties.findings.items.allOf;
+  assert.equal(branches.length, 4);
+  for (const branch of branches) {
+    const framework = branch.if.properties.framework.const;
+    assert.deepEqual(branch.then.properties.guidanceIds.items.enum, REVIEW_GUIDANCE.filter((item) => item.framework === framework).map((item) => item.id));
+  }
   assert.match(REVIEW_GUIDANCE_VERSION, /^\d{4}-\d{2}-\d{2}\.\d+$/);
   for (const guide of REVIEW_GUIDANCE) {
     const url = new URL(guide.url);

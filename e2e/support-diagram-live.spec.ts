@@ -6,8 +6,7 @@ import { writeFile } from "node:fs/promises";
 test.skip(process.env.LIVE_INVOKE_AI !== "true" || !process.env.PLAYWRIGHT_STORAGE_STATE,
   "Explicit hosted AI verification with synthetic screenshot evidence only.");
 
-test("customer support screenshot diagram receives a grounded review and validated code without publication", async ({ page }) => {
-  test.setTimeout(360_000);
+test.beforeEach(async ({ page }) => {
   await page.goto("/diagrammatic");
   await waitForWorkspace(page);
   await page.getByLabel("Architecture JSON file").setInputFiles({
@@ -15,6 +14,10 @@ test("customer support screenshot diagram receives a grounded review and validat
     buffer: Buffer.from(JSON.stringify(supportDemo)),
   });
   await expect(page.locator(".react-flow__node")).toHaveCount(8);
+});
+
+test("customer support screenshot diagram receives a grounded review", async ({ page }) => {
+  test.setTimeout(180_000);
   await page.getByRole("button", { name: "Review my architecture", exact: true }).click();
   const review = page.getByRole("dialog", { name: "Review my architecture", exact: true });
   const reviewResponse = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/ai/review" && response.request().method() === "POST");
@@ -25,7 +28,10 @@ test("customer support screenshot diagram receives a grounded review and validat
   expect(response.status()).toBe(200);
   await expect(review.getByRole("region", { name: "Your personalized review" })).toBeVisible();
   await expect(review.getByRole("region", { name: "Review provenance" })).toContainText("Runtime verified: no");
-  await review.getByRole("button", { name: "Close architecture review" }).click();
+});
+
+test("customer support screenshot diagram receives validated code without publication", async ({ page }) => {
+  test.setTimeout(180_000);
   await page.getByRole("button", { name: "Deploy architecture to Azure", exact: true }).click();
   const deploy = page.getByRole("dialog", { name: "Deploy architecture to Azure", exact: true });
   const codeResponse = page.waitForResponse((candidate) => new URL(candidate.url()).pathname === "/api/ai/deploy" && candidate.request().method() === "POST");
